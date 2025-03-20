@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "./dist",
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": false,
+    "preserveConstEnums": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "target": "es2017"
+  },
+  "exclude": ["node_modules", "**/__tests__", "**/__mocks__", "**/__test_utils__"],
+  "include": ["./src/**/*"]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "castle-cli",
+  "type": "commonjs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "bin": {
+    "castle": "./bin/run.js"
+  },
+  "oclif": {
+    "bin": "castle",
+    "commands": "./dist/commands",
+    "dirname": "castle",
+    "topicSeparator": " "
+  },
+  "dependencies": {
+    "@oclif/core": "^4.2.10",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^18",
+    "ts-node": "^10.9.2"
+  }
+}
