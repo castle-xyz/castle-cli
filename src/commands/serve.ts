@@ -79,7 +79,7 @@ export default class Serve extends Command {
       char: 'p',
       description: 'Port to serve on',
     }),
-    cardId: Flags.string({
+    card: Flags.string({
       char: 'c',
       description: 'Card ID to serve',
     }),
@@ -97,8 +97,8 @@ export default class Serve extends Command {
     }
 
     let cardId = deck.initialCard.cardId;
-    if (flags.cardId) {
-      cardId = flags.cardId;
+    if (flags.card) {
+      cardId = flags.card;
       if (!deck.cards.find((card) => card.cardId == cardId)) {
         this.log(`Card with ID ${cardId} not found in deck.`);
         return;
