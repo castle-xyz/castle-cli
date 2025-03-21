@@ -1,12 +1,17 @@
 import { Command } from '@oclif/core';
-import * as API from '../utils/api';
-import * as config from '../utils/config';
+import open from 'open';
+import * as API from '../utils/api.js';
+import * as config from '../utils/config.js';
 
 export default class Login extends Command {
+  static description = 'Log in to your Castle account';
+
   public async run(): Promise<void> {
     let { pollToken, url } = await API.startCLILogin();
     this.log(`Please open the following URL in your browser to log in:\n${url}`);
     this.log(`Once you've logged in, you can return to the CLI.`);
+
+    await open(url);
 
     while (true) {
       await new Promise((resolve) => setTimeout(resolve, 1000));

@@ -1,32 +1,46 @@
 {
   "name": "castle-cli",
-  "type": "commonjs",
-  "version": "1.0.0",
+  "type": "module",
+  "version": "1.0.1",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "local": "npm run build && ./bin/run.js"
+    "local": "npm run build && ./bin/run.js",
+    "postpack": "rm -f oclif.manifest.json",
+    "prepack": "oclif manifest && oclif readme"
   },
   "author": "",
   "license": "ISC",
   "bin": {
     "castle": "./bin/run.js"
   },
+  "files": [
+    "./bin",
+    "./dist",
+    "./oclif.manifest.json"
+  ],
   "oclif": {
     "bin": "castle",
     "commands": "./dist/commands",
     "dirname": "castle",
-    "topicSeparator": " "
+    "topicSeparator": " ",
+    "plugins": [
+      "@oclif/plugin-help"
+    ]
   },
   "dependencies": {
     "@oclif/core": "^4.2.10",
+    "@oclif/plugin-help": "^6.2.27",
     "axios": "^1.8.4",
+    "glob": "^11.0.1",
+    "open": "^10.1.0",
     "ospath": "^1.2.2",
     "typescript": "^5.8.2"
   },
   "devDependencies": {
     "@types/node": "^18",
     "ts-node": "^10.9.2"
-  }
+  },
+  "types": "dist/index.d.ts"
 }

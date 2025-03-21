@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "nodenext",
     "outDir": "./dist",
     "noImplicitReturns": true,
     "noImplicitThis": true,

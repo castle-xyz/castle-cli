@@ -1,0 +1,258 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import Axios from 'axios';
+import { glob } from 'glob';
+
+import * as API from './api.js';
+
+function headerForEntryId(entryId) {
+  return `-- DO NOT MODIFY THIS LINE! castle-cli-config entryId:${entryId}\n\n`;
+}
+
+function removeHeader(script) {
+  let result = script
+    .split('\n')
+    .filter((line) => !line.includes('castle-cli-config'))
+    .join('\n');
+
+  if (result.startsWith('\n')) {
+    result = result.substring(1);
+  }
+
+  if (result.startsWith('\n')) {
+    result = result.substring(1);
+  }
+
+  return result;
+}
+
+export async function cloneCardAsync({ cardId, sceneDataUrl, dir }) {
+  const response = await Axios.get(sceneDataUrl);
+  const sceneData = response.data;
+  const library = sceneData.snapshot.library;
+
+  const entryIds = Object.keys(library);
+
+  const blueprintsDir = path.join(dir, 'blueprints');
+  if (!fs.existsSync(blueprintsDir)) {
+    fs.mkdirSync(blueprintsDir);
+  }
+
+  for (const entryId of entryIds) {
+    const entry = library[entryId];
+    if (entry.entryType == 'actorBlueprint') {
+      const title = entry.title;
+      const components = entry.actorBlueprint.components;
+      const script = components.Script;
+
+      if (script && script.code) {
+        let dedupedTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
+        let filename = path.join(blueprintsDir, `${dedupedTitle}.lua`);
+
+        if (fs.existsSync(filename)) {
+          let counter = 0;
+          while (fs.existsSync(filename)) {
+            counter++;
+            filename = path.join(blueprintsDir, `${dedupedTitle}_${counter}.lua`);
+          }
+          dedupedTitle = `${dedupedTitle}_${counter}`;
+        }
+
+        let codeWithHeader = `${headerForEntryId(entryId)}${script.code}`;
+
+        fs.writeFileSync(filename, codeWithHeader);
+      }
+    }
+  }
+}
+
+export async function readDeckFromDirectoryAsync({ dir, log }) {
+  if (!dir) {
+    dir = '.';
+  }
+
+  let filePath = path.join(dir, 'deck.json');
+
+  if (!fs.existsSync(filePath)) {
+    log(`No deck.json found in the current directory.`);
+    return;
+  }
+
+  let deckId = null;
+  try {
+    const deckConfig = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    deckId = deckConfig.deckId;
+  } catch (e) {
+    log(`Error reading deck.json: ${e}`);
+    return;
+  }
+
+  if (!deckId) {
+    log(`No deck ID found in deck.json.`);
+    return;
+  }
+
+  const deck = await API.deck(deckId);
+  if (!deck) {
+    log(`Deck with ID ${deckId} not found.`);
+    return;
+  }
+
+  return deck;
+}
+
+export async function pullCardAsync({ cardId, sceneDataUrl, dir }) {
+  const response = await Axios.get(sceneDataUrl);
+  const sceneData = response.data;
+  const library = sceneData.snapshot.library;
+
+  const entryIds = Object.keys(library);
+
+  const blueprintsDir = path.join(dir, 'blueprints');
+  if (!fs.existsSync(blueprintsDir)) {
+    fs.mkdirSync(blueprintsDir);
+  }
+
+  const entryIdToScriptFilename = {};
+
+  const scriptFiles = await glob('**/*.lua', {
+    cwd: blueprintsDir,
+    ignore: ['node_modules/**'],
+  });
+
+  for (const scriptFile of scriptFiles) {
+    try {
+      let scriptData = fs.readFileSync(path.join(blueprintsDir, scriptFile), 'utf8');
+      let lines = scriptData.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('castle-cli-config')) {
+          try {
+            let entryId = lines[0].split('entryId:')[1].split(' ')[0].trim();
+            entryIdToScriptFilename[entryId] = scriptFile;
+          } catch (e) {}
+
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  for (const entryId of entryIds) {
+    const entry = library[entryId];
+    if (entry.entryType == 'actorBlueprint') {
+      const title = entry.title;
+      const components = entry.actorBlueprint.components;
+      const script = components.Script;
+
+      if (script && script.code) {
+        let filename;
+
+        if (entryIdToScriptFilename[entryId]) {
+          filename = path.join(blueprintsDir, entryIdToScriptFilename[entryId]);
+        } else {
+          let dedupedTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
+          filename = path.join(blueprintsDir, `${dedupedTitle}.lua`);
+
+          if (fs.existsSync(filename)) {
+            let counter = 0;
+            while (fs.existsSync(filename)) {
+              counter++;
+              filename = path.join(blueprintsDir, `${dedupedTitle}_${counter}.lua`);
+            }
+            dedupedTitle = `${dedupedTitle}_${counter}`;
+          }
+        }
+
+        let codeWithHeader = `${headerForEntryId(entryId)}${script.code}`;
+
+        fs.writeFileSync(filename, codeWithHeader);
+      }
+    }
+  }
+}
+
+interface DeckInput {
+  deckId: string;
+}
+
+interface CardInput {
+  cardId: string;
+  sceneData: object;
+}
+
+async function updateCardAndDeckAsync(deck: DeckInput, card: CardInput) {
+  await API.updateCardAndDeckV2(
+    {
+      blocks: [],
+      ...card,
+    },
+    deck
+  );
+}
+
+export async function pushCardAsync({ deckId, cardId, sceneDataUrl, dir }) {
+  const response = await Axios.get(sceneDataUrl);
+  let sceneData = response.data;
+  let library = sceneData.snapshot.library;
+
+  const entryIds = Object.keys(library);
+
+  const blueprintsDir = path.join(dir, 'blueprints');
+  if (!fs.existsSync(blueprintsDir)) {
+    fs.mkdirSync(blueprintsDir);
+  }
+
+  const entryIdToScriptFilename = {};
+
+  const scriptFiles = await glob('**/*.lua', {
+    cwd: blueprintsDir,
+    ignore: ['node_modules/**'],
+  });
+
+  for (const scriptFile of scriptFiles) {
+    try {
+      let scriptData = fs.readFileSync(path.join(blueprintsDir, scriptFile), 'utf8');
+      let lines = scriptData.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('castle-cli-config')) {
+          try {
+            let entryId = lines[0].split('entryId:')[1].split(' ')[0].trim();
+            entryIdToScriptFilename[entryId] = scriptFile;
+          } catch (e) {}
+
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  let modified = false;
+
+  for (const entryId of entryIds) {
+    const entry = library[entryId];
+    if (entry.entryType == 'actorBlueprint') {
+      const components = entry.actorBlueprint.components;
+      const script = components.Script;
+
+      if (script && script.code) {
+        if (entryIdToScriptFilename[entryId]) {
+          let filename = path.join(blueprintsDir, entryIdToScriptFilename[entryId]);
+          let fileScript = fs.readFileSync(filename, 'utf8');
+
+          let codeWithoutHeader = removeHeader(fileScript);
+
+          if (codeWithoutHeader.trim() !== script.code.trim()) {
+            modified = true;
+
+            library[entryId].actorBlueprint.components.Script.code = codeWithoutHeader;
+          }
+        }
+      }
+    }
+  }
+
+  if (modified) {
+    sceneData.snapshot.library = library;
+    await updateCardAndDeckAsync({ deckId }, { cardId, sceneData });
+  }
+}

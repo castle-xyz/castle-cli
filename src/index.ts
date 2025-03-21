@@ -1,1 +1,1 @@
-console.log('yo')
+export {run} from '@oclif/core'

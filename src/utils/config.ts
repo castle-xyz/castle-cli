@@ -1,4 +1,4 @@
-const ospath = require('ospath');
+import ospath from 'ospath';
 import * as path from 'path';
 import * as fs from 'fs';
 
