@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "local": "npm run build && ./bin/run.js"
   },
   "author": "",
   "license": "ISC",
@@ -20,6 +21,8 @@
   },
   "dependencies": {
     "@oclif/core": "^4.2.10",
+    "axios": "^1.8.4",
+    "ospath": "^1.2.2",
     "typescript": "^5.8.2"
   },
   "devDependencies": {
