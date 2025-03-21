@@ -1,14 +1,14 @@
 {
   "name": "castle-cli",
   "type": "module",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "local": "npm run build && ./bin/run.js",
     "postpack": "rm -f oclif.manifest.json",
-    "prepack": "oclif manifest && oclif readme"
+    "prepack": "npm run build && oclif manifest && oclif readme"
   },
   "author": "",
   "license": "ISC",
@@ -33,9 +33,12 @@
     "@oclif/core": "^4.2.10",
     "@oclif/plugin-help": "^6.2.27",
     "axios": "^1.8.4",
+    "express": "^4.21.2",
     "glob": "^11.0.1",
+    "node-watch": "^0.7.4",
     "open": "^10.1.0",
     "ospath": "^1.2.2",
+    "portfinder": "^1.0.35",
     "typescript": "^5.8.2"
   },
   "devDependencies": {

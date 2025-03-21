@@ -1,4 +1,4 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args, Command } from '@oclif/core';
 import { glob } from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';

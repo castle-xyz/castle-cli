@@ -92,7 +92,12 @@ export async function readDeckFromDirectoryAsync({ dir, log }) {
     return;
   }
 
-  const deck = await API.deck(deckId);
+  let deck;
+
+  try {
+    deck = await API.deck(deckId);
+  } catch (e) {}
+
   if (!deck) {
     log(`Deck with ID ${deckId} not found.`);
     return;
@@ -190,7 +195,7 @@ async function updateCardAndDeckAsync(deck: DeckInput, card: CardInput) {
   );
 }
 
-export async function pushCardAsync({ deckId, cardId, sceneDataUrl, dir }) {
+export async function newSceneDataForCardAsync({ sceneDataUrl, dir }) {
   const response = await Axios.get(sceneDataUrl);
   let sceneData = response.data;
   let library = sceneData.snapshot.library;
@@ -253,6 +258,18 @@ export async function pushCardAsync({ deckId, cardId, sceneDataUrl, dir }) {
 
   if (modified) {
     sceneData.snapshot.library = library;
+  }
+
+  return {
+    sceneData,
+    modified,
+  };
+}
+
+export async function pushCardAsync({ deckId, cardId, sceneDataUrl, dir }) {
+  let { sceneData, modified } = await newSceneDataForCardAsync({ sceneDataUrl, dir });
+
+  if (modified) {
     await updateCardAndDeckAsync({ deckId }, { cardId, sceneData });
   }
 }

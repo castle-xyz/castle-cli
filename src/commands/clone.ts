@@ -31,7 +31,12 @@ export default class Clone extends Command {
     const deckId = args.deck;
     const directory = args.directory;
 
-    const deck = await API.deck(deckId);
+    let deck;
+
+    try {
+      deck = await API.deck(deckId);
+    } catch (e) {}
+
     if (!deck) {
       this.log(`Deck with ID ${deckId} not found.`);
       return;

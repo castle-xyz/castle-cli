@@ -1,7 +1,7 @@
 import Axios from 'axios';
 import * as config from './config.js';
 
-const DEBUG = true;
+const DEBUG = false;
 
 const API_HOST = DEBUG ? 'http://localhost:1380/graphql' : 'https://api.castle.xyz/graphql';
 
@@ -102,6 +102,9 @@ export const deck = async (deckId) => {
     `query($deckId: ID!) {
       deck(deckId: $deckId) {
         deckId
+        initialCard {
+          cardId
+        }
         cards {
           cardId
           sceneDataUrl
