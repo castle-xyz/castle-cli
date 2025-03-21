@@ -32,7 +32,7 @@ const HTML = `
         }
 
         async function getVersion() {
-          var response = await fetch('/version');
+          var response = await fetch('/version?version=' + currentVersion);
           var versionJson = await response.json();
           return versionJson.version;
         }
@@ -46,18 +46,20 @@ const HTML = `
         }
 
         async function checkForUpdate() {
-          var version = await getVersion();
-          console.log('Current version:', currentVersion, 'New version:', version);
-          if (version > currentVersion) {
-            currentVersion = version;
-            await update();
-            showMessage('Reloaded from file change');
-          }
+          try {
+            var version = await getVersion();
+            if (version > currentVersion) {
+              currentVersion = version;
+              await update();
+              showMessage('Reloaded from file change');
+            }
+          } catch (e) {}
+
+          setTimeout(checkForUpdate, 100);
         }
 
-        setTimeout(update, 10);
-
-        setInterval(checkForUpdate, 500);
+        setTimeout(update, 100);
+        setTimeout(checkForUpdate, 1000);
       </script>
     </div>
   </body>
@@ -165,7 +167,32 @@ export default class Serve extends Command {
       });
 
       app.get('/version', (req, res) => {
-        res.json({ version });
+        const clientVersion = parseInt(req.query.version as string) || 0;
+
+        // If client's version is outdated, respond immediately
+        if (clientVersion < version) {
+          return res.json({ version });
+        }
+
+        // Otherwise, wait for a change (long polling)
+        const timeout = setTimeout(() => {
+          res.json({ version }); // Return current version after timeout
+        }, 30000); // 30 second timeout
+
+        // Store the request to respond when version changes
+        const checkInterval = setInterval(() => {
+          if (clientVersion < version) {
+            clearTimeout(timeout);
+            clearInterval(checkInterval);
+            res.json({ version });
+          }
+        }, 100);
+
+        // Clean up on connection close
+        res.on('close', () => {
+          clearTimeout(timeout);
+          clearInterval(checkInterval);
+        });
       });
 
       app.get('/scene-data', async (req, res) => {
