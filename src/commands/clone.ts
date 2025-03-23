@@ -5,6 +5,34 @@ import * as path from 'path';
 import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
 
+const DEFAULT_FILES = [
+  {
+    path: '.gitignore',
+    content: `.castle/cache
+**/.DS_Store
+`,
+  },
+  {
+    path: '.cursor/mcp.json',
+    content: `{
+  "mcpServers": {
+    "castle": {
+      "command": "npx",
+      "args": ["-y", "castle-cli", "mcp"]
+    }
+  }
+}`,
+  },
+  /*{
+    path: '.vscode/settings.json',
+    content: `{
+  "files.exclude": {
+    ".castle/cache": true
+  }
+}`,
+  },*/
+];
+
 export default class Clone extends Command {
   static description = 'Clone a deck';
 
@@ -58,6 +86,23 @@ export default class Clone extends Command {
 
     fs.mkdirSync(deckDirectory);
 
+    for (let file of DEFAULT_FILES) {
+      let filePath = path.join(deckDirectory, file.path);
+      let fileDir = path.dirname(filePath);
+
+      if (!fs.existsSync(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true });
+      }
+
+      fs.writeFileSync(filePath, file.content);
+    }
+
+    let castleDirectory = path.join(deckDirectory, '.castle');
+    fs.mkdirSync(castleDirectory);
+
+    let castleCacheDirectory = path.join(castleDirectory, 'cache');
+    fs.mkdirSync(castleCacheDirectory);
+
     let deckFileName = path.join(deckDirectory, 'deck.json');
     fs.writeFileSync(
       deckFileName,
@@ -92,7 +137,8 @@ export default class Clone extends Command {
       await Decks.cloneCardAsync({
         cardId: card.cardId,
         sceneDataUrl: card.sceneDataUrl,
-        dir: cardDirectory,
+        cardDir: cardDirectory,
+        deckDir: deckDirectory,
       });
     }
 

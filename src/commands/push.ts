@@ -47,8 +47,8 @@ export default class Push extends Command {
         await Decks.pushCardAsync({
           cardId: card.cardId,
           deckId: deck.deckId,
-          sceneDataUrl: card.sceneDataUrl,
-          dir: path.join(directory, cardIdToDirectory[cardId]),
+          cardDir: path.join(directory, cardIdToDirectory[cardId]),
+          deckDir: directory,
         });
       }
     }

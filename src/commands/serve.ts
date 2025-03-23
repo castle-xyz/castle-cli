@@ -197,8 +197,9 @@ export default class Serve extends Command {
 
       app.get('/scene-data', async (req, res) => {
         let response = await Decks.newSceneDataForCardAsync({
-          sceneDataUrl: card.sceneDataUrl,
-          dir: path.join(directory, cardDirectory),
+          cardId,
+          deckDir: directory,
+          cardDir: path.join(directory, cardDirectory),
         });
 
         res.json(response.sceneData);

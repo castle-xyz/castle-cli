@@ -26,14 +26,55 @@ function removeHeader(script) {
   return result;
 }
 
-export async function cloneCardAsync({ cardId, sceneDataUrl, dir }) {
+function getCastleDir(deckDir) {
+  let result = path.join(deckDir, '.castle');
+
+  if (!fs.existsSync(result)) {
+    fs.mkdirSync(result, { recursive: true });
+  }
+
+  return result;
+}
+
+function getCacheDir(deckDir) {
+  let result = path.join(deckDir, '.castle', 'cache');
+
+  if (!fs.existsSync(result)) {
+    fs.mkdirSync(result, { recursive: true });
+  }
+
+  return result;
+}
+
+export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
   const response = await Axios.get(sceneDataUrl);
   const sceneData = response.data;
+  const cacheDir = getCacheDir(deckDir);
+  const cacheFilePath = path.join(cacheDir, `${cardId}.json`);
+
+  fs.writeFileSync(cacheFilePath, JSON.stringify(sceneData, null, 2));
+
+  let castleDir = getCastleDir(deckDir);
+  let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
+  let cardVersions = {};
+
+  try {
+    cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));
+  } catch (e) {}
+
+  cardVersions[cardId] = sceneDataUrl;
+  fs.writeFileSync(cardVersionsFilePath, JSON.stringify(cardVersions, null, 2));
+
+  return sceneData;
+}
+
+export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
+  const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(dir, 'blueprints');
+  const blueprintsDir = path.join(cardDir, 'blueprints');
   if (!fs.existsSync(blueprintsDir)) {
     fs.mkdirSync(blueprintsDir);
   }
@@ -106,14 +147,13 @@ export async function readDeckFromDirectoryAsync({ dir, log }) {
   return deck;
 }
 
-export async function pullCardAsync({ cardId, sceneDataUrl, dir }) {
-  const response = await Axios.get(sceneDataUrl);
-  const sceneData = response.data;
+export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
+  const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(dir, 'blueprints');
+  const blueprintsDir = path.join(cardDir, 'blueprints');
   if (!fs.existsSync(blueprintsDir)) {
     fs.mkdirSync(blueprintsDir);
   }
@@ -195,14 +235,15 @@ async function updateCardAndDeckAsync(deck: DeckInput, card: CardInput) {
   );
 }
 
-export async function newSceneDataForCardAsync({ sceneDataUrl, dir }) {
-  const response = await Axios.get(sceneDataUrl);
-  let sceneData = response.data;
+export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
+  const cacheDir = getCacheDir(deckDir);
+  const sceneData = JSON.parse(fs.readFileSync(path.join(cacheDir, `${cardId}.json`), 'utf8'));
+
   let library = sceneData.snapshot.library;
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(dir, 'blueprints');
+  const blueprintsDir = path.join(cardDir, 'blueprints');
   if (!fs.existsSync(blueprintsDir)) {
     fs.mkdirSync(blueprintsDir);
   }
@@ -266,8 +307,8 @@ export async function newSceneDataForCardAsync({ sceneDataUrl, dir }) {
   };
 }
 
-export async function pushCardAsync({ deckId, cardId, sceneDataUrl, dir }) {
-  let { sceneData, modified } = await newSceneDataForCardAsync({ sceneDataUrl, dir });
+export async function pushCardAsync({ deckId, cardId, cardDir, deckDir }) {
+  let { sceneData, modified } = await newSceneDataForCardAsync({ cardDir, deckDir, cardId });
 
   if (modified) {
     await updateCardAndDeckAsync({ deckId }, { cardId, sceneData });

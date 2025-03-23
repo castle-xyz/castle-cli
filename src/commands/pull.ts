@@ -47,7 +47,8 @@ export default class Pull extends Command {
         await Decks.pullCardAsync({
           cardId: card.cardId,
           sceneDataUrl: card.sceneDataUrl,
-          dir: path.join(directory, cardIdToDirectory[cardId]),
+          cardDir: path.join(directory, cardIdToDirectory[cardId]),
+          deckDir: directory,
         });
       } else {
         this.log(`No directory found for card ${card.cardId}. Cloning...`);
@@ -71,7 +72,8 @@ export default class Pull extends Command {
         await Decks.cloneCardAsync({
           cardId: card.cardId,
           sceneDataUrl: card.sceneDataUrl,
-          dir: cardDirectory,
+          cardDir: cardDirectory,
+          deckDir: directory,
         });
       }
     }
