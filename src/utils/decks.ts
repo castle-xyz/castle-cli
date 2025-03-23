@@ -46,6 +46,16 @@ function getCacheDir(deckDir) {
   return result;
 }
 
+function getBlueprintsDir(cardDir) {
+  // blueprints can be moved anywhere, this is just the default
+  const blueprintsDir = path.join(cardDir, 'blueprints');
+  if (!fs.existsSync(blueprintsDir)) {
+    fs.mkdirSync(blueprintsDir);
+  }
+
+  return blueprintsDir;
+}
+
 export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
   const response = await Axios.get(sceneDataUrl);
   const sceneData = response.data;
@@ -74,10 +84,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(cardDir, 'blueprints');
-  if (!fs.existsSync(blueprintsDir)) {
-    fs.mkdirSync(blueprintsDir);
-  }
+  const blueprintsDir = getBlueprintsDir(cardDir);
 
   for (const entryId of entryIds) {
     const entry = library[entryId];
@@ -153,21 +160,16 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(cardDir, 'blueprints');
-  if (!fs.existsSync(blueprintsDir)) {
-    fs.mkdirSync(blueprintsDir);
-  }
-
   const entryIdToScriptFilename = {};
 
   const scriptFiles = await glob('**/*.lua', {
-    cwd: blueprintsDir,
+    cwd: cardDir,
     ignore: ['node_modules/**'],
   });
 
   for (const scriptFile of scriptFiles) {
     try {
-      let scriptData = fs.readFileSync(path.join(blueprintsDir, scriptFile), 'utf8');
+      let scriptData = fs.readFileSync(path.join(cardDir, scriptFile), 'utf8');
       let lines = scriptData.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes('castle-cli-config')) {
@@ -193,8 +195,10 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
         let filename;
 
         if (entryIdToScriptFilename[entryId]) {
-          filename = path.join(blueprintsDir, entryIdToScriptFilename[entryId]);
+          filename = path.join(cardDir, entryIdToScriptFilename[entryId]);
         } else {
+          const blueprintsDir = getBlueprintsDir(cardDir);
+
           let dedupedTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
           filename = path.join(blueprintsDir, `${dedupedTitle}.lua`);
 
@@ -243,21 +247,16 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 
   const entryIds = Object.keys(library);
 
-  const blueprintsDir = path.join(cardDir, 'blueprints');
-  if (!fs.existsSync(blueprintsDir)) {
-    fs.mkdirSync(blueprintsDir);
-  }
-
   const entryIdToScriptFilename = {};
 
   const scriptFiles = await glob('**/*.lua', {
-    cwd: blueprintsDir,
+    cwd: cardDir,
     ignore: ['node_modules/**'],
   });
 
   for (const scriptFile of scriptFiles) {
     try {
-      let scriptData = fs.readFileSync(path.join(blueprintsDir, scriptFile), 'utf8');
+      let scriptData = fs.readFileSync(path.join(cardDir, scriptFile), 'utf8');
       let lines = scriptData.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes('castle-cli-config')) {
@@ -282,7 +281,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 
       if (script && script.code) {
         if (entryIdToScriptFilename[entryId]) {
-          let filename = path.join(blueprintsDir, entryIdToScriptFilename[entryId]);
+          let filename = path.join(cardDir, entryIdToScriptFilename[entryId]);
           let fileScript = fs.readFileSync(filename, 'utf8');
 
           let codeWithoutHeader = removeHeader(fileScript);
