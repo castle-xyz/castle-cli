@@ -53,11 +53,29 @@ const HTML = `
               await update();
               showMessage('Reloaded from file change');
             }
-          } catch (e) {}
+          } catch (e) {
+            setTimeout(checkForUpdate, 2000);
+            return;
+          }
 
           setTimeout(checkForUpdate, 100);
         }
 
+        function logger(log) {
+          fetch('/log', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(log),
+          });
+        }
+
+        function registerLogs() {
+          window.castlexyz.registerLogListener(logger);
+        }
+
+        setTimeout(registerLogs, 100);
         setTimeout(update, 100);
         setTimeout(checkForUpdate, 1000);
       </script>
@@ -157,7 +175,7 @@ export default class Serve extends Command {
     let version = 0;
 
     watch.default(path.join(directory, cardDirectory), { recursive: true }, async (evt, name) => {
-      console.log(`File ${name} changed. Reloading...`);
+      this.log(`File ${name} changed. Reloading...`);
       version++;
     });
 
@@ -207,11 +225,20 @@ export default class Serve extends Command {
         res.json(response.sceneData);
       });
 
+      app.post('/log', express.json(), (req, res) => {
+        try {
+          let log = req.body;
+          this.log(`${log.blueprintTitle}: ${log.log}`);
+        } catch (e) {}
+
+        res.sendStatus(200);
+      });
+
       let url = `http://localhost:${port}`;
 
       app.listen(port, () => {
-        console.log(`Server is running on ${url}`);
-        console.log('Listening for changes...\n');
+        this.log(`Server is running on ${url}`);
+        this.log('Listening for changes...\n');
 
         setTimeout(async () => {
           await open(url);
