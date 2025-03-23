@@ -8,7 +8,7 @@
     "build": "tsc",
     "local": "npm run build && ./bin/run.js",
     "postpack": "rm -f oclif.manifest.json",
-    "prepack": "npm run build && oclif manifest && oclif readme"
+    "prepack": "npm version patch && npm run build && oclif manifest && oclif readme"
   },
   "author": "",
   "license": "ISC",
@@ -30,6 +30,7 @@
     ]
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.7.0",
     "@oclif/core": "^4.2.10",
     "@oclif/plugin-help": "^6.2.27",
     "axios": "^1.8.4",

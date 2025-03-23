@@ -14,6 +14,7 @@ const USER_FIELDS = `
 async function API(query, variables = {}) {
   let headers = {
     'X-OS': 'cli',
+    'X-Scene-Creator-Version': 'latest',
     Accept: 'application/json',
     'Content-Type': 'application/json',
   };
