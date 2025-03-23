@@ -63,6 +63,7 @@ export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
   const cacheFilePath = path.join(cacheDir, `${cardId}.json`);
 
   fs.writeFileSync(cacheFilePath, JSON.stringify(sceneData, null, 2));
+  fs.writeFileSync(path.join(cacheDir, `${cardId}.version`), sceneDataUrl);
 
   let castleDir = getCastleDir(deckDir);
   let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
@@ -311,5 +312,33 @@ export async function pushCardAsync({ deckId, cardId, cardDir, deckDir }) {
 
   if (modified) {
     await updateCardAndDeckAsync({ deckId }, { cardId, sceneData });
+  }
+}
+
+export async function syncCardVersionsAsync({ deckDir }) {
+  let castleDir = getCastleDir(deckDir);
+  let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
+  let cardVersions = {};
+
+  try {
+    cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));
+  } catch (e) {}
+
+  let cardIds = Object.keys(cardVersions);
+  let cacheDir = getCacheDir(deckDir);
+
+  for (let cardId of cardIds) {
+    console.log(`checking card ${cardId}...`);
+    const sceneDataUrl = cardVersions[cardId];
+
+    let cachedSceneDataUrl = '';
+    try {
+      cachedSceneDataUrl = fs.readFileSync(path.join(cacheDir, `${cardId}.version`), 'utf8').trim();
+    } catch (e) {}
+
+    if (cachedSceneDataUrl != sceneDataUrl) {
+      console.log(`Syncing card ${cardId}...`);
+      await syncSceneDataAsync({ deckDir, cardId, sceneDataUrl });
+    }
   }
 }

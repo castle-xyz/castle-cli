@@ -93,6 +93,8 @@ export default class Serve extends Command {
 
     const directory = args.directory;
 
+    await Decks.syncCardVersionsAsync({ deckDir: directory });
+
     let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: this.log.bind(this) });
     if (!deck) {
       return;
