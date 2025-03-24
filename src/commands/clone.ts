@@ -8,7 +8,7 @@ import * as Decks from '../utils/decks.js';
 const DEFAULT_FILES = [
   {
     path: '.gitignore',
-    content: `.castle/cache
+    content: `.castle/.cache
 **/.DS_Store
 `,
   },
@@ -23,14 +23,14 @@ const DEFAULT_FILES = [
   }
 }`,
   },
-  /*{
+  {
     path: '.vscode/settings.json',
     content: `{
   "files.exclude": {
-    ".castle/cache": true
+    ".castle/.cache": true
   }
 }`,
-  },*/
+  },
 ];
 
 export default class Clone extends Command {
@@ -100,7 +100,7 @@ export default class Clone extends Command {
     let castleDirectory = path.join(deckDirectory, '.castle');
     fs.mkdirSync(castleDirectory);
 
-    let castleCacheDirectory = path.join(castleDirectory, 'cache');
+    let castleCacheDirectory = path.join(castleDirectory, '.cache');
     fs.mkdirSync(castleCacheDirectory);
 
     let deckFileName = path.join(deckDirectory, 'deck.json');
