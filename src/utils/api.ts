@@ -55,17 +55,21 @@ function handleAPIError(response) {
 }
 
 export const me = async () => {
-  let response = await API(
-    `query {
+  try {
+    let response = await API(
+      `query {
       me {
         ${USER_FIELDS}
       }
     }`
-  );
+    );
 
-  handleAPIError(response);
+    handleAPIError(response);
 
-  return response.data.me;
+    return response.data.me;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const startCLILogin = async () => {
@@ -98,6 +102,18 @@ export const pollForCLILogin = async (pollToken) => {
   return response.data.pollForCLILogin;
 };
 
+export const logout = async () => {
+  let response = await API(
+    `mutation {
+      logout
+    }`
+  );
+
+  handleAPIError(response);
+
+  return response.data.logout;
+};
+
 export const deck = async (deckId) => {
   let response = await API(
     `query($deckId: ID!) {
@@ -120,22 +136,36 @@ export const deck = async (deckId) => {
   return response.data.deck;
 };
 
-export const updateCardAndDeckV2 = async (card, deck) => {
+export const createSceneDataUploadConfig = async (cardIds) => {
   let response = await API(
-    `mutation($card: CardInput!, $deck: DeckInput!, $isAutosave: Boolean) {
-      updateCardAndDeckV2(card: $card, deck: $deck, isAutosave: $isAutosave) {
-        card {
-          cardId
-        }
-        deck {
-          deckId
-        }
+    `mutation($cardIds: [ID!]!) {
+      createSceneDataUploadConfig(cardIds: $cardIds) {
+        cardId
+        uploadId
+        postUrl
+        postFields
       }
     }`,
-    { card, deck, isAutosave: false }
+    { cardIds }
   );
 
   handleAPIError(response);
 
-  return response.data.updateCardAndDeckV2;
+  return response.data.createSceneDataUploadConfig;
+};
+
+export const uploadSceneData = async (cards) => {
+  let response = await API(
+    `mutation($cards: [CardSceneDataInput!]!, $isAutosave: Boolean) {
+      uploadSceneData(cards: $cards, isAutosave: $isAutosave) {
+        cardId
+        sceneDataUrl
+      }
+    }`,
+    { cards, isAutosave: false }
+  );
+
+  handleAPIError(response);
+
+  return response.data.uploadSceneData;
 };

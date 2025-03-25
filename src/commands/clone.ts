@@ -7,6 +7,10 @@ import * as Decks from '../utils/decks.js';
 
 const DEFAULT_FILES = [
   {
+    path: '.castle/cli_api_version',
+    content: `1`,
+  },
+  {
     path: '.gitignore',
     content: `.castle/.cache
 **/.DS_Store

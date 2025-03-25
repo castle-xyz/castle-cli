@@ -38,7 +38,7 @@ export function getToken() {
   return config ? config.token : null;
 }
 
-export function setToken(token: string) {
+export function setToken(token: string | null) {
   const config = readConfigFile('config.json') || {};
   config.token = token;
   writeConfigFile('config.json', config);

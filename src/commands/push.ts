@@ -1,11 +1,12 @@
-import { Args, Command } from '@oclif/core';
+import { Args } from '@oclif/core';
 import { glob } from 'glob';
+import { BaseCommand } from '../baseCommand.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
 
-export default class Push extends Command {
+export default class Push extends BaseCommand<typeof Push> {
   static description = 'Push updates to a deck';
 
   static args = {
@@ -17,6 +18,8 @@ export default class Push extends Command {
   };
 
   public async run(): Promise<void> {
+    await this.loginRequiredAsync();
+
     const { args } = await this.parse(Push);
 
     const directory = args.directory;
@@ -40,20 +43,23 @@ export default class Push extends Command {
       } catch (e) {}
     }
 
+    let cardIds: string[] = [];
     for (let card of deck.cards) {
       let cardId = card.cardId;
 
       if (cardIdToDirectory[cardId]) {
         this.log(`Pushing updates for card ${card.cardId}...`);
-
-        await Decks.pushCardAsync({
-          cardId: card.cardId,
-          deckId: deck.deckId,
-          cardDir: path.join(directory, cardIdToDirectory[cardId]),
-          deckDir: directory,
-        });
+        cardIds.push(cardId);
       }
     }
+
+    await Decks.pushCardsAsync({
+      deckDir: directory,
+      cards: cardIds.map((cardId) => ({
+        cardId,
+        cardDir: path.join(directory, cardIdToDirectory[cardId]),
+      })),
+    });
 
     this.log('Push complete');
   }

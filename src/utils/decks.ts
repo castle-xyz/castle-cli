@@ -317,25 +317,6 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
   await writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle });
 }
 
-interface DeckInput {
-  deckId: string;
-}
-
-interface CardInput {
-  cardId: string;
-  sceneData: object;
-}
-
-async function updateCardAndDeckAsync(deck: DeckInput, card: CardInput) {
-  await API.updateCardAndDeckV2(
-    {
-      blocks: [],
-      ...card,
-    },
-    deck
-  );
-}
-
 async function getEntryIdToScriptFilenameAsync(cardDir) {
   const entryIdToScriptFilename = {};
 
@@ -494,19 +475,85 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
     }
   }
 
+  /*
+  console.log(`modifiedLibrary: ${modifiedLibrary}`);
+  console.log(`modifiedLayout: ${modifiedLayout}`);*/
+
   return {
     sceneData,
     modified: modifiedLibrary || modifiedLayout,
   };
 }
 
-export async function pushCardAsync({ deckId, cardId, cardDir, deckDir }) {
+async function pushCardAsync({ cardId, cardDir, deckDir }) {
   let { sceneData, modified } = await newSceneDataForCardAsync({ cardDir, deckDir, cardId });
 
   if (modified) {
-    await updateCardAndDeckAsync({ deckId }, { cardId, sceneData });
+    return {
+      cardId,
+      sceneData,
+    };
+  }
 
-    // TODO: update sceneDataUrl
+  return null;
+}
+
+export async function pushCardsAsync({ deckDir, cards }) {
+  let cardIdsToSceneData: any = {};
+
+  for (let card of cards) {
+    let cardData = await pushCardAsync({ cardId: card.cardId, cardDir: card.cardDir, deckDir });
+    if (cardData) {
+      cardIdsToSceneData[cardData.cardId] = cardData.sceneData;
+    }
+  }
+
+  if (_.keys(cardIdsToSceneData).length == 0) {
+    return;
+  }
+
+  let sceneDataUploadConfigs = await API.createSceneDataUploadConfig(_.keys(cardIdsToSceneData));
+  let uploads: any = [];
+
+  for (let i = 0; i < sceneDataUploadConfigs.length; i++) {
+    let sceneDataUploadConfig = sceneDataUploadConfigs[i];
+    let cardId = sceneDataUploadConfig.cardId;
+
+    try {
+      let sceneData = cardIdsToSceneData[cardId];
+
+      const formData = new FormData();
+
+      formData.append('Content-Type', 'application/json');
+
+      Object.entries(sceneDataUploadConfig.postFields).forEach(([k, v]) => {
+        formData.append(k, `${v}`);
+      });
+
+      formData.append('file', new Blob([JSON.stringify(sceneData)]));
+
+      await Axios.post(sceneDataUploadConfig.postUrl, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      uploads.push({
+        cardId,
+        uploadId: sceneDataUploadConfig.uploadId,
+      });
+    } catch (e) {
+      console.warn(`error uploading scene data for card ${cardId}: ${e}`);
+    }
+  }
+
+  let uploadResults = await API.uploadSceneData(uploads);
+  for (let uploadResult of uploadResults) {
+    await syncSceneDataAsync({
+      deckDir,
+      cardId: uploadResult.cardId,
+      sceneDataUrl: uploadResult.sceneDataUrl,
+    });
   }
 }
 
