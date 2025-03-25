@@ -9,6 +9,7 @@ const DEFAULT_FILES = [
   {
     path: '.castle/cli_api_version',
     content: `1`,
+    required: true,
   },
   {
     path: '.gitignore',
@@ -54,6 +55,10 @@ export default class Clone extends Command {
       description: 'Replace the directory if it already exists',
       default: false,
     }),
+    ['skip-optional']: Flags.boolean({
+      description: 'Skip creating optional files .gitignore, .vscode, and .cursor',
+      default: false,
+    }),
   };
 
   public async run(): Promise<void> {
@@ -91,6 +96,10 @@ export default class Clone extends Command {
     fs.mkdirSync(deckDirectory);
 
     for (let file of DEFAULT_FILES) {
+      if (flags['skip-optional'] && !file.required) {
+        continue;
+      }
+
       let filePath = path.join(deckDirectory, file.path);
       let fileDir = path.dirname(filePath);
 
@@ -102,7 +111,9 @@ export default class Clone extends Command {
     }
 
     let castleDirectory = path.join(deckDirectory, '.castle');
-    fs.mkdirSync(castleDirectory);
+    if (!fs.existsSync(castleDirectory)) {
+      fs.mkdirSync(castleDirectory);
+    }
 
     let castleCacheDirectory = path.join(castleDirectory, '.cache');
     fs.mkdirSync(castleCacheDirectory);
