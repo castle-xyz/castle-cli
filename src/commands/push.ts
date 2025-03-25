@@ -48,7 +48,6 @@ export default class Push extends BaseCommand<typeof Push> {
       let cardId = card.cardId;
 
       if (cardIdToDirectory[cardId]) {
-        this.log(`Pushing updates for card ${card.cardId}...`);
         cardIds.push(cardId);
       }
     }

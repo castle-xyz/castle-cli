@@ -505,6 +505,8 @@ export async function pushCardsAsync({ deckDir, cards }) {
     let cardData = await pushCardAsync({ cardId: card.cardId, cardDir: card.cardDir, deckDir });
     if (cardData) {
       cardIdsToSceneData[cardData.cardId] = cardData.sceneData;
+    } else {
+      console.log(`No changes for card ${card.cardId}`);
     }
   }
 
@@ -518,6 +520,8 @@ export async function pushCardsAsync({ deckDir, cards }) {
   for (let i = 0; i < sceneDataUploadConfigs.length; i++) {
     let sceneDataUploadConfig = sceneDataUploadConfigs[i];
     let cardId = sceneDataUploadConfig.cardId;
+
+    console.log(`Pushing updates for card ${cardId}...`);
 
     try {
       let sceneData = cardIdsToSceneData[cardId];
@@ -570,7 +574,7 @@ export async function syncCardVersionsAsync({ deckDir }) {
   let cacheDir = getCacheDir(deckDir);
 
   for (let cardId of cardIds) {
-    console.log(`checking card ${cardId}...`);
+    // console.log(`checking card ${cardId}...`);
     const sceneDataUrl = cardVersions[cardId];
 
     let cachedSceneDataUrl = '';
