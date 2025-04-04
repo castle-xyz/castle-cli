@@ -1,4 +1,5 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args, Flags } from '@oclif/core';
+import { BaseCommand } from '../baseCommand.js';
 import express from 'express';
 import open from 'open';
 import portfinder from 'portfinder';
@@ -83,7 +84,7 @@ const HTML = `
   </body>
 </html>`;
 
-export default class Serve extends Command {
+export default class Serve extends BaseCommand<typeof Serve> {
   static description = 'Test your deck in the browser';
 
   static args = {

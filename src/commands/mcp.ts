@@ -1,4 +1,4 @@
-import { Command } from '@oclif/core';
+import { BaseCommand } from '../baseCommand.js';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
@@ -35,7 +35,7 @@ server.resource(
   }
 );
 
-export default class MCP extends Command {
+export default class MCP extends BaseCommand<typeof MCP> {
   static description = 'Starts an MCP server';
 
   public async run(): Promise<void> {

@@ -1,4 +1,5 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args, Flags } from '@oclif/core';
+import { BaseCommand } from '../baseCommand.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -38,7 +39,7 @@ const DEFAULT_FILES = [
   },
 ];
 
-export default class Clone extends Command {
+export default class Clone extends BaseCommand<typeof Clone> {
   static description = 'Clone a deck';
 
   static args = {
@@ -61,7 +62,7 @@ export default class Clone extends Command {
     }),
   };
 
-  public async run(): Promise<void> {
+  public async run(): Promise<{deckId: string; directory: string}> {
     const { args } = await this.parse(Clone);
     const { flags } = await this.parse(Clone);
 
@@ -75,8 +76,7 @@ export default class Clone extends Command {
     } catch (e) {}
 
     if (!deck) {
-      this.log(`Deck with ID ${deckId} not found.`);
-      return;
+      this.error(`Deck with ID ${deckId} not found.`);
     }
 
     let deckDirectory = `deck-${deckId}`;
@@ -88,8 +88,7 @@ export default class Clone extends Command {
       if (flags.replace) {
         fs.rmSync(deckDirectory, { recursive: true });
       } else {
-        this.log(`Directory ${deckDirectory} already exists.`);
-        return;
+        this.error(`Directory ${deckDirectory} already exists.`);
       }
     }
 
@@ -158,5 +157,10 @@ export default class Clone extends Command {
     }
 
     this.log(`Deck ${deckId} cloned successfully to ${deckDirectory}`);
+
+    return {
+      deckId,
+      directory: deckDirectory,
+    };
   }
 }

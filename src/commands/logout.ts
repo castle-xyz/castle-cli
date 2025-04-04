@@ -1,8 +1,8 @@
-import { Command } from '@oclif/core';
+import { BaseCommand } from '../baseCommand.js';
 import * as API from '../utils/api.js';
 import * as config from '../utils/config.js';
 
-export default class Logout extends Command {
+export default class Logout extends BaseCommand<typeof Logout> {
   static description = 'Log out from your Castle account';
 
   public async run(): Promise<void> {

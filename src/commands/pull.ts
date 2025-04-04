@@ -1,11 +1,12 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args } from '@oclif/core';
+import { BaseCommand } from '../baseCommand.js';
 import { glob } from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
 
-export default class Pull extends Command {
+export default class Pull extends BaseCommand<typeof Pull> {
   static description = 'Pull updates from a deck';
 
   static args = {
