@@ -9,7 +9,8 @@
     "removeComments": true,
     "sourceMap": true,
     "strictNullChecks": true,
-    "target": "es2017"
+    "target": "es2017",
+    "resolveJsonModule": true
   },
   "exclude": ["node_modules", "**/__tests__", "**/__mocks__", "**/__test_utils__"],
   "include": ["./src/**/*"]

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
+import * as Behaviors from '../utils/behaviors.js';
 
 export default class Pull extends BaseCommand<typeof Pull> {
   static description = 'Pull updates from a deck';
@@ -19,6 +20,9 @@ export default class Pull extends BaseCommand<typeof Pull> {
 
   public async run(): Promise<void> {
     const { args } = await this.parse(Pull);
+
+    //this.log('euowuoequwouqo');
+//Behaviors.test();
 
     const directory = args.directory;
 

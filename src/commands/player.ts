@@ -3,7 +3,7 @@ import * as API from '../utils/api.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import CastleCore from '../../assets/castle-core-loader.cjs';
+//import CastleCore from '../../assets/castle-core-loader.cjs';
 
 
 export default class Player extends BaseCommand<typeof Player> {
@@ -11,7 +11,7 @@ export default class Player extends BaseCommand<typeof Player> {
   static hidden = true;
 
   public async run(): Promise<void> {
-    CastleCore();
+    //CastleCore();
 
     /*
     const binary = fs.readFileSync('/Users/jesseruder/castle/castle-cli/assets/castle-core.wasm');

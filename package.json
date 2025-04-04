@@ -18,8 +18,7 @@
   "files": [
     "./bin",
     "./dist",
-    "./oclif.manifest.json",
-    "./assets"
+    "./oclif.manifest.json"
   ],
   "oclif": {
     "bin": "castle",
@@ -47,6 +46,7 @@
   },
   "devDependencies": {
     "@types/node": "^18",
+    "prettier": "^3.5.3",
     "ts-node": "^10.9.2"
   },
   "types": "dist/index.d.ts"
