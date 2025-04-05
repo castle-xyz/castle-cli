@@ -2,12 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Axios from 'axios';
 import { glob } from 'glob';
-import * as yaml from 'js-yaml';
+import yaml from 'yaml';
 import _ from 'lodash';
 
 import * as API from './api.js';
-
-const COMPONENTS_TO_SKIP = ['Body', 'Script', 'Drawing2'];
+import * as Behaviors from './behaviors.js';
 
 const DEFAULT_ACTOR = {
   bp: {
@@ -75,25 +74,6 @@ function getBlueprintsDir(cardDir) {
   }
 
   return blueprintsDir;
-}
-
-function serializeComponent(component) {
-  if (!component.disabled) {
-    delete component.disabled;
-  }
-
-  return component;
-}
-
-function serializeComponents(components) {
-  let result = {};
-  for (const key in components) {
-    if (COMPONENTS_TO_SKIP.includes(key)) {
-      continue;
-    }
-    result[key] = serializeComponent(components[key]);
-  }
-  return result;
 }
 
 function serializeActor(actor) {
@@ -173,7 +153,7 @@ async function writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle }) {
     };
   });
 
-  fs.writeFileSync(path.join(cardDir, 'layout.yaml'), yaml.dump(layout));
+  fs.writeFileSync(path.join(cardDir, 'layout.yaml'), yaml.stringify(layout));
 }
 
 export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
@@ -193,26 +173,23 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
       entryIdToTitle[entryId] = title;
 
       const components = entry.actorBlueprint.components;
-      const script = components.Script;
-      let scriptPath: any = null;
-
-      if (script && script.code) {
-        let filename = newFilenameForTitle({ title, extension: 'lua', blueprintsDir });
-
-        let codeWithHeader = `${headerForEntryId(entryId)}${script.code}`;
-
-        fs.writeFileSync(filename, codeWithHeader);
-
-        scriptPath = path.relative(blueprintsDir, filename);
-      }
 
       const blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
+      const scriptFilename = path.relative(
+        blueprintsDir,
+        newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+      );
+      const rulesFilename = path.relative(
+        blueprintsDir,
+        newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
+      );
+
       const blueprintData = {
         title,
         entryId,
-        components: serializeComponents(components),
+        components: Behaviors.serializeComponents({ components, rulesFilename, scriptFilename, blueprintsDir }),
       };
-      fs.writeFileSync(blueprintFilename, yaml.dump(blueprintData));
+      fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
     }
   }
 
@@ -308,9 +285,9 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
       const blueprintData = {
         title,
         entryId,
-        components: serializeComponents(components),
+        components: Behaviors.serializeComponents(components),
       };
-      fs.writeFileSync(blueprintFilename, yaml.dump(blueprintData));
+      fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
     }
   }
 
@@ -356,7 +333,7 @@ async function getEntryIdToBlueprintFilenameAsync(cardDir) {
   for (const configFile of configFiles) {
     try {
       let configData = fs.readFileSync(path.join(cardDir, configFile), 'utf8');
-      let data = yaml.load(configData);
+      let data = yaml.parse(configData);
       if (data.entryId) {
         entryIdToConfigFilename[data.entryId] = configFile;
       }
@@ -387,7 +364,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 
       if (entryIdToBlueprintFilename[entryId]) {
         let filename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
-        let fileConfigData = yaml.load(fs.readFileSync(filename, 'utf8'));
+        let fileConfigData = yaml.parse(fs.readFileSync(filename, 'utf8'));
         if (fileConfigData) {
           let title = fileConfigData.title;
 
@@ -442,7 +419,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
   let modifiedLayout = false;
   const layoutFilePath = path.join(cardDir, 'layout.yaml');
   if (fs.existsSync(layoutFilePath)) {
-    let layoutData = yaml.load(fs.readFileSync(layoutFilePath, 'utf8'));
+    let layoutData = yaml.parse(fs.readFileSync(layoutFilePath, 'utf8'));
     if (layoutData) {
       let actorIdToActor = {};
 
