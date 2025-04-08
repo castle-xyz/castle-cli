@@ -326,34 +326,6 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
   await writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle });
 }
 
-async function getEntryIdToScriptFilenameAsync(cardDir) {
-  const entryIdToScriptFilename = {};
-
-  const scriptFiles = await glob('**/*.lua', {
-    cwd: cardDir,
-    ignore: ['node_modules/**'],
-  });
-
-  for (const scriptFile of scriptFiles) {
-    try {
-      let scriptData = fs.readFileSync(path.join(cardDir, scriptFile), 'utf8');
-      let lines = scriptData.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('castle-cli-config')) {
-          try {
-            let entryId = lines[0].split('entryId:')[1].split(' ')[0].trim();
-            entryIdToScriptFilename[entryId] = scriptFile;
-          } catch (e) {}
-
-          break;
-        }
-      }
-    } catch (e) {}
-  }
-
-  return entryIdToScriptFilename;
-}
-
 async function getEntryIdToBlueprintFilenameAsync(cardDir) {
   const entryIdToConfigFilename = {};
 
@@ -383,7 +355,6 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 
   const entryIds = Object.keys(library);
 
-  const entryIdToScriptFilename = await getEntryIdToScriptFilenameAsync(cardDir);
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
 
   let modifiedLibrary = false;
@@ -391,26 +362,32 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
   for (const entryId of entryIds) {
     const entry = library[entryId];
     if (entry.entryType == 'actorBlueprint') {
-      const components = entry.actorBlueprint.components;
-      const script = components.Script;
-
       if (entryIdToBlueprintFilename[entryId]) {
-        let filename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
-        let fileConfigData = yaml.parse(fs.readFileSync(filename, 'utf8'));
-        if (fileConfigData) {
-          let title = fileConfigData.title;
+        let blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
+        let localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
+        if (localBlueprintData) {
+          let title = localBlueprintData.title;
 
           if (!_.isEqual(title, entry.title)) {
             modifiedLibrary = true;
             library[entryId].title = title;
           }
 
-          delete fileConfigData.title;
-          delete fileConfigData.entryId;
+          delete localBlueprintData.title;
+          delete localBlueprintData.entryId;
+
+          if (localBlueprintData.components) {
+            localBlueprintData.components = Behaviors.deserializeComponents({
+              components: localBlueprintData.components,
+              readFile: (relativePath) => {
+                return fs.readFileSync(path.join(path.dirname(blueprintFilename), relativePath), 'utf8');
+              },
+            })
+          }
 
           let actorBlueprint = _.merge(
             _.cloneDeep(library[entryId].actorBlueprint),
-            fileConfigData
+            localBlueprintData
           );
 
           if (!_.isEqual(actorBlueprint, library[entryId].actorBlueprint)) {
@@ -423,21 +400,6 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
             console.log('\n\n\n')*/
 
             library[entryId].actorBlueprint = actorBlueprint;
-          }
-        }
-      }
-
-      if (script && script.code) {
-        if (entryIdToScriptFilename[entryId]) {
-          let filename = path.join(cardDir, entryIdToScriptFilename[entryId]);
-          let fileScript = fs.readFileSync(filename, 'utf8');
-
-          let codeWithoutHeader = removeHeader(fileScript);
-
-          if (codeWithoutHeader.trim() !== script.code.trim()) {
-            modifiedLibrary = true;
-
-            library[entryId].actorBlueprint.components.Script.code = codeWithoutHeader;
           }
         }
       }
@@ -518,7 +480,7 @@ export async function pushCardsAsync({ deckDir, cards }) {
       console.log(`No changes for card ${card.cardId}`);
     }
   }
-
+/*
   if (_.keys(cardIdsToSceneData).length == 0) {
     return;
   }
@@ -567,7 +529,7 @@ export async function pushCardsAsync({ deckDir, cards }) {
       cardId: uploadResult.cardId,
       sceneDataUrl: uploadResult.sceneDataUrl,
     });
-  }
+  }*/
 }
 
 export async function syncCardVersionsAsync({ deckDir }) {

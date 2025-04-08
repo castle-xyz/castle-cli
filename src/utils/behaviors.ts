@@ -9,11 +9,14 @@ function formatDisplayName(name) {
 }
 
 export const BEHAVIOR_ID_TO_DISPLAY_NAME = {};
+const BEHAVIOR_ID_TO_NAME = {};
+
 for (const key in BehaviorConfig) {
   let behavior = BehaviorConfig[key];
   BEHAVIOR_ID_TO_DISPLAY_NAME[behavior.behaviorId] = formatDisplayName(behavior.displayName);
+  BEHAVIOR_ID_TO_NAME[behavior.behaviorId] = behavior.name;
 }
-const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
+export const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 
 const COMPONENTS_TO_SKIP = ['Body', 'Drawing2'];
 
@@ -37,6 +40,33 @@ export function serializeComponents({ components, writeRulesFile, writeScriptFil
       });
     }
   }
+  return result;
+}
+
+export function deserializeComponents({ components, readFile }) {
+  let result = {};
+  for (const key in components) {
+    let behaviorId = BEHAVIOR_DISPLAY_NAME_TO_ID[key];
+    if (!behaviorId) {
+      continue;
+    }
+
+    let behaviorName = BEHAVIOR_ID_TO_NAME[behaviorId];
+    if (!behaviorName || COMPONENTS_TO_SKIP.includes(behaviorName)) {
+      continue;
+    }
+
+    let behavior = BehaviorConfig[behaviorName];
+
+    if (behavior) {
+      result[behaviorName] = deserializeComponent({
+        behavior,
+        component: components[key],
+        readFile,
+      });
+    }
+  }
+
   return result;
 }
 
@@ -94,6 +124,67 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
 
     result[key] = property;
   }
+
+  return result;
+}
+
+function deserializeComponent({ behavior, component, readFile }) {
+  let result: any = {};
+
+  if (behavior.name == 'Rules') {
+    result.rules = [];
+
+    try {
+      let rules = readFile(component.file);
+      let parsedRules = yaml.parse(rules);
+      for (let rule of parsedRules) {
+        result.rules.push(Rules.deserializeRule(rule));
+      }
+    } catch (e) {
+      console.warn(`Error reading rules file: ${component.file}`);
+    }
+  } else if (behavior.name == 'Script') {
+    result.code = '';
+
+    try {
+      let code = readFile(component.file);
+      result.code = code;
+    } catch (e) {
+      console.warn(`Error reading script file: ${component.file}`);
+    }
+  } else {
+    let displayNameToPropertySpec = {};
+    for (const key in behavior.propertySpecs) {
+      let propertySpec = behavior.propertySpecs[key];
+      let name = propertySpec.name;
+      if (propertySpec.attribs.scriptName.length > 0) {
+        name = propertySpec.attribs.scriptName;
+      }
+
+      displayNameToPropertySpec[name] = propertySpec;
+    }
+
+    let keys = _.keys(component);
+
+    for (let key of keys) {
+      let propertySpec = displayNameToPropertySpec[key];
+
+      if (!propertySpec) {
+        continue;
+      }
+
+      let attribs = propertySpec.attribs;
+      if (!attribs) {
+        continue;
+      }
+
+      result[propertySpec.name] = component[key];
+
+      // TODO: check min / max / allowed values
+    }
+  }
+
+  result.disabled = !!component.disabled;
 
   return result;
 }

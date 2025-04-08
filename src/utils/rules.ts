@@ -76,15 +76,25 @@ function replaceBehaviorIdWithName(component) {
     let behaviorDisplayName = Behaviors.BEHAVIOR_ID_TO_DISPLAY_NAME[parseInt(component.behaviorId)];
 
     if (behaviorDisplayName) {
-      if (behaviorDisplayName != 'Rules') {
-        component = {
-          behavior: behaviorDisplayName,
-          ...component,
-        };
-      }
+      //if (behaviorDisplayName != 'Rules') {
+      component = {
+        behavior: behaviorDisplayName,
+        ...component,
+      };
+      //}
 
       delete component.behaviorId;
     }
+  }
+
+  return component;
+}
+
+function replaceBehaviorNameWithId(component) {
+  if (component.behavior) {
+    let behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[component.behavior];
+    component.behaviorId = parseInt(behaviorId);
+    delete component.behavior;
   }
 
   return component;
@@ -164,6 +174,7 @@ function serializeRuleInner(rule, topLevelResponses: any = []) {
         }
       }
 
+      // reorder condition key
       if (params.condition) {
         let condition = params.condition;
         delete params.condition;
@@ -178,6 +189,92 @@ function serializeRuleInner(rule, topLevelResponses: any = []) {
 
   if (_.isEmpty(result.params)) {
     delete result.params;
+  }
+
+  return result;
+}
+
+export function deserializeRule(rule) {
+  let responses = rule.responses.map((response) => deserializeRuleInner(response));
+  let response = nestResponses(responses);
+
+  let result = {
+    trigger: deserializeBaseRulerInner(rule.trigger),
+    response,
+  };
+
+  return result;
+}
+
+function nestResponses(responses, index = 0) {
+  let result = null;
+
+  if (responses[index]) {
+    let response = responses[index];
+
+    if (index + 1 < responses.length) {
+      let nextResponse = nestResponses(responses, index + 1);
+
+      if (nextResponse) {
+        response.params.nextResponse = nextResponse;
+      }
+    }
+
+    result = response;
+  }
+
+  return result;
+}
+
+function deserializeBaseRulerInner(rule) {
+  let result: any = {
+    name: rule.type,
+    behavior: rule.behavior,
+    params: {},
+  };
+
+  if (rule.params) {
+    result.params = rule.params;
+  }
+
+  if (result.params) {
+    result.params = replaceBehaviorNameWithId(result.params);
+  }
+
+  result = replaceBehaviorNameWithId(result);
+
+  return result;
+}
+
+function deserializeRuleInner(rule) {
+  if (typeof rule != 'object') {
+    return rule;
+  }
+
+  let result = deserializeBaseRulerInner(rule);
+
+  let rulesSchema = getRule(result.behaviorId, result.name);
+  let paramSpecs = rulesSchema?.paramSpecs;
+
+  if (result.params) {
+    let params = result.params;
+
+    if (paramSpecs) {
+      let keys = _.keys(params);
+      for (let key of keys) {
+        let paramSpec = paramSpecs[key];
+
+        if (paramSpec) {
+          let type = paramSpec.type;
+
+          if (type == 'response') {
+            let responses = params[key].map((response) => deserializeRuleInner(response));
+            let response = nestResponses(responses);
+            params[key] = response;
+          }
+        }
+      }
+    }
   }
 
   return result;
