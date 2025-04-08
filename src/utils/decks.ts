@@ -184,10 +184,22 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
         newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
       );
 
+      const writeRulesFile = (content) => {
+        fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
+
+        return rulesFilename;
+      };
+
+      const writeScriptFile = (content) => {
+        fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
+
+        return scriptFilename;
+      };
+
       const blueprintData = {
         title,
         entryId,
-        components: Behaviors.serializeComponents({ components, rulesFilename, scriptFilename, blueprintsDir }),
+        components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
       };
       fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
     }
@@ -242,7 +254,6 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
 
   const entryIds = Object.keys(library);
 
-  const entryIdToScriptFilename = await getEntryIdToScriptFilenameAsync(cardDir);
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
 
   const blueprintsDir = getBlueprintsDir(cardDir);
@@ -256,36 +267,57 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
       entryIdToTitle[entryId] = title;
 
       const components = entry.actorBlueprint.components;
-      const script = components.Script;
-      let scriptPath: any = null;
-
-      if (script && script.code) {
-        let filename;
-
-        if (entryIdToScriptFilename[entryId]) {
-          filename = path.join(cardDir, entryIdToScriptFilename[entryId]);
-        } else {
-          filename = newFilenameForTitle({ title, extension: 'lua', blueprintsDir });
-        }
-
-        let codeWithHeader = `${headerForEntryId(entryId)}${script.code}`;
-
-        fs.writeFileSync(filename, codeWithHeader);
-
-        scriptPath = path.relative(blueprintsDir, filename);
-      }
+      let localComponents: any = null;
 
       let blueprintFilename;
       if (entryIdToBlueprintFilename[entryId]) {
         blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
+
+        let localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
+        if (localBlueprintData) {
+          localComponents = localBlueprintData.components;
+        }
       } else {
         blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
       }
 
+      let scriptFilename = path.relative(
+        blueprintsDir,
+        newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+      );
+      let rulesFilename = path.relative(
+        blueprintsDir,
+        newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
+      );
+
+      if (localComponents) {
+        const script = localComponents.Script;
+        if (script && script.file) {
+          scriptFilename = script.file;
+        }
+
+        const rules = localComponents.Rules;
+        if (rules && rules.file) {
+          rulesFilename = rules.file;
+        }
+      }
+
+      const writeRulesFile = (content) => {
+        fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
+
+        return rulesFilename;
+      };
+
+      const writeScriptFile = (content) => {
+        fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
+
+        return scriptFilename;
+      };
+
       const blueprintData = {
         title,
         entryId,
-        components: Behaviors.serializeComponents(components),
+        components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
       };
       fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
     }

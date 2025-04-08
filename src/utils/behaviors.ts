@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import yaml from 'yaml';
 import _ from 'lodash';
 
@@ -10,7 +8,7 @@ function formatDisplayName(name) {
   return name.replace(/\s/g, '');
 }
 
-const BEHAVIOR_ID_TO_DISPLAY_NAME = {};
+export const BEHAVIOR_ID_TO_DISPLAY_NAME = {};
 for (const key in BehaviorConfig) {
   let behavior = BehaviorConfig[key];
   BEHAVIOR_ID_TO_DISPLAY_NAME[behavior.behaviorId] = formatDisplayName(behavior.displayName);
@@ -19,7 +17,7 @@ const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 
 const COMPONENTS_TO_SKIP = ['Body', 'Drawing2'];
 
-export function serializeComponents({ components, rulesFilename, scriptFilename, blueprintsDir }) {
+export function serializeComponents({ components, writeRulesFile, writeScriptFile }) {
   //console.log(BehaviorConfig);
 
   let result = {};
@@ -34,124 +32,15 @@ export function serializeComponents({ components, rulesFilename, scriptFilename,
       result[formatDisplayName(behavior.displayName)] = serializeComponent({
         behavior,
         component: components[key],
-        rulesFilename,
-        scriptFilename,
-        blueprintsDir,
+        writeRulesFile,
+        writeScriptFile,
       });
     }
   }
   return result;
 }
 
-function serializeRule(rule) {
-  let topLevelResponses = [];
-
-  let result = {
-    trigger: serializeBaseRulerInner(rule.trigger),
-    responses: [serializeRuleInner(rule.response, topLevelResponses)],
-  };
-
-  result.responses = [...result.responses, ...topLevelResponses];
-
-  return result;
-}
-
-function replaceBehaviorIdWithName(component) {
-  if (component.behaviorId) {
-    let behaviorDisplayName = BEHAVIOR_ID_TO_DISPLAY_NAME[parseInt(component.behaviorId)];
-
-    if (behaviorDisplayName) {
-      if (behaviorDisplayName != 'Rules') {
-        component = {
-          behavior: behaviorDisplayName,
-          ...component,
-        };
-      }
-
-      delete component.behaviorId;
-    }
-  }
-
-  return component;
-}
-
-function serializeBaseRulerInner(rule) {
-  let result: any = {
-    type: rule.name,
-    params: rule.params,
-    behaviorId: rule.behaviorId,
-  };
-
-  if (result.params && _.isEmpty(result.params)) {
-    delete result.params;
-  }
-
-  if (result.params) {
-    result.params = replaceBehaviorIdWithName(result.params);
-  }
-
-  result = replaceBehaviorIdWithName(result);
-
-  return result;
-}
-
-function serializeRuleInner(rule, topLevelResponses: any = []) {
-  if (typeof rule != 'object') {
-    return rule;
-  }
-
-  let ruleSchema = Rules.getRule(rule.behaviorId, rule.name);
-  let paramSpecs = ruleSchema?.paramSpecs;
-
-  let result = serializeBaseRulerInner(rule);
-
-  if (result.params) {
-    let params = result.params;
-
-    if (params.nextResponse) {
-      let nextResponse = params.nextResponse;
-      topLevelResponses.push(serializeRuleInner(nextResponse, topLevelResponses));
-      delete params.nextResponse;
-    }
-
-    if (paramSpecs) {
-      let keys = _.keys(params);
-      for (let key of keys) {
-        let paramSpec = paramSpecs[key];
-
-        if (paramSpec) {
-          let type = paramSpec.type;
-
-          if (type == 'response') {
-            let response = params[key];
-
-            if (response) {
-              let responses = [];
-              params[key] = [serializeRuleInner(response, responses)];
-              params[key] = [...params[key], ...responses];
-            } else {
-              params[key] = null;
-            }
-          }
-        }
-      }
-
-      if (params.condition) {
-        let condition = params.condition;
-        delete params.condition;
-
-        result.params = {
-          condition,
-          ...params,
-        };
-      }
-    }
-  }
-
-  return result;
-}
-
-function serializeComponent({ behavior, component, rulesFilename, scriptFilename, blueprintsDir }) {
+function serializeComponent({ behavior, component, writeRulesFile, writeScriptFile }) {
   if (!component.disabled) {
     delete component.disabled;
   }
@@ -161,22 +50,20 @@ function serializeComponent({ behavior, component, rulesFilename, scriptFilename
 
     if (component.rules) {
       for (let rule of component.rules) {
-        rules.push(serializeRule(rule));
+        rules.push(Rules.serializeRule(rule));
       }
     }
 
-    fs.writeFileSync(path.join(blueprintsDir, rulesFilename), yaml.stringify(rules));
-
+    let rulesFilename = writeRulesFile(yaml.stringify(rules));
     return {
       file: rulesFilename,
     };
   } else if (behavior.name == 'Script') {
     let code = component.code || '';
 
-    fs.writeFileSync(path.join(blueprintsDir, scriptFilename), code);
-
+    let scriptFilename = writeScriptFile(code);
     return {
-      file: scriptFilename
+      file: scriptFilename,
     };
   }
 

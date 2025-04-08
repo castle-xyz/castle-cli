@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import RulesConfig from '../assets/rules.json' with { type: 'json' };
+import * as Behaviors from './behaviors.js';
 
 const TRIGGERS = {};
 const RULES = {}; // responses and conditions
@@ -68,4 +69,116 @@ export function getRule(behaviorId, name) {
     console.warn(`Rule not found: ${behaviorId}, ${name}`);
     return null;
   }
+}
+
+function replaceBehaviorIdWithName(component) {
+  if (component.behaviorId) {
+    let behaviorDisplayName = Behaviors.BEHAVIOR_ID_TO_DISPLAY_NAME[parseInt(component.behaviorId)];
+
+    if (behaviorDisplayName) {
+      if (behaviorDisplayName != 'Rules') {
+        component = {
+          behavior: behaviorDisplayName,
+          ...component,
+        };
+      }
+
+      delete component.behaviorId;
+    }
+  }
+
+  return component;
+}
+
+export function serializeRule(rule) {
+  let topLevelResponses = [];
+
+  let result = {
+    trigger: serializeBaseRulerInner(rule.trigger),
+    responses: [serializeRuleInner(rule.response, topLevelResponses)],
+  };
+
+  result.responses = [...result.responses, ...topLevelResponses];
+
+  return result;
+}
+
+function serializeBaseRulerInner(rule) {
+  let result: any = {
+    type: rule.name,
+    params: rule.params,
+    behaviorId: rule.behaviorId,
+  };
+
+  if (result.params && _.isEmpty(result.params)) {
+    delete result.params;
+  }
+
+  if (result.params) {
+    result.params = replaceBehaviorIdWithName(result.params);
+  }
+
+  result = replaceBehaviorIdWithName(result);
+
+  return result;
+}
+
+function serializeRuleInner(rule, topLevelResponses: any = []) {
+  if (typeof rule != 'object') {
+    return rule;
+  }
+
+  let ruleSchema = getRule(rule.behaviorId, rule.name);
+  let paramSpecs = ruleSchema?.paramSpecs;
+
+  let result = serializeBaseRulerInner(rule);
+
+  if (result.params) {
+    let params = result.params;
+
+    if (params.nextResponse) {
+      let nextResponse = params.nextResponse;
+      topLevelResponses.push(serializeRuleInner(nextResponse, topLevelResponses));
+      delete params.nextResponse;
+    }
+
+    if (paramSpecs) {
+      let keys = _.keys(params);
+      for (let key of keys) {
+        let paramSpec = paramSpecs[key];
+
+        if (paramSpec) {
+          let type = paramSpec.type;
+
+          if (type == 'response') {
+            let response = params[key];
+
+            if (response) {
+              let responses = [];
+              params[key] = [serializeRuleInner(response, responses)];
+              params[key] = [...params[key], ...responses];
+            } else {
+              params[key] = null;
+            }
+          }
+        }
+      }
+
+      if (params.condition) {
+        let condition = params.condition;
+        delete params.condition;
+
+        result.params = {
+          condition,
+          ...params,
+        };
+      }
+    }
+  }
+
+  if (_.isEmpty(result.params)) {
+    delete result.params;
+  }
+
+  return result;
 }
