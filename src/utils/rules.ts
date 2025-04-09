@@ -210,7 +210,7 @@ function nestResponses(responses, index = 0) {
   let result = null;
 
   if (responses[index]) {
-    let response = responses[index];
+    let response = _.cloneDeep(responses[index]);
 
     if (index + 1 < responses.length) {
       let nextResponse = nestResponses(responses, index + 1);
