@@ -1,17 +1,22 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
     "module": "nodenext",
-    "outDir": "./dist",
-    "noImplicitReturns": true,
+    "outDir": "dist",
+    "rootDir": "src",
     "noImplicitThis": true,
     "noUnusedLocals": false,
     "preserveConstEnums": true,
     "removeComments": true,
     "sourceMap": true,
     "strictNullChecks": true,
-    "target": "es2017",
+    "target": "es2022",
     "resolveJsonModule": true
   },
   "exclude": ["node_modules", "**/__tests__", "**/__mocks__", "**/__test_utils__"],
-  "include": ["./src/**/*"]
+  "include": ["./src/**/*", "./src/assets/behaviors.json", "./src/assets/rules.json"],
+  "ts-node": {
+    "esm": true
+  }
 }
