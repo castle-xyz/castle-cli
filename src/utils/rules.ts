@@ -101,6 +101,8 @@ function replaceBehaviorNameWithId(component) {
 }
 
 export function serializeRule(rule) {
+  rule = _.cloneDeep(rule);
+
   let topLevelResponses = [];
 
   let result = {
@@ -108,7 +110,7 @@ export function serializeRule(rule) {
     responses: [serializeRuleInner(rule.response, topLevelResponses)],
   };
 
-  result.responses = [...result.responses, ...topLevelResponses];
+  result.responses = [...result.responses, ..._.reverse(topLevelResponses)];
 
   return result;
 }
@@ -166,7 +168,7 @@ function serializeRuleInner(rule, topLevelResponses: any = []) {
             if (response) {
               let responses = [];
               params[key] = [serializeRuleInner(response, responses)];
-              params[key] = [...params[key], ...responses];
+              params[key] = [...params[key], ..._.reverse(responses)];
             } else {
               params[key] = null;
             }
@@ -195,6 +197,8 @@ function serializeRuleInner(rule, topLevelResponses: any = []) {
 }
 
 export function deserializeRule(rule) {
+  rule = _.cloneDeep(rule);
+
   let responses = rule.responses.map((response) => deserializeRuleInner(response));
   let response = nestResponses(responses);
 

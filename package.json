@@ -9,7 +9,7 @@
     "local": "npm run build && ./bin/run.js",
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "npm version patch && npm run build && oclif manifest && oclif readme",
-    "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 mocha --forbid-only \"tests/**/*.test.ts\""
+    "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 mocha --forbid-only \"**/*.test.ts\""
   },
   "author": "",
   "license": "ISC",
