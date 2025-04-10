@@ -7,6 +7,7 @@ import _ from 'lodash';
 
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
+import * as Utils from './utils.js';
 
 const DEFAULT_ACTOR = {
   bp: {
@@ -380,9 +381,12 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
             localBlueprintData.components = Behaviors.deserializeComponents({
               components: localBlueprintData.components,
               readFile: (relativePath) => {
-                return fs.readFileSync(path.join(path.dirname(blueprintFilename), relativePath), 'utf8');
+                return fs.readFileSync(
+                  path.join(path.dirname(blueprintFilename), relativePath),
+                  'utf8'
+                );
               },
-            })
+            });
           }
 
           let actorBlueprint = _.merge(
@@ -390,7 +394,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
             localBlueprintData
           );
 
-          if (!_.isEqual(actorBlueprint, library[entryId].actorBlueprint)) {
+          if (!Utils.isEqualUnordered(actorBlueprint, library[entryId].actorBlueprint)) {
             modifiedLibrary = true;
 
             /*
@@ -428,7 +432,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
         if (oldActor) {
           newActor = _.merge(_.cloneDeep(oldActor), newActor);
 
-          if (!_.isEqual(newActor, oldActor)) {
+          if (!Utils.isEqualUnordered(newActor, oldActor)) {
             /*
             console.log(JSON.stringify(newActor));
             console.log(JSON.stringify(oldActor));
@@ -480,7 +484,7 @@ export async function pushCardsAsync({ deckDir, cards }) {
       console.log(`No changes for card ${card.cardId}`);
     }
   }
-/*
+
   if (_.keys(cardIdsToSceneData).length == 0) {
     return;
   }
@@ -529,7 +533,7 @@ export async function pushCardsAsync({ deckDir, cards }) {
       cardId: uploadResult.cardId,
       sceneDataUrl: uploadResult.sceneDataUrl,
     });
-  }*/
+  }
 }
 
 export async function syncCardVersionsAsync({ deckDir }) {

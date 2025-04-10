@@ -122,6 +122,10 @@ function serializeBaseRulerInner(rule) {
     behaviorId: rule.behaviorId,
   };
 
+  if (!result.behaviorId) {
+    delete result.behaviorId;
+  }
+
   if (result.params && _.isEmpty(result.params)) {
     delete result.params;
   }
@@ -236,6 +240,10 @@ function deserializeBaseRulerInner(rule) {
     behavior: rule.behavior,
     params: {},
   };
+
+  if (!result.behavior) {
+    delete result.behavior;
+  }
 
   if (rule.params) {
     result.params = rule.params;

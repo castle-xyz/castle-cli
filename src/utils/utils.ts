@@ -1,0 +1,10 @@
+import _ from 'lodash';
+
+export function isEqualUnordered(obj1: any, obj2: any) {
+  return _.isEqualWith(obj1, obj2, (value1, value2) => {
+    if (_.isObject(value1) && _.isObject(value2)) {
+      return _.isMatch(value1, value2) && _.isMatch(value2, value1);
+    }
+    return undefined;
+  });
+}
