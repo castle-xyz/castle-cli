@@ -88,8 +88,13 @@ function serializeActor(actor) {
     }
   }
 
+  let actorId = actor.actorId;
+  try {
+    actorId = parseInt(actorId);
+  } catch (e) {}
+
   return {
-    actorId: actor.actorId,
+    actorId,
     entryId: actor.parentEntryId,
     components,
   };
