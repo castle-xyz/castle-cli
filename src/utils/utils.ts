@@ -8,3 +8,11 @@ export function isEqualUnordered(obj1: any, obj2: any) {
     return undefined;
   });
 }
+
+export function mergeSkipArray(obj, src) {
+  return _.mergeWith({}, obj, src, (objValue, srcValue) => {
+    if (_.isArray(objValue) && _.isArray(srcValue)) {
+      return srcValue;
+    }
+  });
+}

@@ -389,7 +389,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
             });
           }
 
-          let actorBlueprint = _.merge(
+          let actorBlueprint = Utils.mergeSkipArray(
             _.cloneDeep(library[entryId].actorBlueprint),
             localBlueprintData
           );
@@ -430,7 +430,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 
         let oldActor = actorIdToActor[newActor.actorId];
         if (oldActor) {
-          newActor = _.merge(_.cloneDeep(oldActor), newActor);
+          newActor = Utils.mergeSkipArray(_.cloneDeep(oldActor), newActor);
 
           if (!Utils.isEqualUnordered(newActor, oldActor)) {
             /*
@@ -441,7 +441,7 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
             modifiedLayout = true;
           }
         } else {
-          newActor = _.merge(_.cloneDeep(DEFAULT_ACTOR), newActor);
+          newActor = Utils.mergeSkipArray(_.cloneDeep(DEFAULT_ACTOR), newActor);
           modifiedLayout = true;
         }
 
