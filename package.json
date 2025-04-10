@@ -42,13 +42,14 @@
     "open": "^10.1.0",
     "ospath": "^1.2.2",
     "portfinder": "^1.0.35",
+    "uuid": "^11.1.0",
     "yaml": "^2.7.1"
   },
   "devDependencies": {
     "@oclif/test": "^4",
-    "@types/node": "^18",
     "@types/chai": "^4",
     "@types/mocha": "^10",
+    "@types/node": "^18",
     "chai": "^4",
     "mocha": "^10",
     "prettier": "^3.5.3",

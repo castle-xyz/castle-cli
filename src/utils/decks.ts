@@ -4,6 +4,7 @@ import Axios from 'axios';
 import { glob } from 'glob';
 import yaml from 'yaml';
 import _ from 'lodash';
+import { v4 as uuidv4 } from 'uuid';
 
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
@@ -96,7 +97,7 @@ function serializeActor(actor) {
 
 function deserializeActor(actor) {
   return {
-    actorId: actor.actorId,
+    actorId: `${actor.actorId}` || uuidv4(),
     parentEntryId: actor.entryId,
     bp: {
       components: actor.components,
@@ -348,7 +349,47 @@ async function getEntryIdToBlueprintFilenameAsync(cardDir) {
   return entryIdToConfigFilename;
 }
 
-export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
+function addActorIdsToLayoutFile(layoutFilePath) {
+  let layoutData = yaml.parse(fs.readFileSync(layoutFilePath, 'utf8'));
+  if (layoutData) {
+    let needsUpdate = false;
+    for (let actor of layoutData) {
+      if (!actor.actorId) {
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      let maxActorId = -1000000000;
+
+      for (let actor of layoutData) {
+        if (actor.actorId) {
+          try {
+            let actorId = parseInt(actor.actorId);
+            if (actorId > maxActorId) {
+              maxActorId = actorId;
+            }
+          } catch (e) {}
+        }
+      }
+
+      for (let actor of layoutData) {
+        if (!actor.actorId) {
+          actor.actorId = `${maxActorId + 1}`;
+        }
+      }
+
+      fs.writeFileSync(layoutFilePath, yaml.stringify(layoutData));
+    }
+  }
+}
+
+export async function newSceneDataForCardAsync({
+  cardId,
+  cardDir,
+  deckDir,
+  updateLayoutFile = false,
+}) {
   const cacheDir = getCacheDir(deckDir);
   const sceneData = JSON.parse(fs.readFileSync(path.join(cacheDir, `${cardId}.json`), 'utf8'));
 
@@ -417,12 +458,18 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
   let modifiedLayout = false;
   const layoutFilePath = path.join(cardDir, 'layout.yaml');
   if (fs.existsSync(layoutFilePath)) {
+    if (updateLayoutFile) {
+      addActorIdsToLayoutFile(layoutFilePath);
+    }
+
     let layoutData = yaml.parse(fs.readFileSync(layoutFilePath, 'utf8'));
     if (layoutData) {
       let actorIdToActor = {};
 
       sceneData.snapshot.actors.forEach((actor) => {
-        actorIdToActor[actor.actorId] = actor;
+        if (actor.actorId) {
+          actorIdToActor[actor.actorId] = actor;
+        }
       });
 
       sceneData.snapshot.actors = layoutData.map((actor) => {
@@ -461,7 +508,12 @@ export async function newSceneDataForCardAsync({ cardId, cardDir, deckDir }) {
 }
 
 async function pushCardAsync({ cardId, cardDir, deckDir }) {
-  let { sceneData, modified } = await newSceneDataForCardAsync({ cardDir, deckDir, cardId });
+  let { sceneData, modified } = await newSceneDataForCardAsync({
+    cardDir,
+    deckDir,
+    cardId,
+    updateLayoutFile: true,
+  });
 
   if (modified) {
     return {
