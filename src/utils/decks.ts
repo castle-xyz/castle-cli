@@ -27,27 +27,6 @@ const DEFAULT_ACTOR = {
   },
 };
 
-function headerForEntryId(entryId) {
-  return `-- DO NOT MODIFY THIS LINE! castle-cli-config entryId:${entryId}\n\n`;
-}
-
-function removeHeader(script) {
-  let result = script
-    .split('\n')
-    .filter((line) => !line.includes('castle-cli-config'))
-    .join('\n');
-
-  if (result.startsWith('\n')) {
-    result = result.substring(1);
-  }
-
-  if (result.startsWith('\n')) {
-    result = result.substring(1);
-  }
-
-  return result;
-}
-
 function getCastleDir(deckDir) {
   let result = path.join(deckDir, '.castle');
 
@@ -78,7 +57,14 @@ function getBlueprintsDir(cardDir) {
   return blueprintsDir;
 }
 
-function serializeActor(actor) {
+function roundSize(size) {
+  return Math.round(size * 100) / 100;
+}
+
+function serializeActor({ actor, entry }) {
+  actor = _.cloneDeep(actor);
+  entry = _.cloneDeep(entry);
+
   let components = actor.bp.components;
   let drawing = components.Drawing2;
   if (drawing) {
@@ -93,14 +79,98 @@ function serializeActor(actor) {
     actorId = parseInt(actorId);
   } catch (e) {}
 
-  return {
+  const BODY_FIELDS = ['x', 'y', 'angle', 'widthScale', 'heightScale'];
+
+  let body = _.pick(_.cloneDeep(components.Body), BODY_FIELDS);
+  components.Body = _.omit(body, BODY_FIELDS);
+
+  if (_.isEmpty(components.Body)) {
+    delete components.Body;
+  }
+
+  let result: any = {
     actorId,
+    title: entry.title ? entry.title : undefined,
     entryId: actor.parentEntryId,
-    components,
   };
+
+  try {
+    try {
+      let drawing2 = entry.actorBlueprint.components.Drawing2;
+      let drawData = drawing2.drawData;
+      let initialFrame = drawing2.initialFrame - 1;
+      let frameBounds = drawData.framesBounds[initialFrame];
+
+      let frameWidth = frameBounds.maxX - frameBounds.minX;
+      let frameHeight = frameBounds.maxY - frameBounds.minY;
+
+      body.width = roundSize(frameWidth * body.widthScale);
+      body.height = roundSize(frameHeight * body.heightScale);
+
+      delete body.widthScale;
+      delete body.heightScale;
+    } catch (e) {
+      console.warn(`error serializing actor1 ${actorId}: ${e}`);
+    }
+
+    result = {
+      ...result,
+      ...body,
+    };
+  } catch (e) {
+    console.warn(`error serializing actor2 ${actorId}: ${e}`);
+  }
+
+  if (!_.isEmpty(components)) {
+    result = {
+      ...result,
+      components,
+    };
+  }
+
+  return result;
 }
 
-function deserializeActor(actor) {
+function deserializeActor({ actor, entry }) {
+  actor = _.cloneDeep(actor);
+  entry = _.cloneDeep(entry);
+
+  let body = actor?.components?.Body || {};
+  body.x = actor.x;
+  body.y = actor.y;
+  body.angle = actor.angle;
+  body.widthScale = actor.widthScale || 0;
+  body.heightScale = actor.heightScale || 0;
+
+  try {
+    let width = actor.width;
+    let height = actor.height;
+
+    let drawing2 = entry.actorBlueprint.components.Drawing2;
+    let drawData = drawing2.drawData;
+    let initialFrame = drawing2.initialFrame - 1;
+    let frameBounds = drawData.framesBounds[initialFrame];
+
+    let frameWidth = frameBounds.maxX - frameBounds.minX;
+    let frameHeight = frameBounds.maxY - frameBounds.minY;
+
+    if (width) {
+      body.widthScale = width / frameWidth;
+      delete body.width;
+    }
+
+    if (height) {
+      body.heightScale = height / frameHeight;
+      delete body.height;
+    }
+  } catch (e) {}
+
+  if (!actor.components) {
+    actor.components = {};
+  }
+
+  actor.components.Body = body;
+
   return {
     actorId: `${actor.actorId}` || uuidv4(),
     parentEntryId: actor.entryId,
@@ -148,17 +218,21 @@ function newFilenameForTitle({ title, extension, blueprintsDir }) {
   return filename;
 }
 
-async function writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle }) {
+async function writeSceneLayoutAsync({ sceneData, cardDir, library }) {
   const actors = sceneData.snapshot.actors;
 
-  let layout = actors.map(serializeActor).map((actor) => {
-    return {
-      actorId: actor.actorId,
-      title: entryIdToTitle ? entryIdToTitle[actor.entryId] : undefined,
-      entryId: actor.entryId,
-      components: actor.components,
-    };
-  });
+  let layout = actors
+    .map((actor) => {
+      actor.entry = library[actor.parentEntryId];
+
+      return actor;
+    })
+    .filter((actor) => {
+      return !!actor.entry;
+    })
+    .map((actor) => {
+      return serializeActor({ actor, entry: actor.entry });
+    });
 
   fs.writeFileSync(path.join(cardDir, 'layout.yaml'), yaml.stringify(layout));
 }
@@ -170,14 +244,11 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
   const entryIds = Object.keys(library);
 
   const blueprintsDir = getBlueprintsDir(cardDir);
-  const entryIdToTitle = {};
 
   for (const entryId of entryIds) {
     const entry = library[entryId];
     if (entry.entryType == 'actorBlueprint') {
       const title = entry.title;
-
-      entryIdToTitle[entryId] = title;
 
       const components = entry.actorBlueprint.components;
 
@@ -212,7 +283,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
     }
   }
 
-  await writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle });
+  await writeSceneLayoutAsync({ sceneData, cardDir, library });
 }
 
 export async function readDeckFromDirectoryAsync({ dir, log }) {
@@ -264,14 +335,11 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
 
   const blueprintsDir = getBlueprintsDir(cardDir);
-  const entryIdToTitle = {};
 
   for (const entryId of entryIds) {
     const entry = library[entryId];
     if (entry.entryType == 'actorBlueprint') {
       const title = entry.title;
-
-      entryIdToTitle[entryId] = title;
 
       const components = entry.actorBlueprint.components;
       let localComponents: any = null;
@@ -330,7 +398,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
     }
   }
 
-  await writeSceneLayoutAsync({ sceneData, cardDir, entryIdToTitle });
+  await writeSceneLayoutAsync({ sceneData, cardDir, library });
 }
 
 async function getEntryIdToBlueprintFilenameAsync(cardDir) {
@@ -477,28 +545,37 @@ export async function newSceneDataForCardAsync({
         }
       });
 
-      sceneData.snapshot.actors = layoutData.map((actor) => {
-        let newActor = deserializeActor(actor);
+      sceneData.snapshot.actors = layoutData
+        .map((actor) => {
+          actor.entry = library[actor.entryId];
 
-        let oldActor = actorIdToActor[newActor.actorId];
-        if (oldActor) {
-          newActor = Utils.mergeSkipArray(_.cloneDeep(oldActor), newActor);
+          return actor;
+        })
+        .filter((actor) => {
+          return !!actor.entry;
+        })
+        .map((actor) => {
+          let newActor = deserializeActor({ actor, entry: actor.entry });
 
-          if (!Utils.isEqualUnordered(newActor, oldActor)) {
-            /*
+          let oldActor = actorIdToActor[newActor.actorId];
+          if (oldActor) {
+            newActor = Utils.mergeSkipArray(_.cloneDeep(oldActor), newActor);
+
+            if (!Utils.isEqualUnordered(newActor, oldActor)) {
+              /*
             console.log(JSON.stringify(newActor));
             console.log(JSON.stringify(oldActor));
             */
 
+              modifiedLayout = true;
+            }
+          } else {
+            newActor = Utils.mergeSkipArray(_.cloneDeep(DEFAULT_ACTOR), newActor);
             modifiedLayout = true;
           }
-        } else {
-          newActor = Utils.mergeSkipArray(_.cloneDeep(DEFAULT_ACTOR), newActor);
-          modifiedLayout = true;
-        }
 
-        return newActor;
-      });
+          return newActor;
+        });
     }
   }
 
