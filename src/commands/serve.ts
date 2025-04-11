@@ -24,6 +24,7 @@ const HTML = `
       <script src="https://castle.xyz/embed.js" charset="utf-8"></script>
       <script charset="utf-8">
         var currentVersion = 0;
+        var currentCardId = null;
 
         function showMessage(message) {
           document.getElementById('message').innerText = message;
@@ -39,7 +40,12 @@ const HTML = `
         }
 
         async function update() {
-          var response = await fetch('/scene-data');
+          var response;
+          if (currentCardId) {
+            response = await fetch('/scene-data?cardId=' + currentCardId);
+          } else {
+            response = await fetch('/scene-data');
+          }
           var deckJson = await response.json();
           window.castlexyz.createDeckFromJSON(document.getElementById('player'), JSON.stringify(deckJson), {
             maxWidth: 400,
@@ -72,11 +78,19 @@ const HTML = `
           });
         }
 
-        function registerLogs() {
-          window.castlexyz.registerLogListener(logger);
+        async function cardLoader(cardId) {
+          var response = await fetch('/scene-data?cardId=' + cardId);
+          var deckJson = await response.json();
+          currentCardId = cardId;
+          return JSON.stringify(deckJson);
         }
 
-        setTimeout(registerLogs, 100);
+        function registerCallbacks() {
+          window.castlexyz.registerLogListener(logger);
+          window.castlexyz.registerCardLoader(cardLoader);
+        }
+
+        setTimeout(registerCallbacks, 100);
         setTimeout(update, 100);
         setTimeout(checkForUpdate, 1000);
       </script>
@@ -119,42 +133,26 @@ export default class Serve extends BaseCommand<typeof Serve> {
       return;
     }
 
-    let cardId = deck.initialCard.cardId;
+    let initialCardId = deck.initialCard.cardId;
     if (flags.card) {
-      cardId = flags.card;
-      if (!deck.cards.find((card) => card.cardId == cardId)) {
-        this.log(`Card with ID ${cardId} not found in deck.`);
-        return;
+      initialCardId = flags.card;
+      if (!deck.cards.find((card) => card.cardId == initialCardId)) {
+        this.error(`Card with ID ${initialCardId} not found in deck.`);
       }
     }
 
-    let card: any = null;
-    for (let c of deck.cards) {
-      if (c.cardId == cardId) {
-        card = c;
-        break;
-      }
-    }
-    if (!card) {
-      this.log(`Card with ID ${cardId} not found in deck.`);
-      return;
-    }
-
-    let cardDirectory: any = null;
+    let cardDirectories: any = {};
 
     const cardFiles = await glob('**/card.json', { cwd: directory, ignore: ['node_modules/**'] });
     for (let cardFile of cardFiles) {
       try {
         let cardData = JSON.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
-        if (cardData.cardId == cardId) {
-          cardDirectory = path.dirname(cardFile);
-        }
+        cardDirectories[cardData.cardId] = path.dirname(cardFile);
       } catch (e) {}
     }
 
-    if (!cardDirectory) {
-      this.log(`Card with ID ${cardId} not found in directory.`);
-      return;
+    if (!cardDirectories[initialCardId]) {
+      this.error(`Card with ID ${initialCardId} not found in directory.`);
     }
 
     let port: any = null;
@@ -175,8 +173,8 @@ export default class Serve extends BaseCommand<typeof Serve> {
 
     let version = 0;
 
-    watch.default(path.join(directory, cardDirectory), { recursive: true }, async (evt, name) => {
-      this.log(`File ${name} changed. Reloading...`);
+    watch.default(directory, { recursive: true }, async (evt, name) => {
+      this.log(`File ${path.relative(directory, name)} changed. Reloading...`);
       version++;
     });
 
@@ -217,10 +215,17 @@ export default class Serve extends BaseCommand<typeof Serve> {
       });
 
       app.get('/scene-data', async (req, res) => {
+        let queryCardId = req.query.cardId;
+        let cardId = queryCardId ? queryCardId : initialCardId;
+
+        if (!cardDirectories[cardId]) {
+          this.error(`Card with ID ${cardId} not found in directory.`);
+        }
+
         let response = await Decks.newSceneDataForCardAsync({
           cardId,
           deckDir: directory,
-          cardDir: path.join(directory, cardDirectory),
+          cardDir: path.join(directory, cardDirectories[cardId]),
         });
 
         res.json(response.sceneData);
