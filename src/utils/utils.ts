@@ -16,3 +16,11 @@ export function mergeSkipArray(obj, src) {
     }
   });
 }
+
+export function serializeAngle(angle: number) {
+  return angle * (180 / Math.PI);
+}
+
+export function deserializeAngle(angle: number) {
+  return angle * (Math.PI / 180);
+}

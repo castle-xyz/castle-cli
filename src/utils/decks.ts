@@ -84,6 +84,10 @@ function serializeActor({ actor, entry }) {
   let body = _.pick(_.cloneDeep(components.Body), BODY_FIELDS);
   components.Body = _.omit(body, BODY_FIELDS);
 
+  if (body.angle) {
+    body.angle = Utils.serializeAngle(body.angle);
+  }
+
   if (_.isEmpty(components.Body)) {
     delete components.Body;
   }
@@ -138,7 +142,7 @@ function deserializeActor({ actor, entry }) {
   let body = actor?.components?.Body || {};
   body.x = actor.x;
   body.y = actor.y;
-  body.angle = actor.angle;
+  body.angle = Utils.deserializeAngle(actor.angle || 0);
   body.widthScale = actor.widthScale || 0;
   body.heightScale = actor.heightScale || 0;
 
