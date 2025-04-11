@@ -10,6 +10,8 @@ import watch from 'node-watch';
 
 import * as Decks from '../utils/decks.js';
 
+// get the current version when page loads, so that if you reload the page it doesn't immediately
+// show the reload alert
 const HTML = `
 <html>
   <head></head>
@@ -23,6 +25,7 @@ const HTML = `
 
       <script src="https://castle.xyz/embed.js" charset="utf-8"></script>
       <script charset="utf-8">
+        var hasSetCurrentVersion = false;
         var currentVersion = 0;
         var currentCardId = null;
 
@@ -34,7 +37,7 @@ const HTML = `
         }
 
         async function getVersion() {
-          var response = await fetch('/version?version=' + currentVersion);
+          var response = await fetch('/version?version=' + currentVersion + '&returnImmediate=' + (hasSetCurrentVersion ? 'false' : 'true'));
           var versionJson = await response.json();
           return versionJson.version;
         }
@@ -55,10 +58,16 @@ const HTML = `
         async function checkForUpdate() {
           try {
             var version = await getVersion();
-            if (version > currentVersion) {
+
+            if (hasSetCurrentVersion) {
+              if (version > currentVersion) {
+                currentVersion = version;
+                await update();
+                showMessage('Reloaded from file change');
+              }
+            } else {
               currentVersion = version;
-              await update();
-              showMessage('Reloaded from file change');
+              hasSetCurrentVersion = true;
             }
           } catch (e) {
             setTimeout(checkForUpdate, 2000);
@@ -92,7 +101,7 @@ const HTML = `
 
         setTimeout(registerCallbacks, 100);
         setTimeout(update, 100);
-        setTimeout(checkForUpdate, 1000);
+        setTimeout(checkForUpdate, 100);
       </script>
     </div>
   </body>
@@ -186,10 +195,11 @@ export default class Serve extends BaseCommand<typeof Serve> {
       });
 
       app.get('/version', (req, res) => {
+        const returnImmediate = req.query.returnImmediate === 'true';
         const clientVersion = parseInt(req.query.version as string) || 0;
 
         // If client's version is outdated, respond immediately
-        if (clientVersion < version) {
+        if (clientVersion < version || returnImmediate) {
           return res.json({ version });
         }
 
