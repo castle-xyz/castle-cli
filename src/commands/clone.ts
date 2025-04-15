@@ -18,7 +18,7 @@ const DEFAULT_FILES = [
 **/.DS_Store
 `,
   },
-  {
+  /*{
     path: '.cursor/mcp.json',
     content: `{
   "mcpServers": {
@@ -28,7 +28,7 @@ const DEFAULT_FILES = [
     }
   }
 }`,
-  },
+  },*/
   {
     path: '.vscode/settings.json',
     content: `{

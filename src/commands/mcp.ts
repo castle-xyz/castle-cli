@@ -37,6 +37,7 @@ server.resource(
 
 export default class MCP extends BaseCommand<typeof MCP> {
   static description = 'Starts an MCP server';
+  static hidden = true;
 
   public async run(): Promise<void> {
     const transport = new StdioServerTransport();

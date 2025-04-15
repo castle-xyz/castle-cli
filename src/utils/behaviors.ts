@@ -112,7 +112,7 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
       continue;
     }
 
-    if (!attribs.rulesGet || !attribs.rulesSet) {
+    if (!attribs.rulesGet && !attribs.rulesSet) {
       continue;
     }
 
