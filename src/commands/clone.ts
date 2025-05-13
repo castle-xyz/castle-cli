@@ -43,7 +43,7 @@ export default class Clone extends BaseCommand<typeof Clone> {
   static description = 'Clone a deck';
 
   static args = {
-    deck: Args.string({ required: true, description: 'ID of the deck to clone' }),
+    deck: Args.string({ required: true, description: 'Link or ID of the deck to clone' }),
     directory: Args.string({
       required: false,
       description: 'Directory to clone the deck into',
@@ -66,7 +66,25 @@ export default class Clone extends BaseCommand<typeof Clone> {
     const { args } = await this.parse(Clone);
     const { flags } = await this.parse(Clone);
 
-    const deckId = args.deck;
+    let deckId = args.deck;
+
+    if (deckId.startsWith('http') || deckId.includes('castle.xyz') || deckId.includes('castle.games') || deckId.includes('/d/')) {
+      let url = deckId;
+
+      try {
+        let resolvedLink = await API.resolveDeepLink(url);
+        if (resolvedLink && resolvedLink.deck) {
+          deckId = resolvedLink.deck.deckId;
+
+          this.log(`Found deck ID ${deckId} at url ${url}`);
+        } else {
+          this.error(`Failed to resolve deep link: ${url}`);
+        }
+      } catch (e) {
+        this.error(`Failed to find deck at link: ${url}`);
+      }
+    }
+
     const directory = args.directory;
 
     let deck;

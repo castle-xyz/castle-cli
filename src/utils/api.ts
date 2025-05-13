@@ -169,3 +169,20 @@ export const uploadSceneData = async (cards) => {
 
   return response.data.uploadSceneData;
 };
+
+export const resolveDeepLink = async (url) => {
+  let response = await API(
+    `query($url: String!) {
+      resolveDeepLink(url: $url) {
+        deck {
+          deckId
+        }
+      }
+    }`,
+    { url }
+  );
+
+  handleAPIError(response);
+
+  return response.data.resolveDeepLink;
+};
