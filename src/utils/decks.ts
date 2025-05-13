@@ -295,24 +295,24 @@ export async function readDeckFromDirectoryAsync({ dir, log }) {
     dir = '.';
   }
 
-  let filePath = path.join(dir, 'deck.json');
+  let filePath = path.join(dir, 'deck.yaml');
 
   if (!fs.existsSync(filePath)) {
-    log(`No deck.json found in the current directory.`);
+    log(`No deck.yaml found in the current directory.`);
     return;
   }
 
   let deckId = null;
   try {
-    const deckConfig = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const deckConfig = yaml.parse(fs.readFileSync(filePath, 'utf8'));
     deckId = deckConfig.deckId;
   } catch (e) {
-    log(`Error reading deck.json: ${e}`);
+    log(`Error reading deck.yaml: ${e}`);
     return;
   }
 
   if (!deckId) {
-    log(`No deck ID found in deck.json.`);
+    log(`No deck ID found in deck.yaml.`);
     return;
   }
 

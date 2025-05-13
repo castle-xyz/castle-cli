@@ -2,6 +2,7 @@ import { Args, Flags } from '@oclif/core';
 import { BaseCommand } from '../baseCommand.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import yaml from 'yaml';
 
 import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
@@ -62,13 +63,18 @@ export default class Clone extends BaseCommand<typeof Clone> {
     }),
   };
 
-  public async run(): Promise<{deckId: string; directory: string}> {
+  public async run(): Promise<{ deckId: string; directory: string }> {
     const { args } = await this.parse(Clone);
     const { flags } = await this.parse(Clone);
 
     let deckId = args.deck;
 
-    if (deckId.startsWith('http') || deckId.includes('castle.xyz') || deckId.includes('castle.games') || deckId.includes('/d/')) {
+    if (
+      deckId.startsWith('http') ||
+      deckId.includes('castle.xyz') ||
+      deckId.includes('castle.games') ||
+      deckId.includes('/d/')
+    ) {
       let url = deckId;
 
       try {
@@ -135,16 +141,12 @@ export default class Clone extends BaseCommand<typeof Clone> {
     let castleCacheDirectory = path.join(castleDirectory, '.cache');
     fs.mkdirSync(castleCacheDirectory);
 
-    let deckFileName = path.join(deckDirectory, 'deck.json');
+    let deckFileName = path.join(deckDirectory, 'deck.yaml');
     fs.writeFileSync(
       deckFileName,
-      JSON.stringify(
-        {
-          deckId: deck.deckId,
-        },
-        null,
-        2
-      )
+      yaml.stringify({
+        deckId: deck.deckId,
+      })
     );
 
     for (let card of deck.cards) {
@@ -153,17 +155,13 @@ export default class Clone extends BaseCommand<typeof Clone> {
       let cardDirectory = path.join(deckDirectory, `card-${card.cardId}`);
       fs.mkdirSync(cardDirectory);
 
-      let cardFileName = path.join(cardDirectory, 'card.json');
+      let cardFileName = path.join(cardDirectory, 'card.yaml');
 
       fs.writeFileSync(
         cardFileName,
-        JSON.stringify(
-          {
-            cardId: card.cardId,
-          },
-          null,
-          2
-        )
+        yaml.stringify({
+          cardId: card.cardId,
+        })
       );
 
       await Decks.cloneCardAsync({

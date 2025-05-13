@@ -7,6 +7,7 @@ import { glob } from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';
 import watch from 'node-watch';
+import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
 
@@ -152,10 +153,10 @@ export default class Serve extends BaseCommand<typeof Serve> {
 
     let cardDirectories: any = {};
 
-    const cardFiles = await glob('**/card.json', { cwd: directory, ignore: ['node_modules/**'] });
+    const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
     for (let cardFile of cardFiles) {
       try {
-        let cardData = JSON.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
+        let cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
         cardDirectories[cardData.cardId] = path.dirname(cardFile);
       } catch (e) {}
     }

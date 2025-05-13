@@ -2,6 +2,7 @@ import { Args } from '@oclif/core';
 import { BaseCommand } from '../baseCommand.js';
 import { glob } from 'glob';
 import * as fs from 'fs';
+import yaml from 'yaml';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
@@ -22,7 +23,7 @@ export default class Pull extends BaseCommand<typeof Pull> {
     const { args } = await this.parse(Pull);
 
     //this.log('euowuoequwouqo');
-//Behaviors.test();
+    //Behaviors.test();
 
     const directory = args.directory;
 
@@ -33,10 +34,10 @@ export default class Pull extends BaseCommand<typeof Pull> {
 
     const cardIdToDirectory = {};
 
-    const cardFiles = await glob('**/card.json', { cwd: directory, ignore: ['node_modules/**'] });
+    const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
     for (let cardFile of cardFiles) {
       try {
-        let cardData = JSON.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
+        let cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
         if (cardData.cardId) {
           cardIdToDirectory[cardData.cardId] = path.dirname(cardFile);
         }
@@ -61,17 +62,13 @@ export default class Pull extends BaseCommand<typeof Pull> {
         let cardDirectory = path.join(directory, `card-${card.cardId}`);
         fs.mkdirSync(cardDirectory);
 
-        let cardFileName = path.join(cardDirectory, 'card.json');
+        let cardFileName = path.join(cardDirectory, 'card.yaml');
 
         fs.writeFileSync(
           cardFileName,
-          JSON.stringify(
-            {
-              cardId: card.cardId,
-            },
-            null,
-            2
-          )
+          yaml.stringify({
+            cardId: card.cardId,
+          })
         );
 
         await Decks.cloneCardAsync({
