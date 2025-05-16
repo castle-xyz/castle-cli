@@ -108,6 +108,16 @@ function serializeActor({ actor, entry }) {
       let frameWidth = frameBounds.maxX - frameBounds.minX;
       let frameHeight = frameBounds.maxY - frameBounds.minY;
 
+      // this is needed for the case where the drawing is a single vertical or horizontal line
+      // there's no width / height because the line width is from the hard coded line width in the
+      // client
+      if (frameWidth == 0) {
+        frameWidth = 1;
+      }
+      if (frameHeight == 0) {
+        frameHeight = 1;
+      }
+
       body.width = roundSize(frameWidth * body.widthScale);
       body.height = roundSize(frameHeight * body.heightScale);
 
@@ -157,6 +167,16 @@ function deserializeActor({ actor, entry }) {
 
     let frameWidth = frameBounds.maxX - frameBounds.minX;
     let frameHeight = frameBounds.maxY - frameBounds.minY;
+
+    // this is needed for the case where the drawing is a single vertical or horizontal line
+    // there's no width / height because the line width is from the hard coded line width in the
+    // client
+    if (frameWidth == 0) {
+      frameWidth = 1;
+    }
+    if (frameHeight == 0) {
+      frameHeight = 1;
+    }
 
     if (width) {
       body.widthScale = width / frameWidth;
