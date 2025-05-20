@@ -25,7 +25,8 @@ export default class Push extends BaseCommand<typeof Push> {
 
     const directory = args.directory;
 
-    await Decks.syncCardVersionsAsync({ deckDir: directory });
+    // use force: true so that users can't edit the deck json files under .cache
+    await Decks.syncCardVersionsAsync({ deckDir: directory, force: true });
 
     let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: this.log.bind(this) });
     if (!deck) {

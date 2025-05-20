@@ -694,7 +694,7 @@ export async function pushCardsAsync({ deckDir, cards }) {
   }
 }
 
-export async function syncCardVersionsAsync({ deckDir }) {
+export async function syncCardVersionsAsync({ deckDir, force = false }) {
   let castleDir = getCastleDir(deckDir);
   let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
   let cardVersions = {};
@@ -715,7 +715,7 @@ export async function syncCardVersionsAsync({ deckDir }) {
       cachedSceneDataUrl = fs.readFileSync(path.join(cacheDir, `${cardId}.version`), 'utf8').trim();
     } catch (e) {}
 
-    if (cachedSceneDataUrl != sceneDataUrl) {
+    if (cachedSceneDataUrl != sceneDataUrl || force) {
       console.log(`Syncing card ${cardId}...`);
       await syncSceneDataAsync({ deckDir, cardId, sceneDataUrl });
     }
