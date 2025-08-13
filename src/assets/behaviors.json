@@ -1,4 +1,38 @@
 {
+  "Shared": {
+    "behaviorId": 31,
+    "name": "Shared",
+    "displayName": "Shared",
+    "allowsDisableWithoutRemoval": false,
+    "propertySpecs": {
+      "uuid": {
+        "name": "uuid",
+        "type": "string",
+        "attribs": {
+          "label": "uuid",
+          "scriptName": "",
+          "min": null,
+          "max": null,
+          "rulesGet": false,
+          "rulesSet": false,
+          "allowedValues": []
+        }
+      },
+      "playerOwned": {
+        "name": "playerOwned",
+        "type": "b",
+        "attribs": {
+          "label": "playerOwned",
+          "scriptName": "",
+          "min": null,
+          "max": null,
+          "rulesGet": false,
+          "rulesSet": false,
+          "allowedValues": []
+        }
+      }
+    }
+  },
   "Tilt": {
     "behaviorId": 25,
     "name": "Tilt",
@@ -140,7 +174,7 @@
           "min": null,
           "max": null,
           "rulesGet": false,
-          "rulesSet": false,
+          "rulesSet": true,
           "allowedValues": []
         }
       },
@@ -376,7 +410,7 @@
           "min": null,
           "max": null,
           "rulesGet": false,
-          "rulesSet": false,
+          "rulesSet": true,
           "allowedValues": []
         }
       },
@@ -415,7 +449,7 @@
           "min": null,
           "max": null,
           "rulesGet": false,
-          "rulesSet": false,
+          "rulesSet": true,
           "allowedValues": []
         }
       },
@@ -428,7 +462,7 @@
           "min": null,
           "max": null,
           "rulesGet": false,
-          "rulesSet": false,
+          "rulesSet": true,
           "allowedValues": []
         }
       },
@@ -588,6 +622,19 @@
         "type": "vector",
         "attribs": {
           "label": "fixtures",
+          "scriptName": "",
+          "min": null,
+          "max": null,
+          "rulesGet": false,
+          "rulesSet": false,
+          "allowedValues": []
+        }
+      },
+      "relativeToCameraFix": {
+        "name": "relativeToCameraFix",
+        "type": "b",
+        "attribs": {
+          "label": "relativeToCameraFix",
           "scriptName": "",
           "min": null,
           "max": null,

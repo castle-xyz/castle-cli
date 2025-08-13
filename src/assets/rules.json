@@ -241,6 +241,22 @@
       "initialParamsJson": ""
     },
     {
+      "name": "load",
+      "behaviorId": 31,
+      "behaviorName": "Shared",
+      "description": "When this shared actor is loaded",
+      "paramSpecs": [],
+      "initialParamsJson": ""
+    },
+    {
+      "name": "unload",
+      "behaviorId": 31,
+      "behaviorName": "Shared",
+      "description": "When this shared actor is unloaded",
+      "paramSpecs": [],
+      "initialParamsJson": ""
+    },
+    {
       "name": "clock reaches beat",
       "behaviorId": 16,
       "behaviorName": "Rules",
@@ -1400,6 +1416,16 @@
           }
         },
         {
+          "name": "pan",
+          "type": "expression",
+          "attribs": {
+            "label": "pan",
+            "min": -1,
+            "max": 1,
+            "allowedValues": []
+          }
+        },
+        {
           "name": "recordingUrl",
           "type": "string",
           "attribs": {
@@ -1524,7 +1550,7 @@
           }
         }
       ],
-      "initialParamsJson": "{\"initialParams\":{\"type\":\"sfxr\",\"playbackRate\":{\"value\":1.0},\"amplitude\":{\"value\":1.0},\"recordingUrl\":\"\",\"uploadUrl\":\"\",\"category\":\"random\",\"seed\":1337,\"mutationSeed\":0,\"mutationAmount\":5,\"midiNote\":60,\"waveform\":\"square\",\"attack\":0.0,\"release\":0.4,\"wait\":false}}"
+      "initialParamsJson": "{\"initialParams\":{\"type\":\"sfxr\",\"playbackRate\":{\"value\":1.0},\"amplitude\":{\"value\":1.0},\"pan\":{\"value\":0.0},\"recordingUrl\":\"\",\"uploadUrl\":\"\",\"category\":\"random\",\"seed\":1337,\"mutationSeed\":0,\"mutationAmount\":5,\"midiNote\":60,\"waveform\":\"square\",\"attack\":0.0,\"release\":0.4,\"wait\":false}}"
     },
     {
       "name": "stop all sound",
@@ -1821,6 +1847,28 @@
       "initialParamsJson": "{\"initialParams\":{\"message\":\"\"}}"
     },
     {
+      "name": "set shared ownership",
+      "behaviorId": 31,
+      "behaviorName": "Shared",
+      "description": "Change who controls this actor",
+      "paramSpecs": [
+        {
+          "name": "control",
+          "type": "string",
+          "attribs": {
+            "label": "control",
+            "min": null,
+            "max": null,
+            "allowedValues": [
+              "player",
+              "session"
+            ]
+          }
+        }
+      ],
+      "initialParamsJson": "{\"initialParams\":{\"control\":\"player\"}}"
+    },
+    {
       "name": "add tag",
       "behaviorId": 17,
       "behaviorName": "Tags",
@@ -1981,6 +2029,25 @@
       "initialParamsJson": "{\"initialParams\":{\"comparison\":\"equal\",\"frame\":{\"value\":1.0}}}"
     },
     {
+      "name": "exists",
+      "behaviorId": 16,
+      "behaviorName": "Rules",
+      "description": "If the actor exists",
+      "paramSpecs": [
+        {
+          "name": "actor",
+          "type": "actorRef",
+          "attribs": {
+            "label": "actor",
+            "min": null,
+            "max": null,
+            "allowedValues": []
+          }
+        }
+      ],
+      "initialParamsJson": "{\"initialParams\":{\"actor\":{\"kind\":\"self\",\"tag\":\"\"}}}"
+    },
+    {
       "name": "expression meets condition",
       "behaviorId": 16,
       "behaviorName": "Rules",
@@ -2098,6 +2165,14 @@
         }
       ],
       "initialParamsJson": "{\"initialParams\":{\"variableId\":{\"scope\":\"actor\",\"id\":\"\",\"actorRef\":{\"kind\":\"self\",\"tag\":\"\"}},\"comparison\":\"equal\",\"value\":{\"value\":0.0}}}"
+    },
+    {
+      "name": "shared actor created by player",
+      "behaviorId": 31,
+      "behaviorName": "Shared",
+      "description": "If this shared actor is owned by the current device",
+      "paramSpecs": [],
+      "initialParamsJson": ""
     },
     {
       "name": "has tag",
@@ -3322,6 +3397,25 @@
       "description": "the number of times the player has played this deck",
       "paramSpecs": [],
       "initialParamsJson": ""
+    },
+    {
+      "name": "art frames",
+      "behaviorId": -1,
+      "behaviorName": "",
+      "description": "the number of art frames",
+      "paramSpecs": [
+        {
+          "name": "actorRef",
+          "type": "actorRef",
+          "attribs": {
+            "label": "actor type",
+            "min": null,
+            "max": null,
+            "allowedValues": []
+          }
+        }
+      ],
+      "initialParamsJson": "{\"initialParams\":{\"actorRef\":{\"kind\":\"self\",\"tag\":\"\"}}}"
     },
     {
       "name": "device tilt x",

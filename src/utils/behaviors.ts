@@ -101,6 +101,11 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
   let result = {};
 
   for (let key of keys) {
+    if (key == 'disabled') {
+      result[key] = component[key];
+      continue;
+    }
+
     let propertySpec = behavior.propertySpecs[key];
 
     if (!propertySpec) {
