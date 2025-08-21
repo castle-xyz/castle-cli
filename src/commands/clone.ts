@@ -19,17 +19,17 @@ const DEFAULT_FILES = [
 **/.DS_Store
 `,
   },
-  /*{
+  {
     path: '.cursor/mcp.json',
     content: `{
-  "mcpServers": {
-    "castle": {
-      "command": "npx",
-      "args": ["-y", "castle-cli", "mcp"]
-    }
-  }
-}`,
-  },*/
+      "mcpServers": {
+        "castle": {
+          "command": "npx",
+          "args": ["-y", "castle-cli", "mcp"]
+        }
+      }
+    }`,
+  },
   {
     path: '.vscode/settings.json',
     content: `{

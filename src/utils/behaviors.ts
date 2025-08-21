@@ -3,6 +3,7 @@ import _ from 'lodash';
 
 import BehaviorConfig from '../assets/behaviors.json' with { type: 'json' };
 import * as Rules from './rules.js';
+import { ActorBlueprint, YamlString } from './blueprints.js';
 
 function formatDisplayName(name) {
   return name.replace(/\s/g, '');
@@ -18,11 +19,40 @@ for (const key in BehaviorConfig) {
 }
 export const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 
+export const enum BehaviorKey {
+  AnalogStick = 'AnalogStick',
+  Body = 'Body',
+  Bouncy = 'Bouncy',
+  Camera = 'Camera',
+  Counter = 'Counter',
+  Drag = 'Drag',
+  Drawing2 = 'Drawing2',
+  Falling = 'Falling',
+  Friction = 'Friction',
+  Link = 'Link',
+  LocalVariables = 'LocalVariables',
+  Moving = 'Moving',
+  Music = 'Music',
+  RotatingMotion = 'RotatingMotion',
+  Rules = 'Rules',
+  Script = 'Script',
+  Shared = 'Shared',
+  Sliding = 'Sliding',
+  Sling = 'Sling',
+  Slowdown = 'Slowdown',
+  Solid = 'Solid',
+  SpeedLimit = 'SpeedLimit',
+  Styles = 'Styles',
+  Tags = 'Tags',
+  Text = 'Text',
+  Tilt = 'Tilt',
+  VideoCamera = 'VideoCamera',
+  VideoCameraFeature = 'VideoCameraFeature',
+}
+
 const COMPONENTS_TO_SKIP = ['Body', 'Drawing2'];
 
 export function serializeComponents({ components, writeRulesFile, writeScriptFile }) {
-  //console.log(BehaviorConfig);
-
   let result = {};
   for (const key in components) {
     if (COMPONENTS_TO_SKIP.includes(key)) {
@@ -41,6 +71,43 @@ export function serializeComponents({ components, writeRulesFile, writeScriptFil
     }
   }
   return result;
+}
+
+/**
+ * Serialize into an ActorBlueprint object, from a set of Blueprint components.
+ * NOTE: this function is similar to serializeComponents, but it does not write rules or script files to disk.
+ * @param components - Record<string, any>; from Blueprint.actorBlueprint.components
+ * @returns ActorBlueprint
+ */
+export function serializePartialComponents({ components }): ActorBlueprint {
+  let result:  Record<string, any> = {};
+  let rulesFile: YamlString | undefined;
+  let scriptFile: string | undefined;
+
+  for (const key in components) {
+    if (COMPONENTS_TO_SKIP.includes(key)) {
+      continue;
+    }
+
+    let behavior = BehaviorConfig[key];
+
+    if (behavior) {
+
+      if (behavior.name === BehaviorKey.Rules) {
+        rulesFile = serializeRulesComponent({ component: components[key] });
+      } else if (behavior.name === BehaviorKey.Script) {
+        scriptFile = serializeScriptComponent({ component: components[key] });
+      } else {
+        result[formatDisplayName(behavior.displayName)] = serializeComponentInternals({ behavior, component: components[key] });
+      }
+    }
+  }
+
+  return {
+    rulesFile,
+    scriptFile,
+    components: result,
+  };
 }
 
 export function deserializeComponents({ components, readFile }) {
@@ -97,8 +164,33 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
     };
   }
 
+  return serializeComponentInternals({ behavior, component });
+}
+
+export function serializeRulesComponent({ component }) {
+  let rules: any = [];
+
+  if (component.rules) {
+    for (let rule of component.rules) {
+      rules.push(Rules.serializeRule(rule));
+    }
+  }
+
+  return yaml.stringify(rules)
+}
+
+export function serializeScriptComponent({ component }) {
+  let code = component.code || '';
+  return code
+}
+
+export function serializeComponentInternals({ behavior, component }): Record<string, any> {
+  if (!component.disabled) {
+    delete component.disabled;
+  }
+
   let keys = _.keys(component);
-  let result = {};
+  let result: Record<string, any> = {};
 
   for (let key of keys) {
     if (key == 'disabled') {

@@ -1,7 +1,7 @@
 {
   "name": "castle-cli",
   "type": "module",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
@@ -48,6 +48,7 @@
   "devDependencies": {
     "@oclif/test": "^4",
     "@types/chai": "^4",
+    "@types/lodash": "^4.17.20",
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",

@@ -10,7 +10,7 @@ import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import * as Utils from './utils.js';
 
-const DEFAULT_ACTOR = {
+export const DEFAULT_ACTOR = {
   bp: {
     components: {
       Body: {
@@ -37,7 +37,7 @@ function getCastleDir(deckDir) {
   return result;
 }
 
-function getCacheDir(deckDir) {
+export function getCacheDir(deckDir) {
   let result = path.join(deckDir, '.castle', '.cache');
 
   if (!fs.existsSync(result)) {
@@ -47,7 +47,7 @@ function getCacheDir(deckDir) {
   return result;
 }
 
-function getBlueprintsDir(cardDir) {
+export function getBlueprintsDir(cardDir) {
   // blueprints can be moved anywhere, this is just the default
   const blueprintsDir = path.join(cardDir, 'blueprints');
   if (!fs.existsSync(blueprintsDir)) {
@@ -57,11 +57,44 @@ function getBlueprintsDir(cardDir) {
   return blueprintsDir;
 }
 
+/**
+ * Get the deck ID of the current deck.
+ * By checking the deck.yaml file explicitly,
+ * we take an extra step to ensure that the deck is valid.
+ * @param deckDir - string
+ * @returns string | undefined
+ */
+export function getCurrentDeck(deckDir: string = '.'): string | undefined {
+  let filePath = path.join(deckDir, 'deck.yaml');
+  try {
+    const deckConfig = yaml.parse(fs.readFileSync(filePath, 'utf8'));
+    return deckConfig.deckId;
+  } catch (e) {
+    console.error(`Error reading deck.yaml: ${e.message ?? e}`);
+    return undefined;
+  }
+}
+
+/**
+ * Get the card IDs of the cards in the current deck.
+ * @param deckDir - string
+ * @returns string[]
+ */
+export function getCurrentDeckCards(deckDir: string = '.'): string[] {
+  try {
+    const cards = fs.readdirSync(deckDir).filter(file => file.startsWith('card-'));
+    return cards.map(card => card.replace('card-', ''));
+  } catch (e) {
+    console.error(`Error reading cards: ${e.message ?? e}`);
+    return [];
+  }
+}
+
 function roundSize(size) {
   return Math.round(size * 100) / 100;
 }
 
-function serializeActor({ actor, entry }) {
+export function serializeActor({ actor, entry }) {
   actor = _.cloneDeep(actor);
   entry = _.cloneDeep(entry);
 
