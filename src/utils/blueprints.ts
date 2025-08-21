@@ -5,11 +5,13 @@ import * as path from 'path';
 import yaml from 'yaml';
 
 import BlueprintTemplate from '../assets/blueprints.json' with { type: 'json' };
-import { DEFAULT_ACTOR, getBlueprintsDir, getCacheDir, serializeActor } from './decks.js';
+import { addActorIdsToLayoutFile, DEFAULT_ACTOR, getBlueprintsDir, getCacheDir, serializeActor } from './decks.js';
 
 export type YamlString = string;
 
-export const DEFAULT_BLUEPRINTS = BlueprintTemplate.templates as Blueprint[];
+// The Blueprint type does not contain all fields, but rather the ones that we may currently reference in the CLI.
+// We cast to unknown to avoid type errors.
+export const DEFAULT_BLUEPRINTS = BlueprintTemplate.templates as unknown as Blueprint[];
 
 export interface Blueprint {
   title: string,
@@ -143,7 +145,7 @@ export const addBlueprintToDeck = (blueprint: Blueprint, deckDir: string, cardDi
 
   spawnBlueprintInLayout(blueprint, cardPath);
 
-  addBlueprintToDeckCache(blueprint, deckPath);
+  addBlueprintToDeckCache(blueprint, deckPath, cardPath);
 };
 
 /**
@@ -156,7 +158,6 @@ const spawnBlueprintInLayout = (blueprint: Blueprint, cardPath: string) => {
   const blueprintDefaultActor: any = DEFAULT_ACTOR;
 
   blueprintDefaultActor.parentEntryId = blueprint.entryId;
-  blueprintDefaultActor.actorId = "99"; // TODO: need a new actor id !
 
   const blueprintSerializedActor = serializeActor({ actor: blueprintDefaultActor, entry: blueprint });
 
@@ -165,6 +166,9 @@ const spawnBlueprintInLayout = (blueprint: Blueprint, cardPath: string) => {
   const layout = yaml.parse(fs.readFileSync(layoutFilePath, 'utf8'));
   layout.push(blueprintSerializedActor);
   fs.writeFileSync(layoutFilePath, yaml.stringify(layout));
+
+  // Update the layout file with actor IDs.
+  addActorIdsToLayoutFile(layoutFilePath);
 
   console.debug('Spawned blueprint in layout: ', layoutFilePath, blueprintSerializedActor);
 };
@@ -184,27 +188,36 @@ const writeBlueprintToDeck = (blueprint: Blueprint, cardPath: string) => {
 /**
  * Add a blueprint to the deck cache.
  * The deck cache is usually stored in deck/.castle/cache/<card-id>.json
+ * We use the cardPath to extrapolate the cardId.
  * @param blueprint - Blueprint
  * @param deckPath - string
+ * @param cardPath - string
  */
-const addBlueprintToDeckCache = (blueprint: Blueprint, deckPath: string) => {
+const addBlueprintToDeckCache = (blueprint: Blueprint, deckPath: string, cardPath: string) => {
   const entryId = blueprint.entryId;
 
   // Find the deck cache directory (assuming it's in the same directory as the CLI)
   const cacheDir = getCacheDir(deckPath);
-  
   if (!fs.existsSync(cacheDir)) {
     throw new Error('Deck cache directory not found in ' + cacheDir);
   }
 
-  // Find the .json file in the cache directory
-  // TODO: if there are multiple cards, then there should be multiple cache files. Need a cardId parameter.
-  const cacheFiles = fs.readdirSync(cacheDir).filter(file => file.endsWith('.json'));
-  if (cacheFiles.length === 0) {
-    throw new Error('No cache file found in deck');
+  const cardId = path.basename(cardPath).split('-')[1];
+  if (cardId === undefined || cardId === '') {
+    throw new Error('Card ID not found in card path: ' + cardPath);
   }
 
-  const cacheFilePath = path.join(cacheDir, cacheFiles[0]);
+  const cacheFilePath = path.join(cacheDir, cardId + '.json');
+  if (!fs.existsSync(cacheFilePath)) {
+    throw new Error('Card cache file not found for ' + cacheFilePath);
+  }
+
+  // Find the .json file in the cache directory
+  // const cacheFiles = fs.readdirSync(cacheDir).filter(file => file.endsWith('.json'));
+  // if (cacheFiles.length === 0) {
+  //   throw new Error('No cache file found in deck');
+  // }
+  // const cacheFilePath = path.join(cacheDir, cacheFiles[0]);
   
   // Read and parse the JSON file
   const cacheData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
