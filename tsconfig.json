@@ -15,7 +15,7 @@
     "resolveJsonModule": true
   },
   "exclude": ["node_modules", "**/__tests__", "**/__mocks__", "**/__test_utils__"],
-  "include": ["./src/**/*", "./src/assets/behaviors.json", "./src/assets/rules.json"],
+  "include": ["./src/**/*", "./src/assets/behaviors.json", "./src/assets/rules.json", "./src/assets/blueprints.json"],
   "ts-node": {
     "esm": true
   }

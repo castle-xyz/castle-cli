@@ -6,7 +6,6 @@ import yaml from 'yaml';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
-import * as Behaviors from '../utils/behaviors.js';
 
 export default class Pull extends BaseCommand<typeof Pull> {
   static description = 'Pull updates from a deck';
