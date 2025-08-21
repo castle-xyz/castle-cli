@@ -20,34 +20,10 @@ for (const key in BehaviorConfig) {
 export const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 
 export const enum BehaviorKey {
-  AnalogStick = 'AnalogStick',
-  Body = 'Body',
-  Bouncy = 'Bouncy',
-  Camera = 'Camera',
-  Counter = 'Counter',
-  Drag = 'Drag',
-  Drawing2 = 'Drawing2',
-  Falling = 'Falling',
-  Friction = 'Friction',
-  Link = 'Link',
-  LocalVariables = 'LocalVariables',
-  Moving = 'Moving',
-  Music = 'Music',
-  RotatingMotion = 'RotatingMotion',
+  // There are around 27+ behavior keys, and likely more to come.
+  // This enum helps keep track of the types that are used by the CLI.
   Rules = 'Rules',
   Script = 'Script',
-  Shared = 'Shared',
-  Sliding = 'Sliding',
-  Sling = 'Sling',
-  Slowdown = 'Slowdown',
-  Solid = 'Solid',
-  SpeedLimit = 'SpeedLimit',
-  Styles = 'Styles',
-  Tags = 'Tags',
-  Text = 'Text',
-  Tilt = 'Tilt',
-  VideoCamera = 'VideoCamera',
-  VideoCameraFeature = 'VideoCameraFeature',
 }
 
 const COMPONENTS_TO_SKIP = ['Body', 'Drawing2'];
@@ -142,7 +118,7 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
     delete component.disabled;
   }
 
-  if (behavior.name == 'Rules') {
+  if (behavior.name == BehaviorKey.Rules) {
     let rules: any = [];
 
     if (component.rules) {
@@ -155,7 +131,7 @@ function serializeComponent({ behavior, component, writeRulesFile, writeScriptFi
     return {
       file: rulesFilename,
     };
-  } else if (behavior.name == 'Script') {
+  } else if (behavior.name == BehaviorKey.Script) {
     let code = component.code || '';
 
     let scriptFilename = writeScriptFile(code);
@@ -228,7 +204,7 @@ export function serializeComponentInternals({ behavior, component }): Record<str
 function deserializeComponent({ behavior, component, readFile }) {
   let result: any = {};
 
-  if (behavior.name == 'Rules') {
+  if (behavior.name == BehaviorKey.Rules) {
     result.rules = [];
 
     try {
@@ -240,7 +216,7 @@ function deserializeComponent({ behavior, component, readFile }) {
     } catch (e) {
       console.warn(`Error reading rules file: ${component.file}`);
     }
-  } else if (behavior.name == 'Script') {
+  } else if (behavior.name == BehaviorKey.Script) {
     result.code = '';
 
     try {

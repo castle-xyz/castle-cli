@@ -10,6 +10,8 @@ import * as Blueprints from '../utils/blueprints.js';
 import { BlueprintEntryType } from '../utils/blueprints.js';
 import { getCurrentDeck, getCurrentDeckCards } from '../utils/decks.js';
 
+const DOCS_PATH = '.castle/.docs/global-docs.mdx';
+const DOCS_DOWNLOAD_URL = 'https://385v7jnpen.ufs.sh/f/TmnXoqifwiv9PW0ig7Tl9oq8VFQwyO3RJB06snXiEImrNaef'; // 'https://docs.castle.game/complete';
 
 /**
    ____    _    ____ _____ _     _____ 
@@ -108,6 +110,50 @@ server.tool('getPossibleBlueprints', 'Get a list of possible blueprints that can
   const names = defaultBlueprints.map((blueprint) => blueprint.title);
   return { 
     content: names.map((name) => ({ type: 'text', text: name })),
+  };
+});
+
+server.tool('searchDocumentation', 'Search the Castle game platform documentation', {
+  query: z.string().describe("The query to answer using the documentation")
+}, async ({ query }) => {
+  let documentation: string;
+  
+  try {
+    // Check if docs file exists locally
+    if (fs.existsSync(DOCS_PATH)) {
+      documentation = await fs.readFileSync(DOCS_PATH, 'utf-8');
+    } else {
+      // Download docs from URL and save locally
+      const response = await fetch(DOCS_DOWNLOAD_URL);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documentation: ${response.statusText}`);
+      }
+      documentation = await response.text();
+      
+      // Ensure the assets directory exists
+      const assetsDir = path.dirname(DOCS_PATH);
+      if (!fs.existsSync(assetsDir)) {
+        fs.mkdirSync(assetsDir, { recursive: true });
+      }
+      
+      // Write the documentation to local file
+      await fs.writeFileSync(DOCS_PATH, documentation, 'utf-8');
+    }
+  } catch (error) {
+    return {
+      content: [
+        { type: 'text', text: `Error loading documentation: ${error instanceof Error ? error.message : 'Unknown error'}` }
+      ]
+    };
+  }
+    
+  return {
+      content: [
+          {
+              type: "text",
+              text: `Please answer this query using the following documentation:\n\n${documentation}\n\Query: ${query}`
+          }
+      ]
   };
 });
 

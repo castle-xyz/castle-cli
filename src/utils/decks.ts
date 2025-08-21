@@ -479,7 +479,7 @@ async function getEntryIdToBlueprintFilenameAsync(cardDir) {
   return entryIdToConfigFilename;
 }
 
-function addActorIdsToLayoutFile(layoutFilePath) {
+export function addActorIdsToLayoutFile(layoutFilePath) {
   let layoutData = yaml.parse(fs.readFileSync(layoutFilePath, 'utf8'));
   if (layoutData) {
     let needsUpdate = false;

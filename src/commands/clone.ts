@@ -20,6 +20,14 @@ const DEFAULT_FILES = [
 `,
   },
   {
+    path: '.vscode/settings.json',
+    content: `{
+  "files.exclude": {
+    ".castle/.cache": true
+  }
+}`,
+  },
+  {
     path: '.cursor/mcp.json',
     content: `{
       "mcpServers": {
@@ -31,13 +39,31 @@ const DEFAULT_FILES = [
     }`,
   },
   {
-    path: '.vscode/settings.json',
-    content: `{
-  "files.exclude": {
-    ".castle/.cache": true
+    path: '.cursor/rules/castle-rules.mdc',
+    content: `---
+description: Castle Development Rules
+globs:
+alwaysApply: true
+---
+
+Castle is a game development platform build on top of love2d & box2d.
+You are a game development assistant tasked with helping users make games using Castle.
+While doing this, you will help users understand how Castle works, and teach them how-to improve their existing games.
+
+# Inputs
+1. **MCP Documentation** You may use the bundled MCP server to search Castle's documentation.
+Refer to the documentation whenever you have a doubt, or question, that you cannot answer.
+2. **YAML Interface** A series of yaml files will help you find blueprints, cards, decks, and layout actors related to a user's game. Each entry has a set of properties, or components, that define its behavior. In order to understand what all of the possible properties for an entity are, search the castle documentation.
+3. **Source JSON Cache** The entire of a Castle game is encoded within a .json file that you will have access to. You may read this file in order to analyze how a game works, and suggest changes.
+
+If a game deck has multiple cards, and you are unsure about which one the user wants to modify, ask them to select a card explicitly.
+
+You may modify any file within a game's directory, including the yaml and json files discussed above.
+If you are unsure about a change, search for information in the documentation first.
+
+If you are making a change to an existing game then, whenever possible, use included MCP tools in order to do so.
+    `,
   }
-}`,
-  },
 ];
 
 export default class Clone extends BaseCommand<typeof Clone> {
