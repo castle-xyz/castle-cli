@@ -11,7 +11,7 @@ import { BlueprintEntryType } from '../utils/blueprints.js';
 import { getCurrentDeck, getCurrentDeckCards } from '../utils/decks.js';
 
 const DOCS_PATH = '.castle/.docs/global-docs.mdx';
-const DOCS_DOWNLOAD_URL = 'https://385v7jnpen.ufs.sh/f/TmnXoqifwiv9PW0ig7Tl9oq8VFQwyO3RJB06snXiEImrNaef'; // 'https://docs.castle.game/complete';
+const DOCS_DOWNLOAD_URL = 'https://docs.castle.xyz/latest-docs.mdx';
 
 /**
    ____    _    ____ _____ _     _____ 
