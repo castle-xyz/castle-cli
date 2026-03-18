@@ -1,0 +1,11 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/**/*.ts', '!src/**/*.test.ts'],
+  format: ['esm'],
+  dts: false,
+  outDir: 'dist',
+  splitting: false,
+  clean: true,
+  external: ['castle-core-node.cjs'],
+});
