@@ -238,7 +238,11 @@ function deserializeComponent({ behavior, component, readFile }) {
     }
   }
 
-  result.disabled = !!component.disabled;
+  // Only include disabled if explicitly set in the YAML.
+  // Setting disabled: false when not in YAML would override cached disabled: true via merge.
+  if ('disabled' in component) {
+    result.disabled = !!component.disabled;
+  }
 
   return result;
 }

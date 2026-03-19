@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCastleMetadata, applyComponentChanges } from '../src/utils/castle-core-node.js';
+import { getCastleMetadata, applyComponentChanges, getComponentScriptValues } from '../src/utils/castle-core-node.js';
 
 describe('WASM', () => {
   it('getCastleMetadata returns behaviors and rules', async () => {
@@ -63,5 +63,44 @@ describe('WASM', () => {
 
     expect(result).toBeDefined();
     expect(typeof result).toBe('object');
+  });
+});
+
+describe('getComponentScriptValues', () => {
+  it('converts Body.widthScale from internal format (×0.1) to script format (×10)', async () => {
+    const result = await getComponentScriptValues({
+      Body: { widthScale: 0.3, heightScale: 0.2 },
+    });
+
+    expect(result.Body).toBeDefined();
+    // Internal 0.3 → script 3.0 (×10 conversion via handleGetProperty)
+    expect(result.Body.widthScale).toBeCloseTo(3.0);
+    expect(result.Body.heightScale).toBeCloseTo(2.0);
+  });
+
+  it('writes bool props as actual booleans, not numbers', async () => {
+    const result = await getComponentScriptValues({
+      Body: { widthScale: 0.3, visible: true },
+    });
+
+    expect(result.Body).toBeDefined();
+    // visible must be boolean true, not the number 1 or 1.0
+    expect(result.Body.visible).toBe(true);
+    expect(typeof result.Body.visible).toBe('boolean');
+  });
+
+  it('round-trips Body.widthScale: getComponentScriptValues then applyComponentChanges', async () => {
+    const internal = { Body: { widthScale: 0.3, heightScale: 0.15 } };
+
+    // Internal → script format
+    const script = await getComponentScriptValues(internal);
+    expect(script.Body.widthScale).toBeCloseTo(3.0);
+    expect(script.Body.heightScale).toBeCloseTo(1.5);
+
+    // Script → internal format (round-trip back)
+    const restored = await applyComponentChanges(internal, { Body: script.Body });
+    expect(restored.Body).toBeDefined();
+    expect(restored.Body.widthScale).toBeCloseTo(0.3);
+    expect(restored.Body.heightScale).toBeCloseTo(0.15);
   });
 });

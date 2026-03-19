@@ -5,6 +5,7 @@ import * as path from 'path';
 import yaml from 'yaml';
 import { writeActorsAndVariablesAsync, newSceneDataForCardAsync, getCacheDir } from '../src/utils/decks.js';
 import { initMetadata } from '../src/utils/init.js';
+import * as Behaviors from '../src/utils/behaviors.js';
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'castle-test-decks-'));
@@ -226,5 +227,204 @@ describe('newSceneDataForCardAsync', () => {
     // Raw scales — no pixel conversion
     expect(actor.bp.components.Body.widthScale).toBe(0.5);
     expect(actor.bp.components.Body.heightScale).toBe(0.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Round-trip tests: verify that serialize (clone) → deserialize (serve) is
+// stable — complex data is preserved and scalar props round-trip correctly.
+// ---------------------------------------------------------------------------
+describe('newSceneDataForCardAsync round-trip', () => {
+  let deckDir: string;
+  let cardDir: string;
+
+  beforeEach(async () => {
+    await initMetadata();
+    deckDir = fs.mkdtempSync(path.join(os.tmpdir(), 'castle-rt-'));
+    cardDir = path.join(deckDir, 'card-rt');
+    fs.mkdirSync(cardDir, { recursive: true });
+    fs.mkdirSync(path.join(cardDir, 'blueprints'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(deckDir, { recursive: true, force: true });
+  });
+
+  function writeCacheAndActors(sceneData: any) {
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+    // Write a minimal actors.yaml so the function doesn't error
+    const actorsObj = { a1: { title: 'Test', entryId: 'e1', x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } };
+    fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsObj));
+  }
+
+  it('preserves Drawing2.hash from cached scene when blueprint omits it', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: {
+              components: {
+                Body: { widthScale: 0.3, heightScale: 0.3 },
+                Drawing2: { initialFrame: 1, hash: 'original-hash-xyz', drawData: 'big-data-blob' },
+              },
+            },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
+      },
+    };
+    writeCacheAndActors(sceneData);
+
+    // Blueprint YAML has no hash/drawData — simulates what a user-edited blueprint looks like
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({
+        title: 'Test',
+        entryId: 'e1',
+        components: {
+          Body: { widthScale: 3.0, heightScale: 3.0 }, // script format
+          Drawing2: { initialFrame: 1 },
+        },
+      })
+    );
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const components = result.sceneData.snapshot.library['e1'].actorBlueprint.components;
+
+    // hash and drawData must be preserved from the cached scene data
+    expect(components.Drawing2.hash).toBe('original-hash-xyz');
+    expect(components.Drawing2.drawData).toBe('big-data-blob');
+  });
+
+  it('round-trips Body.widthScale: blueprint stores script format (×10), serve converts back', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: {
+              components: {
+                Body: { widthScale: 0.3, heightScale: 0.2 },
+              },
+            },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.2 } } } }],
+      },
+    };
+    writeCacheAndActors(sceneData);
+
+    // Blueprint YAML stores values in script format (what toScriptFormat produces: ×10)
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({
+        title: 'Test',
+        entryId: 'e1',
+        components: {
+          Body: { widthScale: 3.0, heightScale: 2.0 }, // script format
+        },
+      })
+    );
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const body = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Body;
+
+    // Must be back in internal format (÷10)
+    expect(body.widthScale).toBeCloseTo(0.3);
+    expect(body.heightScale).toBeCloseTo(0.2);
+  });
+
+  it('preserves Body.visible as true when blueprint sets it to true', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: {
+              components: {
+                Body: { widthScale: 0.3, heightScale: 0.3, visible: true },
+              },
+            },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
+      },
+    };
+    writeCacheAndActors(sceneData);
+
+    // Blueprint YAML has visible: true (correct bool, as getComponentScriptValues now produces)
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({
+        title: 'Test',
+        entryId: 'e1',
+        components: {
+          Body: { widthScale: 3.0, heightScale: 3.0, visible: true },
+        },
+      })
+    );
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const body = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Body;
+
+    // visible must NOT be flipped to false by the bool-as-double bug
+    expect(body.visible).toBe(true);
+  });
+
+  it('preserves Rules.rules from local blueprint file — not dropped by WASM', async () => {
+    // Minimal serialized rules in the format serializeRule produces
+    const serializedRules = [
+      { trigger: { type: 'create' }, responses: [{ type: 'log', behavior: 'Log', params: { text: 'hello' } }] },
+    ];
+
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: {
+              components: {
+                Body: { widthScale: 0.3, heightScale: 0.3 },
+                Rules: { rules: [] }, // server rules (empty — local file overrides)
+              },
+            },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
+      },
+    };
+    writeCacheAndActors(sceneData);
+
+    // Write rules.yaml file
+    const rulesFile = path.join(cardDir, 'blueprints', 'Test_rules.yaml');
+    fs.writeFileSync(rulesFile, yaml.stringify(serializedRules));
+
+    // Blueprint YAML points at the rules file
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({
+        title: 'Test',
+        entryId: 'e1',
+        components: {
+          Body: { widthScale: 3.0, heightScale: 3.0 },
+          Rules: { file: 'Test_rules.yaml' },
+        },
+      })
+    );
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const rulesComp = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Rules;
+
+    // Rules must not be dropped — WASM drops them, but the merge fallback must restore them
+    expect(rulesComp).toBeDefined();
+    expect(rulesComp.rules).toBeDefined();
+    expect(Array.isArray(rulesComp.rules)).toBe(true);
+    expect(rulesComp.rules.length).toBeGreaterThan(0);
   });
 });

@@ -34,6 +34,7 @@ export async function getCastleMetadata(): Promise<{ behaviors: any; rules: any 
 // Applies changesComponents to baseComponents through the C++ engine's handleSetProperty,
 // triggering all side effects (e.g. relativeToCamera → layerName in Body).
 // Returns the full component state for all behaviors after changes are applied.
+// Input values should be in script/rules format (e.g. Body.widthScale = 3.0 → stored as 0.3 internally).
 export async function applyComponentChanges(
   baseComponents: Record<string, any>,
   changesComponents: Record<string, any>
@@ -41,5 +42,18 @@ export async function applyComponentChanges(
   const m = await getModule();
   const applyFn = m.cwrap('castle_node_apply_component_changes', 'string', ['string', 'string']);
   const result = applyFn(JSON.stringify(baseComponents), JSON.stringify(changesComponents));
+  return JSON.parse(result);
+}
+
+// Reads component values through the engine's handleGetProperty, converting internal
+// (scene-data) format to script/rules format. This is the inverse of applyComponentChanges:
+// given internal props (e.g. Body.widthScale = 0.3), returns script-format values
+// (Body.widthScale = 3.0) suitable for writing to YAML files on disk.
+export async function getComponentScriptValues(
+  components: Record<string, any>
+): Promise<Record<string, any>> {
+  const m = await getModule();
+  const getFn = m.cwrap('castle_node_get_component_script_values', 'string', ['string']);
+  const result = getFn(JSON.stringify(components));
   return JSON.parse(result);
 }

@@ -160,7 +160,7 @@ describe('serve command', () => {
 
     const html = await response.text();
     expect(html).toContain('<html>');
-    expect(html).toContain('castle.xyz');
+    expect(html).toContain('/scene-data');
   });
 
   it('GET /version returns version number', async () => {
@@ -188,5 +188,54 @@ describe('serve command', () => {
     expect(data.snapshot).toBeDefined();
     expect(data.snapshot.library).toBeDefined();
     expect(data.snapshot.actors).toBeDefined();
+  });
+
+  it('GET /variables returns empty variables when no variables.yaml exists', async () => {
+    const result = await serve(deckDir, { port: '0' });
+    expect(result).toBeDefined();
+
+    const port = result!.port;
+    const response = await fetch(`http://localhost:${port}/variables`);
+    expect(response.status).toBe(200);
+
+    const data = await response.json() as any;
+    expect(data.variables).toBeDefined();
+    expect(Array.isArray(data.variables)).toBe(true);
+    expect(data.passes).toBeDefined();
+    expect(data.cards).toBeDefined();
+  });
+
+  it('GET /variables maps variableId to id from variables.yaml', async () => {
+    // Write variables.yaml with mobile protocol format (variableId field)
+    const variables = [
+      { variableId: 'var-001', name: 'score', initialValue: 0, lifetime: 'deck' },
+      { variableId: 'var-002', name: 'lives', initialValue: 3, lifetime: 'card' },
+    ];
+    fs.writeFileSync(
+      path.join(deckDir, 'card-card-xyz', 'variables.yaml'),
+      yaml.stringify(variables)
+    );
+
+    const result = await serve(deckDir, { port: '0' });
+    expect(result).toBeDefined();
+
+    const port = result!.port;
+    const response = await fetch(`http://localhost:${port}/variables`);
+    expect(response.status).toBe(200);
+
+    const data = await response.json() as any;
+    expect(data.variables).toBeDefined();
+    expect(data.variables.length).toBe(2);
+
+    // variableId must be remapped to id
+    expect(data.variables[0].id).toBe('var-001');
+    expect(data.variables[0].name).toBe('score');
+    expect(data.variables[0].initialValue).toBe(0);
+    expect(data.variables[0].lifetime).toBe('deck');
+
+    expect(data.variables[1].id).toBe('var-002');
+    expect(data.variables[1].name).toBe('lives');
+    expect(data.variables[1].initialValue).toBe(3);
+    expect(data.variables[1].lifetime).toBe('card');
   });
 });
