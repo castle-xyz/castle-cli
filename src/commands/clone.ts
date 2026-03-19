@@ -1,36 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import yaml from 'yaml';
 
 import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
-
-const DEFAULT_FILES = [
-  {
-    path: '.castle/cli_api_version',
-    content: `1`,
-    required: true,
-  },
-  {
-    path: '.gitignore',
-    content: `.castle/.cache
-.castle/logs.txt
-.castle/commands.json
-.castle/screenshots/
-**/.castle/meta.json
-**/.DS_Store
-`,
-  },
-  {
-    path: '.castle/logs.txt',
-    content: '',
-  },
-  {
-    path: '.castle/commands.json',
-    content: '',
-  },
-];
+import { initializeDeckDir, initializeCardDir } from '../utils/workspace.js';
 
 export async function clone(deckArg: string, options: { directory?: string; replace?: boolean } = {}) {
   await initMetadata();
@@ -89,49 +63,13 @@ export async function clone(deckArg: string, options: { directory?: string; repl
 
   fs.mkdirSync(deckDirectory);
 
-  for (let file of DEFAULT_FILES) {
-    let filePath = path.join(deckDirectory, file.path);
-    let fileDir = path.dirname(filePath);
-
-    if (!fs.existsSync(fileDir)) {
-      fs.mkdirSync(fileDir, { recursive: true });
-    }
-
-    fs.writeFileSync(filePath, file.content);
-  }
-
-  let castleDirectory = path.join(deckDirectory, '.castle');
-  if (!fs.existsSync(castleDirectory)) {
-    fs.mkdirSync(castleDirectory);
-  }
-
-  let castleCacheDirectory = path.join(castleDirectory, '.cache');
-  fs.mkdirSync(castleCacheDirectory);
-
-  fs.mkdirSync(path.join(castleDirectory, 'screenshots'));
-
-  let deckFileName = path.join(deckDirectory, 'deck.yaml');
-  fs.writeFileSync(
-    deckFileName,
-    yaml.stringify({
-      deckId: deck.deckId,
-    })
-  );
+  initializeDeckDir(deckDirectory, deck.deckId);
 
   for (let card of deck.cards) {
     console.log(`Cloning card ${card.cardId}...`);
 
     let cardDirectory = path.join(deckDirectory, `card-${card.cardId}`);
-    fs.mkdirSync(cardDirectory);
-
-    let cardFileName = path.join(cardDirectory, 'card.yaml');
-
-    fs.writeFileSync(
-      cardFileName,
-      yaml.stringify({
-        cardId: card.cardId,
-      })
-    );
+    initializeCardDir(cardDirectory, card.cardId);
 
     await Decks.cloneCardAsync({
       cardId: card.cardId,

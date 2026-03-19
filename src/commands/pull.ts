@@ -5,6 +5,7 @@ import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
+import { initializeCardDir } from '../utils/workspace.js';
 
 export async function pull(options: { directory?: string } = {}) {
   await initMetadata();
@@ -44,16 +45,7 @@ export async function pull(options: { directory?: string } = {}) {
       console.log(`No directory found for card ${card.cardId}. Cloning...`);
 
       let cardDirectory = path.join(directory, `card-${card.cardId}`);
-      fs.mkdirSync(cardDirectory);
-
-      let cardFileName = path.join(cardDirectory, 'card.yaml');
-
-      fs.writeFileSync(
-        cardFileName,
-        yaml.stringify({
-          cardId: card.cardId,
-        })
-      );
+      initializeCardDir(cardDirectory, card.cardId);
 
       await Decks.cloneCardAsync({
         cardId: card.cardId,

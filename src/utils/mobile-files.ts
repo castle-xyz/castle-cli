@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { StateMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
 
@@ -11,15 +10,6 @@ const VARIABLES_FILE = 'variables.yaml';
 const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
 
-// Load CLI docs once at module load time
-const CLI_DOCS = (() => {
-  try {
-    const assetPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/AGENTS.md');
-    return fs.readFileSync(assetPath, 'utf-8');
-  } catch {
-    return '';
-  }
-})();
 
 // Convert a blueprint title to a safe filename slug
 export function titleToSlug(title: string): string {
@@ -166,13 +156,6 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
   const variablesContent = yaml.dump(state.variables, { lineWidth: 120, noRefs: true });
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
-
-  // Write AGENTS.md and CLAUDE.md: client prompt + CLI docs
-  if (CLI_DOCS) {
-    const fullPrompt = (state.prompt ? state.prompt + '\n' : '') + CLI_DOCS;
-    fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), fullPrompt);
-    fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), fullPrompt);
-  }
 
   // Write meta
   const meta: MetaData = {

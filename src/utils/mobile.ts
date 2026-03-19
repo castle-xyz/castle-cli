@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import WebSocket from 'ws';
-import jsyaml from 'js-yaml';
 import {
   StateMessage,
   EditMessage,
@@ -11,9 +10,10 @@ import {
   AppToCliMessage,
 } from './mobile-protocol.js';
 import { writeState, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData } from './mobile-files.js';
+import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
-import { getCacheDir } from './decks.js';
+import { getCacheDir, generateSceneContext, writeDeckAgentFilesAsync } from './decks.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const CASTLE_DIR = '.castle';
@@ -215,7 +215,7 @@ export class CLIMobileConnection {
 
   private _handleMessage(msg: AppToCliMessage) {
     if (msg.type === 'state') {
-      this._handleState(msg as StateMessage);
+      this._handleState(msg as StateMessage).catch((e) => this.logger.cli(`[mobile] error handling state: ${e}`));
     } else if (msg.type === 'logs') {
       this._handleLogs(msg as LogsMessage);
     } else if (msg.type === 'screenshot') {
@@ -238,7 +238,7 @@ export class CLIMobileConnection {
     }
   }
 
-  private _handleState(state: StateMessage) {
+  private async _handleState(state: StateMessage) {
     const cardId = state.cardId;
     let deckDir: string;
 
@@ -261,12 +261,8 @@ export class CLIMobileConnection {
       }
       deckDir = this.activeDeckDir!;
 
-      // Create deck directory and deck.yaml stub (mobile-first only)
-      if (!fs.existsSync(deckDir)) fs.mkdirSync(deckDir, { recursive: true });
-      const deckYamlPath = path.join(deckDir, 'deck.yaml');
-      if (!fs.existsSync(deckYamlPath)) {
-        fs.writeFileSync(deckYamlPath, jsyaml.dump({ deckId: state.deckId }));
-      }
+      // Create deck directory and standard files (mobile-first only)
+      initializeDeckDir(deckDir, state.deckId);
     }
 
     const cardDir = path.join(deckDir, `card-${cardId}`);
@@ -274,14 +270,7 @@ export class CLIMobileConnection {
 
     this.logger.cli(`received state for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors`);
 
-    // Create card directory and card.yaml stub if not exists
-    if (!fs.existsSync(cardDir)) {
-      fs.mkdirSync(cardDir, { recursive: true });
-    }
-    const cardYamlPath = path.join(cardDir, 'card.yaml');
-    if (!fs.existsSync(cardYamlPath)) {
-      fs.writeFileSync(cardYamlPath, jsyaml.dump({ cardId }));
-    }
+    initializeCardDir(cardDir, cardId);
 
     // Handle session changes (wipe workspace on new session or device)
     const lastSessionId = this.lastCliSessionIds.get(cardId);
@@ -308,6 +297,13 @@ export class CLIMobileConnection {
       const sceneData = mobileStateToSceneData(state);
       const cacheDir = getCacheDir(deckDir);
       fs.writeFileSync(path.join(cacheDir, `${cardId}.json`), JSON.stringify(sceneData, null, 2));
+
+      // Write SCENE.md (per-card blueprints + actors) and deck-level AGENTS.md/CLAUDE.md
+      const sceneContext = await generateSceneContext(sceneData);
+      if (sceneContext) {
+        fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
+      }
+      await writeDeckAgentFilesAsync(deckDir);
 
       // Update cardversions.json (mark card as present from mobile)
       const castleDir = path.join(deckDir, CASTLE_DIR);

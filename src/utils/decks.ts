@@ -268,13 +268,9 @@ export async function writeActorsAndVariablesAsync({
   fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify(meta, null, 2));
 }
 
-// Generate scene context section from WASM metadata and scene data.
-// Mirrors what the mobile app's buildPromptText() generates in state.prompt:
-// available behaviors, rules, actors, variables, and blueprints.
-export async function generateAgentContext(sceneData: any): Promise<string> {
+// Generate static context from WASM metadata (same for all decks/cards).
+export async function generateStaticContext(): Promise<string> {
   const { behaviors, rules } = await getCastleMetadata();
-  const library = sceneData.snapshot.library ?? {};
-  const actors = sceneData.snapshot.actors ?? [];
 
   // --- Behaviors ---
   const behaviorLines: string[] = [];
@@ -318,12 +314,29 @@ export async function generateAgentContext(sceneData: any): Promise<string> {
     }
   }
 
-  // --- Blueprints ---
-  // Build behaviorName (internal) → displayName map from metadata
+  const parts: string[] = [];
+  if (behaviorLines.length > 0) {
+    parts.push(`Available behaviors:\n${behaviorLines.join('\n')}`);
+  }
+  if (ruleLines.length > 0) {
+    parts.push(`Available rules:\n${ruleLines.join('\n')}`);
+  }
+  return parts.join('\n\n');
+}
+
+// Generate per-card scene context (blueprints and actors) from scene data.
+export async function generateSceneContext(sceneData: any): Promise<string> {
+  const { behaviors } = await getCastleMetadata();
+  const library = sceneData.snapshot.library ?? {};
+  const actors = sceneData.snapshot.actors ?? [];
+
+  // Build behaviorName (internal) → displayName map
   const behaviorInternalToDisplay: Record<string, string> = {};
   for (const b of Object.values(behaviors) as any[]) {
     behaviorInternalToDisplay[b.name] = b.displayName;
   }
+
+  // --- Blueprints ---
   const bpLines: string[] = [];
   for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
     if (entry.entryType !== 'actorBlueprint') continue;
@@ -343,39 +356,43 @@ export async function generateAgentContext(sceneData: any): Promise<string> {
   }
 
   const parts: string[] = [];
-  if (behaviorLines.length > 0) {
-    parts.push(`Available behaviors:\n${behaviorLines.join('\n')}`);
-  }
-  if (ruleLines.length > 0) {
-    parts.push(`Available rules:\n${ruleLines.join('\n')}`);
-  }
   if (bpLines.length > 0) {
     parts.push(`All blueprints in the deck:\n${bpLines.join('\n')}`);
   }
   if (actorLines.length > 0) {
     parts.push(`Actors in the scene (angles in degrees, positive Y is downward):\n${actorLines.join('\n')}`);
   }
-
   return parts.join('\n\n');
 }
 
-async function writeAgentFilesAsync({ deckDir, sceneData }: { deckDir: string; sceneData: any }) {
-  const cliDocs = (() => {
-    try {
-      const assetPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/AGENTS.md');
-      return fs.readFileSync(assetPath, 'utf8');
-    } catch {
-      return null;
-    }
-  })();
+function loadCliDocs(): string | null {
+  try {
+    const assetPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/AGENTS.md');
+    return fs.readFileSync(assetPath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+// Write AGENTS.md and CLAUDE.md at deck level: static context + CLI docs.
+export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
+  const cliDocs = loadCliDocs();
   if (!cliDocs) return;
-  const sceneContext = await generateAgentContext(sceneData);
-  const fullContent = (sceneContext ? sceneContext + '\n\n---\n\n' : '') + cliDocs;
+  const staticContext = await generateStaticContext();
+  const content = staticContext ? staticContext + '\n\n' + cliDocs : cliDocs;
   const agentsPath = path.join(deckDir, 'AGENTS.md');
   const existing = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : null;
-  if (existing === fullContent) return;
-  fs.writeFileSync(agentsPath, fullContent);
-  fs.writeFileSync(path.join(deckDir, 'CLAUDE.md'), fullContent);
+  if (existing === content) return;
+  fs.writeFileSync(agentsPath, content);
+  fs.writeFileSync(path.join(deckDir, 'CLAUDE.md'), content);
+}
+
+async function writeAgentFilesAsync({ deckDir, cardDir, sceneData }: { deckDir: string; cardDir: string; sceneData: any }) {
+  const sceneContext = await generateSceneContext(sceneData);
+  if (sceneContext) {
+    fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
+  }
+  await writeDeckAgentFilesAsync(deckDir);
 }
 
 export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: { cardId: string; sceneDataUrl: string; cardDir: string; deckDir: string }) {
@@ -435,7 +452,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
 
-  await writeAgentFilesAsync({ deckDir, sceneData });
+  await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
 
 export async function readDeckFromDirectoryAsync({ dir, log }: { dir?: string; log: (...args: any[]) => void }) {
@@ -550,7 +567,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
 
-  await writeAgentFilesAsync({ deckDir, sceneData });
+  await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
 
 async function getEntryIdToBlueprintFilenameAsync(cardDir: string) {
@@ -737,7 +754,7 @@ export async function newSceneDataForCardAsync({
   const modified = modifiedLibrary || modifiedLayout;
 
   if (modified) {
-    await writeAgentFilesAsync({ deckDir, sceneData });
+    await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
   }
 
   return {
