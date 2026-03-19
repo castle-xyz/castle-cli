@@ -94,7 +94,7 @@ describe('writeState', () => {
     expect(fs.readFileSync(luaFile, 'utf-8')).toBe('function update() end');
   });
 
-  it('writes actors.yaml in object format with raw values', () => {
+  it('writes actors.yaml in nested display-name format', () => {
     const state = makeStateMessage();
     writeState(tmpDir, state);
 
@@ -103,8 +103,9 @@ describe('writeState', () => {
 
     const content = fs.readFileSync(actorsPath, 'utf-8');
     expect(content).toContain('a100');
-    expect(content).toContain('0.785'); // raw radians
-    expect(content).toContain('0.5');   // raw widthScale
+    expect(content).toContain('Layout');   // display name for Body
+    expect(content).toContain('0.785');    // raw radians (unchanged)
+    expect(content).toContain('5');        // widthScale ×10 (0.5 → 5.0)
   });
 
   it('writes variables.yaml', () => {

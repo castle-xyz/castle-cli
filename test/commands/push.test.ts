@@ -76,27 +76,24 @@ describe('push command', () => {
       JSON.stringify(MOCK_SCENE_DATA, null, 2)
     );
 
-    // Write actors.yaml (object format) with modified position
+    // Write actors.yaml in new nested display-name format (widthScale ×10, x modified)
     const modifiedActors = {
       a123: {
-        title: 'Player',
         entryId: 'entry-001',
-        x: 50, // modified from 10 to 50
-        y: 20,
-        angle: 0,
-        widthScale: 0.5,
-        heightScale: 0.5,
+        components: {
+          Layout: { x: 50, y: 20, angle: 0, widthScale: 5.0, heightScale: 5.0 }, // x modified from 10 to 50
+        },
       },
     };
     fs.writeFileSync(path.join(deckDir, 'card-card-xyz', 'actors.yaml'), yaml.stringify(modifiedActors));
     fs.writeFileSync(path.join(deckDir, 'card-card-xyz', 'variables.yaml'), yaml.stringify([]));
 
-    // Write blueprint
+    // Write blueprint in external format (widthScale ×10)
     const bpData = {
       title: 'Player',
       entryId: 'entry-001',
       components: {
-        Body: { widthScale: 0.5, heightScale: 0.5 },
+        Body: { widthScale: 5.0, heightScale: 5.0 }, // external format (×10)
         Drawing2: { initialFrame: 1 },
       },
     };

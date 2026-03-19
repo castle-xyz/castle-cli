@@ -127,8 +127,30 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
     }
   }
 
-  // Write actors
-  const actorsContent = yaml.dump(state.actors, { lineWidth: 120, noRefs: true });
+  // Write actors in nested display-name format (Layout/Drawing keys, ×10 widthScale/heightScale)
+  const actorsForDisk: Record<string, any> = {};
+  for (const [key, actorData] of Object.entries(state.actors) as [string, ActorData][]) {
+    const ad = actorData;
+    const layout: any = { x: ad.x ?? 0, y: ad.y ?? 0 };
+    if (ad.angle !== undefined) layout.angle = ad.angle; // radians — unchanged
+    if (ad.widthScale !== undefined) layout.widthScale = ad.widthScale * 10; // ×10
+    if (ad.heightScale !== undefined) layout.heightScale = ad.heightScale * 10; // ×10
+    const components: any = { Layout: layout };
+    if (ad.initialFrame && ad.initialFrame !== 1) {
+      components.Drawing = { initialFrame: ad.initialFrame };
+    }
+    if (ad.content !== undefined) {
+      components.Text = {
+        content: ad.content,
+        ...(ad.fontSizeScale !== undefined && { fontSizeScale: ad.fontSizeScale }),
+      };
+    }
+    if (ad.targetDeckId !== undefined) {
+      components.Link = { targetDeckId: ad.targetDeckId };
+    }
+    actorsForDisk[key] = { entryId: ad.entryId, components };
+  }
+  const actorsContent = yaml.dump(actorsForDisk, { lineWidth: 120, noRefs: true });
   fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
   hashes[ACTORS_FILE] = contentHash(actorsContent);
 

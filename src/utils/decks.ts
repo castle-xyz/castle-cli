@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import * as Utils from './utils.js';
-import { applyComponentChanges, getComponentScriptValues } from './castle-core-node.js';
+import { applySnapshot, getSnapshotExternalValues } from './castle-core-node.js';
 
 export const DEFAULT_ACTOR = {
   bp: {
@@ -63,6 +63,35 @@ export function getBlueprintsDir(cardDir) {
   return blueprintsDir;
 }
 
+// Body fields that are engine-computed and must not be written to blueprint YAMLs.
+// handleWriteComponent includes these, but handleSetProperty applies them in ways that
+// can corrupt physics bodies (e.g. fixtures override the drawing-computed physics body,
+// breaking tap detection). User-editable Body props are widthScale/heightScale/visible/
+// relativeToCamera; x/y/angle are per-actor and live in actors.yaml instead.
+const BODY_COMPUTED_FIELDS = [
+  'x', 'y', 'angle',
+  'width', 'height',
+  'fixtures',
+  'editorBounds',
+  'relativeToCameraFix',
+  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  'layerName',
+];
+
+function stripBlueprintComponents(components: any): void {
+  if (components.Drawing2) {
+    delete components.Drawing2.hash;
+    delete components.Drawing2.drawData;
+    delete components.Drawing2.physicsBodyData;
+    delete components.Drawing2.currentFrame;
+  }
+  if (components.Body) {
+    for (const field of BODY_COMPUTED_FIELDS) {
+      delete components.Body[field];
+    }
+  }
+}
+
 /**
  * Get the deck ID of the current deck.
  */
@@ -88,74 +117,6 @@ export function getCurrentDeckCards(deckDir: string = '.'): string[] {
     console.error(`Error reading cards: ${e.message ?? e}`);
     return [];
   }
-}
-
-// Serialize an actor from internal sceneData format → actors.yaml object format (raw values)
-function serializeActorToYaml({ actor, entry }) {
-  const body = actor.bp?.components?.Body || {};
-
-  let result: any = {
-    title: entry?.title,
-    entryId: actor.parentEntryId,
-    x: body.x || 0,
-    y: body.y || 0,
-  };
-
-  if (body.angle) {
-    result.angle = body.angle; // raw radians, no conversion
-  }
-
-  if (body.widthScale !== undefined) {
-    result.widthScale = body.widthScale; // raw, no conversion
-  }
-
-  if (body.heightScale !== undefined) {
-    result.heightScale = body.heightScale; // raw, no conversion
-  }
-
-  // Drawing2 initialFrame if not 1
-  const drawing2 = actor.bp?.components?.Drawing2;
-  if (drawing2 && drawing2.initialFrame && drawing2.initialFrame !== 1) {
-    result.initialFrame = drawing2.initialFrame;
-  }
-
-  return result;
-}
-
-// Deserialize an actor from actors.yaml object format → internal sceneData format (raw values, no conversion)
-function deserializeActor({ actor, entry }) {
-  actor = _.cloneDeep(actor);
-
-  // actor has: { actorId, entryId (=parentEntryId), x, y, angle (radians), widthScale, heightScale, initialFrame? }
-  let body: any = {
-    x: actor.x || 0,
-    y: actor.y || 0,
-    angle: actor.angle || 0,           // raw radians, no conversion
-    widthScale: actor.widthScale || 0,  // raw, no conversion
-    heightScale: actor.heightScale || 0,
-  };
-
-  if (!actor.components) {
-    actor.components = {};
-  }
-
-  actor.components.Body = body;
-
-  // Preserve Drawing2 initialFrame if present and not 1
-  if (actor.initialFrame && actor.initialFrame !== 1) {
-    actor.components.Drawing2 = {
-      ...actor.components.Drawing2,
-      initialFrame: actor.initialFrame,
-    };
-  }
-
-  return {
-    actorId: `${actor.actorId}` || uuidv4(),
-    parentEntryId: actor.entryId,
-    bp: {
-      components: actor.components,
-    },
-  };
 }
 
 export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
@@ -196,8 +157,36 @@ function newFilenameForTitle({ title, extension, blueprintsDir }) {
   return filename;
 }
 
-// Write actors.yaml (object format, raw values) and variables.yaml for a card.
+// Build the actors.yaml object from internal-format sceneData actors.
+// Converts Body → Layout display name and applies ×10 to widthScale/heightScale.
+function buildActorsYamlObj(actors: any[], library: any): any {
+  const actorsObj: any = {};
+  for (const actor of actors) {
+    const entry = library[actor.parentEntryId];
+    if (!entry) continue;
+
+    const key = `a${actor.actorId}`;
+    const body = actor.bp?.components?.Body ?? {};
+    const drawing2 = actor.bp?.components?.Drawing2 ?? {};
+
+    const layout: any = { x: body.x ?? 0, y: body.y ?? 0 };
+    if (body.angle) layout.angle = body.angle; // radians — unchanged
+    if (body.widthScale !== undefined) layout.widthScale = body.widthScale * 10; // ×10
+    if (body.heightScale !== undefined) layout.heightScale = body.heightScale * 10; // ×10
+
+    const components: any = { Layout: layout };
+    if (drawing2.initialFrame && drawing2.initialFrame !== 1) {
+      components.Drawing = { initialFrame: drawing2.initialFrame };
+    }
+
+    actorsObj[key] = { entryId: actor.parentEntryId, components };
+  }
+  return actorsObj;
+}
+
+// Write actors.yaml (nested display-name format) and variables.yaml for a card.
 // Also writes .castle/meta.json for mobile sync compatibility.
+// Actors are in internal sceneData format; this function converts to external format.
 export async function writeActorsAndVariablesAsync({
   sceneData,
   cardDir,
@@ -212,15 +201,7 @@ export async function writeActorsAndVariablesAsync({
   cardId: string;
 }) {
   const actors = sceneData.snapshot.actors;
-
-  const actorsObj: any = {};
-  for (const actor of actors) {
-    const entry = library[actor.parentEntryId];
-    if (!entry) continue;
-
-    const key = `a${actor.actorId}`;
-    actorsObj[key] = serializeActorToYaml({ actor, entry });
-  }
+  const actorsObj = buildActorsYamlObj(actors, library);
 
   const actorsContent = yaml.stringify(actorsObj);
   fs.writeFileSync(path.join(cardDir, 'actors.yaml'), actorsContent);
@@ -269,31 +250,7 @@ export async function writeActorsAndVariablesAsync({
     blueprintIdMap,
   };
 
-  fs.writeFileSync(path.join(castleDir, 'meta.json'), JSON.stringify(meta, null, 2));
-}
-
-// Converts component values from internal (scene-data) format to script/rules format via WASM.
-// Body.widthScale and heightScale are multiplied by 10 (handleGetProperty convention).
-// Bools are preserved as actual booleans. Large computed fields (Drawing2 hash/drawData,
-// per-instance Body position) are removed since they don't belong in blueprint YAML files.
-async function toScriptFormat(components: Record<string, any>): Promise<Record<string, any>> {
-  const result = await getComponentScriptValues(components);
-
-  // Remove large computed Drawing2 fields — these are regenerated by the engine from art assets
-  if (result.Drawing2) {
-    delete result.Drawing2.hash;
-    delete result.Drawing2.drawData;
-    delete result.Drawing2.physicsBodyData;
-  }
-
-  // Remove per-instance Body position fields — these live in actors.yaml, not blueprint YAML
-  if (result.Body) {
-    delete result.Body.x;
-    delete result.Body.y;
-    delete result.Body.angle;
-  }
-
-  return result;
+  fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify(meta, null, 2));
 }
 
 export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
@@ -307,53 +264,56 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
     deckId = deckConfig.deckId || '';
   } catch (e) {}
 
-  const entryIds = Object.keys(library);
   const blueprintsDir = getBlueprintsDir(cardDir);
 
-  for (const entryId of entryIds) {
-    const entry = library[entryId];
-    if (entry.entryType == 'actorBlueprint') {
-      const title = entry.title;
-      const components = entry.actorBlueprint.components;
+  // Convert the whole snapshot internal→external in one WASM call
+  const externalSnapshot = await getSnapshotExternalValues(sceneData.snapshot);
 
-      const blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
-      const scriptFilename = path.relative(
-        blueprintsDir,
-        newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
-      );
-      const rulesFilename = path.relative(
-        blueprintsDir,
-        newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
-      );
+  // Restore Rules.rules from original sceneData (WASM only processes Prop values)
+  // and strip engine-computed/per-instance fields from library blueprints
+  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+    const origEntry = library[entryId];
+    const components = entry.actorBlueprint?.components ?? {};
 
-      const writeRulesFile = (content) => {
-        fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
-        return rulesFilename;
-      };
-
-      const writeScriptFile = (content) => {
-        fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
-        return scriptFilename;
-      };
-
-      // Convert internal format → script format via WASM (e.g. Body.widthScale ×10).
-      const componentsForDisk = await toScriptFormat(components);
-
-      // WASM strips Rules.rules (complex non-Prop array) — restore from original scene data
-      // so serializeComponent can write the correct rules to the YAML file.
-      if (components.Rules?.rules !== undefined) {
-        if (!componentsForDisk.Rules) componentsForDisk.Rules = {};
-        componentsForDisk.Rules.rules = components.Rules.rules;
-      }
-
-      // Include ALL components (Body and Drawing2 are no longer skipped)
-      const blueprintData = {
-        title,
-        entryId,
-        components: Behaviors.serializeComponents({ components: componentsForDisk, writeRulesFile, writeScriptFile }),
-      };
-      fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
+    stripBlueprintComponents(components);
+    // Restore Rules.rules (WASM strips non-Prop complex data)
+    if (origEntry?.actorBlueprint?.components?.Rules?.rules !== undefined) {
+      if (!components.Rules) components.Rules = {};
+      components.Rules.rules = origEntry.actorBlueprint.components.Rules.rules;
     }
+  }
+
+  // Write blueprint YAMLs
+  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+    if (entry.entryType !== 'actorBlueprint') continue;
+    const title = entry.title;
+    const components = entry.actorBlueprint?.components ?? {};
+
+    const blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
+    const scriptFilename = path.relative(
+      blueprintsDir,
+      newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+    );
+    const rulesFilename = path.relative(
+      blueprintsDir,
+      newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
+    );
+
+    const writeRulesFile = (content) => {
+      fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
+      return rulesFilename;
+    };
+    const writeScriptFile = (content) => {
+      fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
+      return scriptFilename;
+    };
+
+    const blueprintData = {
+      title,
+      entryId,
+      components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
+    };
+    fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
@@ -410,77 +370,72 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
     deckId = deckConfig.deckId || '';
   } catch (e) {}
 
-  const entryIds = Object.keys(library);
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
   const blueprintsDir = getBlueprintsDir(cardDir);
 
-  for (const entryId of entryIds) {
-    const entry = library[entryId];
-    if (entry.entryType == 'actorBlueprint') {
-      const title = entry.title;
-      const components = entry.actorBlueprint.components;
-      let localComponents: any = null;
+  // Convert the whole snapshot internal→external in one WASM call
+  const externalSnapshot = await getSnapshotExternalValues(sceneData.snapshot);
 
-      let blueprintFilename;
-      if (entryIdToBlueprintFilename[entryId]) {
-        blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
+  // Restore Rules.rules from original sceneData and strip engine-computed/per-instance fields
+  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+    const origEntry = library[entryId];
+    const components = entry.actorBlueprint?.components ?? {};
 
-        let localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
-        if (localBlueprintData) {
-          localComponents = localBlueprintData.components;
-        }
-      } else {
-        blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
-      }
-
-      let scriptFilename = path.relative(
-        blueprintsDir,
-        newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
-      );
-      let rulesFilename = path.relative(
-        blueprintsDir,
-        newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
-      );
-
-      if (localComponents) {
-        const script = localComponents.Script;
-        if (script && script.file) {
-          scriptFilename = script.file;
-        }
-
-        const rules = localComponents.Rules;
-        if (rules && rules.file) {
-          rulesFilename = rules.file;
-        }
-      }
-
-      const writeRulesFile = (content) => {
-        fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
-        return rulesFilename;
-      };
-
-      const writeScriptFile = (content) => {
-        fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
-        return scriptFilename;
-      };
-
-      // Convert internal format → script format via WASM.
-      const componentsForDisk = await toScriptFormat(components);
-
-      // WASM strips Rules.rules (complex non-Prop array) — restore from original scene data.
-      if (components.Rules?.rules !== undefined) {
-        if (!componentsForDisk.Rules) componentsForDisk.Rules = {};
-        componentsForDisk.Rules.rules = components.Rules.rules;
-      }
-
-      // Include ALL components (Body and Drawing2 are no longer skipped)
-      const blueprintData = {
-        title,
-        entryId,
-        components: Behaviors.serializeComponents({ components: componentsForDisk, writeRulesFile, writeScriptFile }),
-      };
-      fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
+    stripBlueprintComponents(components);
+    if (origEntry?.actorBlueprint?.components?.Rules?.rules !== undefined) {
+      if (!components.Rules) components.Rules = {};
+      components.Rules.rules = origEntry.actorBlueprint.components.Rules.rules;
     }
+  }
+
+  // Write blueprint YAMLs (preserving existing filenames if available)
+  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+    if (entry.entryType !== 'actorBlueprint') continue;
+    const title = entry.title;
+    const components = entry.actorBlueprint?.components ?? {};
+
+    let blueprintFilename: string;
+    let localComponents: any = null;
+
+    if (entryIdToBlueprintFilename[entryId]) {
+      blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
+      const localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
+      if (localBlueprintData) {
+        localComponents = localBlueprintData.components;
+      }
+    } else {
+      blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
+    }
+
+    let scriptFilename = path.relative(
+      blueprintsDir,
+      newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+    );
+    let rulesFilename = path.relative(
+      blueprintsDir,
+      newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
+    );
+
+    if (localComponents) {
+      if (localComponents.Script?.file) scriptFilename = localComponents.Script.file;
+      if (localComponents.Rules?.file) rulesFilename = localComponents.Rules.file;
+    }
+
+    const writeRulesFile = (content) => {
+      fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
+      return rulesFilename;
+    };
+    const writeScriptFile = (content) => {
+      fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
+      return scriptFilename;
+    };
+
+    const blueprintData = {
+      title,
+      entryId,
+      components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
+    };
+    fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
@@ -519,99 +474,117 @@ export async function newSceneDataForCardAsync({
   const cacheDir = getCacheDir(deckDir);
   const sceneData = JSON.parse(fs.readFileSync(path.join(cacheDir, `${cardId}.json`), 'utf8'));
 
-  let library = sceneData.snapshot.library;
-
+  const library = sceneData.snapshot.library;
   const entryIds = Object.keys(library);
-
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
 
-  let modifiedLibrary = false;
-
+  // 1. Build local library from blueprint YAMLs (external format, display→internal names)
+  const localLibrary: any = {};
   for (const entryId of entryIds) {
     const entry = library[entryId];
-    if (entry.entryType == 'actorBlueprint') {
-      if (entryIdToBlueprintFilename[entryId]) {
-        let blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
-        let localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
-        if (localBlueprintData) {
-          let title = localBlueprintData.title;
+    if (entry.entryType !== 'actorBlueprint') continue;
+    if (!entryIdToBlueprintFilename[entryId]) continue;
 
-          if (!_.isEqual(title, entry.title)) {
-            modifiedLibrary = true;
-            library[entryId].title = title;
-          }
+    const blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
+    const localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
+    if (!localBlueprintData) continue;
 
-          delete localBlueprintData.title;
-          delete localBlueprintData.entryId;
+    const localComponents = Behaviors.deserializeComponents({
+      components: localBlueprintData.components ?? {},
+      readFile: (relativePath) =>
+        fs.readFileSync(path.join(path.dirname(blueprintFilename), relativePath), 'utf8'),
+    });
 
-          if (localBlueprintData.components) {
-            localBlueprintData.components = Behaviors.deserializeComponents({
-              components: localBlueprintData.components,
-              readFile: (relativePath) => {
-                return fs.readFileSync(
-                  path.join(path.dirname(blueprintFilename), relativePath),
-                  'utf8'
-                );
-              },
-            });
+    localLibrary[entryId] = {
+      entryType: 'actorBlueprint',
+      title: localBlueprintData.title,
+      actorBlueprint: { components: localComponents },
+    };
+  }
 
-            // If local Rules.rules is empty but cache has rules, preserve cached rules.
-            // Empty local rules files result from a WASM stripping bug during clone/pull
-            // (Rules.rules is complex data not returned by getComponentScriptValues).
-            const localRules = localBlueprintData.components?.Rules?.rules;
-            const cachedRules = library[entryId].actorBlueprint?.components?.Rules?.rules;
-            if (
-              Array.isArray(localRules) &&
-              localRules.length === 0 &&
-              Array.isArray(cachedRules) &&
-              cachedRules.length > 0
-            ) {
-              delete localBlueprintData.components.Rules.rules;
-            }
-          }
+  // 2. Build local actors from actors.yaml (Layout→Body, Drawing→Drawing2, external values)
+  const localActors: any[] = [];
+  // Angle is stored in radians in actors.yaml but handleSetProperty converts degrees→radians.
+  // We bypass WASM for angle and restore it directly after applySnapshot.
+  const actorAngleMap: Record<string, number> = {};
+  const actorsFilePath = path.join(cardDir, 'actors.yaml');
+  let actorsFileExists = false;
 
-          let mergedBlueprint = Utils.mergeSkipArray(
-            _.cloneDeep(library[entryId].actorBlueprint),
-            localBlueprintData
-          );
-          // Apply local component changes through WASM to trigger handleSetProperty side effects
-          // (e.g. Body.widthScale script-format ÷10 → internal format).
-          const normalizedComponents = await applyComponentChanges(
-            mergedBlueprint.components ?? {},
-            localBlueprintData.components ?? {}
-          );
-          // WASM only serializes Prop structs, so complex data is dropped:
-          // Rules.rules, Drawing2.hash/drawData/physicsBodyData, etc.
-          // Preserve that data by merging WASM scalar-prop output on top of the merged blueprint.
-          const finalComponents: any = {};
-          const allBehaviors = new Set([
-            ...Object.keys(mergedBlueprint.components ?? {}),
-            ...Object.keys(normalizedComponents),
-          ]);
-          for (const behavior of allBehaviors) {
-            const cached = ((mergedBlueprint.components ?? {}) as any)[behavior] ?? {};
-            const wasm = (normalizedComponents as any)[behavior] ?? {};
-            const final: any = { ...cached };
-            for (const [key, wasmVal] of Object.entries(wasm)) {
-              if (wasmVal === false && cached[key]) {
-                // Bool-as-number bug: old WASM wrote booleans as numbers (e.g. visible: 1).
-                // New WASM's applyComponentChanges treats number 1 as false for bool props.
-                // If cached has a truthy value (1 or true) and WASM returned false, use true.
-                final[key] = true;
-              } else {
-                final[key] = wasmVal;
-              }
-            }
-            finalComponents[behavior] = final;
-          }
-          let actorBlueprint = { ...mergedBlueprint, components: finalComponents };
+  if (fs.existsSync(actorsFilePath)) {
+    const actorsObj = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
+    if (actorsObj && typeof actorsObj === 'object' && !Array.isArray(actorsObj)) {
+      actorsFileExists = true;
+      for (const [key, data] of Object.entries(actorsObj) as [string, any][]) {
+        const actorId = key.startsWith('a') ? key.slice(1) : key;
+        if (!library[data.entryId]) continue;
 
-          if (!Utils.isEqualUnordered(actorBlueprint, library[entryId].actorBlueprint)) {
-            modifiedLibrary = true;
-            library[entryId].actorBlueprint = actorBlueprint;
-          }
+        const layout = data.components?.Layout ?? {};
+        const drawing = data.components?.Drawing ?? {};
+
+        // Store angle separately — bypass WASM (handleSetProperty treats input as degrees)
+        if (layout.angle !== undefined) {
+          actorAngleMap[actorId] = layout.angle; // radians, set directly after applySnapshot
         }
+
+        // Map Layout → Body (exclude angle; applySnapshot converts widthScale ÷10 via handleSetProperty)
+        const components: any = {
+          Body: {
+            x: layout.x ?? 0,
+            y: layout.y ?? 0,
+            widthScale: layout.widthScale ?? 0, // external ×10; applySnapshot converts ÷10
+            heightScale: layout.heightScale ?? 0,
+          },
+        };
+
+        // Map Drawing → Drawing2 (initialFrame only if non-default)
+        if (drawing.initialFrame && drawing.initialFrame !== 1) {
+          components.Drawing2 = { initialFrame: drawing.initialFrame };
+        }
+
+        localActors.push({ actorId, parentEntryId: data.entryId, bp: { components } });
       }
+    }
+  }
+
+  // 3. Single WASM call — converts external values → internal for the whole snapshot
+  const localSnapshot = { library: localLibrary, actors: localActors };
+  const processedSnapshot = await applySnapshot(localSnapshot);
+
+  // 4. Merge processed library with cache to restore engine-computed fields and local Rules.rules
+  let modifiedLibrary = false;
+  for (const entryId of Object.keys(processedSnapshot.library)) {
+    const cached = library[entryId]?.actorBlueprint;
+    if (!cached) continue;
+
+    const localBP = localLibrary[entryId]?.actorBlueprint ?? {};
+    const processed = processedSnapshot.library[entryId].actorBlueprint;
+
+    // Three-way merge:
+    // - cached: has Drawing2.hash/drawData, server Rules.rules (complex data)
+    // - localBP: has local Rules.rules (from blueprint file, takes priority over cached)
+    // - processed: has WASM-converted Prop values (widthScale÷10, etc.)
+    // Use mergeWith to replace arrays (not deep-merge) so local Rules.rules wins
+    const merged = _.mergeWith(
+      _.cloneDeep(cached),
+      localBP,
+      processed,
+      (dst: any, src: any) => {
+        if (Array.isArray(src)) return _.cloneDeep(src);
+      }
+    );
+
+    if (!Utils.isEqualUnordered(merged, cached)) {
+      modifiedLibrary = true;
+    }
+
+    library[entryId] = {
+      ...library[entryId],
+      title: localLibrary[entryId]?.title ?? library[entryId].title,
+      actorBlueprint: merged,
+    };
+
+    if (localLibrary[entryId]?.title && localLibrary[entryId].title !== library[entryId].title) {
+      modifiedLibrary = true;
     }
   }
 
@@ -619,50 +592,22 @@ export async function newSceneDataForCardAsync({
     sceneData.snapshot.library = library;
   }
 
+  // 5. Apply processed actors from actors.yaml (if file exists)
+  // Restore angles bypassed during applySnapshot (actors.yaml stores radians,
+  // but handleSetProperty for angle converts degrees→radians — so we skip WASM for angle)
+  for (const actor of processedSnapshot.actors) {
+    const angle = actorAngleMap[actor.actorId];
+    if (angle !== undefined && actor.bp?.components?.Body) {
+      actor.bp.components.Body.angle = angle;
+    }
+  }
+
   let modifiedLayout = false;
-
-  // Read actors.yaml (object format) instead of layout.yaml (array format)
-  const actorsFilePath = path.join(cardDir, 'actors.yaml');
-  if (fs.existsSync(actorsFilePath)) {
-    const actorsObj = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
-    if (actorsObj && typeof actorsObj === 'object' && !Array.isArray(actorsObj)) {
-      let actorIdToActor: any = {};
-
-      sceneData.snapshot.actors.forEach((actor) => {
-        if (actor.actorId) {
-          actorIdToActor[actor.actorId] = actor;
-        }
-      });
-
-      sceneData.snapshot.actors = Object.entries(actorsObj)
-        .map(([key, data]: [string, any]) => {
-          // Convert object key to actorId (e.g. "a123" → "123")
-          const actorId = key.startsWith('a') ? key.slice(1) : key;
-          const entry = library[data.entryId];
-          return {
-            ...data,
-            actorId,
-            entry,
-          };
-        })
-        .filter((actor) => !!actor.entry)
-        .map((actor) => {
-          let newActor = deserializeActor({ actor, entry: actor.entry });
-
-          let oldActor = actorIdToActor[newActor.actorId];
-          if (oldActor) {
-            newActor = Utils.mergeSkipArray(_.cloneDeep(oldActor), newActor);
-
-            if (!Utils.isEqualUnordered(newActor, oldActor)) {
-              modifiedLayout = true;
-            }
-          } else {
-            newActor = Utils.mergeSkipArray(_.cloneDeep(DEFAULT_ACTOR), newActor);
-            modifiedLayout = true;
-          }
-
-          return newActor;
-        });
+  if (actorsFileExists) {
+    const oldActors = sceneData.snapshot.actors;
+    sceneData.snapshot.actors = processedSnapshot.actors;
+    if (!Utils.isEqualUnordered(processedSnapshot.actors, oldActors)) {
+      modifiedLayout = true;
     }
   }
 

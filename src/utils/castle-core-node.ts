@@ -57,3 +57,25 @@ export async function getComponentScriptValues(
   const result = getFn(JSON.stringify(components));
   return JSON.parse(result);
 }
+
+// Processes a full snapshot (library + actors) through handleSetProperty,
+// converting external-format values to internal format.
+// Input snapshot: library entries with actorBlueprint.components and actors with bp.components,
+// all in external format (e.g. Body.widthScale=5.0). Internal names (Body, Drawing2) expected.
+// Output: same structure with values converted (e.g. Body.widthScale=0.5).
+export async function applySnapshot(snapshot: any): Promise<any> {
+  const m = await getModule();
+  const fn = m.cwrap('castle_node_apply_snapshot', 'string', ['string']);
+  return JSON.parse(fn(JSON.stringify(snapshot)));
+}
+
+// Processes a full snapshot (library + actors) through handleGetProperty,
+// converting internal-format values to external format.
+// Input snapshot: library entries with actorBlueprint.components and actors with bp.components,
+// all in internal format (e.g. Body.widthScale=0.5). Internal names (Body, Drawing2) expected.
+// Output: same structure with values converted (e.g. Body.widthScale=5.0).
+export async function getSnapshotExternalValues(snapshot: any): Promise<any> {
+  const m = await getModule();
+  const fn = m.cwrap('castle_node_get_snapshot_external_values', 'string', ['string']);
+  return JSON.parse(fn(JSON.stringify(snapshot)));
+}

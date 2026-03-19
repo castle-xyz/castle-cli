@@ -69,7 +69,7 @@ describe('writeActorsAndVariablesAsync', () => {
     fs.rmSync(deckDir, { recursive: true, force: true });
   });
 
-  it('writes actors.yaml in object format with a-prefixed keys', async () => {
+  it('writes actors.yaml in nested display-name format with a-prefixed keys', async () => {
     const sceneData = makeSceneData();
     const library = sceneData.snapshot.library;
 
@@ -93,13 +93,17 @@ describe('writeActorsAndVariablesAsync', () => {
     // Should have a key like "a123"
     expect(actorsObj['a123']).toBeDefined();
     expect(actorsObj['a123'].entryId).toBe('entry-001');
-    expect(actorsObj['a123'].x).toBe(10);
-    expect(actorsObj['a123'].y).toBe(20);
+
+    // New nested format: components.Layout.*
+    expect(actorsObj['a123'].components).toBeDefined();
+    expect(actorsObj['a123'].components.Layout).toBeDefined();
+    expect(actorsObj['a123'].components.Layout.x).toBe(10);
+    expect(actorsObj['a123'].components.Layout.y).toBe(20);
     // Raw radians angle (no degree conversion)
-    expect(actorsObj['a123'].angle).toBe(0.785);
-    // Raw scales (no pixel conversion)
-    expect(actorsObj['a123'].widthScale).toBe(0.5);
-    expect(actorsObj['a123'].heightScale).toBe(0.5);
+    expect(actorsObj['a123'].components.Layout.angle).toBe(0.785);
+    // widthScale ×10 (external format)
+    expect(actorsObj['a123'].components.Layout.widthScale).toBe(5.0);
+    expect(actorsObj['a123'].components.Layout.heightScale).toBe(5.0);
   });
 
   it('writes variables.yaml as empty array', async () => {
@@ -161,13 +165,13 @@ describe('newSceneDataForCardAsync', () => {
     const sceneData = makeSceneData();
     fs.writeFileSync(path.join(cacheDir, '456.json'), JSON.stringify(sceneData, null, 2));
 
-    // Create blueprint file
+    // Create blueprint file in external format (widthScale ×10)
     fs.mkdirSync(path.join(cardDir, 'blueprints'));
     const bpData = {
       title: 'Player',
       entryId: 'entry-001',
       components: {
-        Body: { widthScale: 0.5, heightScale: 0.5 },
+        Body: { widthScale: 5.0, heightScale: 5.0 }, // external format (×10)
         Drawing2: { initialFrame: 1 },
       },
     };
@@ -176,16 +180,13 @@ describe('newSceneDataForCardAsync', () => {
       yaml.stringify(bpData)
     );
 
-    // Create actors.yaml in object format
+    // Create actors.yaml in new nested display-name format (widthScale ×10)
     const actorsObj = {
       a123: {
-        title: 'Player',
         entryId: 'entry-001',
-        x: 10,
-        y: 20,
-        angle: 0.785,
-        widthScale: 0.5,
-        heightScale: 0.5,
+        components: {
+          Layout: { x: 10, y: 20, angle: 0.785, widthScale: 5.0, heightScale: 5.0 },
+        },
       },
     };
     fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsObj));
@@ -207,7 +208,7 @@ describe('newSceneDataForCardAsync', () => {
     expect(Array.isArray(result.sceneData.snapshot.actors)).toBe(true);
   });
 
-  it('converts actors.yaml object to internal actor format with raw values', async () => {
+  it('converts actors.yaml Layout components to internal Body format via applySnapshot', async () => {
     const result = await newSceneDataForCardAsync({
       cardId: '456',
       cardDir,
@@ -224,9 +225,9 @@ describe('newSceneDataForCardAsync', () => {
     expect(actor.bp.components.Body.y).toBe(20);
     // Raw radians — no conversion to degrees
     expect(actor.bp.components.Body.angle).toBe(0.785);
-    // Raw scales — no pixel conversion
-    expect(actor.bp.components.Body.widthScale).toBe(0.5);
-    expect(actor.bp.components.Body.heightScale).toBe(0.5);
+    // applySnapshot converts external ×10 → internal ÷10
+    expect(actor.bp.components.Body.widthScale).toBeCloseTo(0.5);
+    expect(actor.bp.components.Body.heightScale).toBeCloseTo(0.5);
   });
 });
 
@@ -253,8 +254,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
   function writeCacheAndActors(sceneData: any) {
     const cacheDir = getCacheDir(deckDir);
     fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
-    // Write a minimal actors.yaml so the function doesn't error
-    const actorsObj = { a1: { title: 'Test', entryId: 'e1', x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } };
+    // Write actors.yaml in new nested format (widthScale ×10)
+    const actorsObj = { a1: { entryId: 'e1', components: { Layout: { x: 0, y: 0, widthScale: 3.0, heightScale: 3.0 } } } };
     fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsObj));
   }
 
@@ -279,13 +280,14 @@ describe('newSceneDataForCardAsync round-trip', () => {
     writeCacheAndActors(sceneData);
 
     // Blueprint YAML has no hash/drawData — simulates what a user-edited blueprint looks like
+    // Values in external format (widthScale ×10)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
       yaml.stringify({
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 3.0 }, // script format
+          Body: { widthScale: 3.0, heightScale: 3.0 }, // external format (×10)
           Drawing2: { initialFrame: 1 },
         },
       })
@@ -299,7 +301,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
     expect(components.Drawing2.drawData).toBe('big-data-blob');
   });
 
-  it('round-trips Body.widthScale: blueprint stores script format (×10), serve converts back', async () => {
+  it('round-trips Body.widthScale: blueprint stores external format (×10), serve converts back', async () => {
     const sceneData = {
       snapshot: {
         library: {
@@ -318,14 +320,14 @@ describe('newSceneDataForCardAsync round-trip', () => {
     };
     writeCacheAndActors(sceneData);
 
-    // Blueprint YAML stores values in script format (what toScriptFormat produces: ×10)
+    // Blueprint YAML stores values in external format (×10)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
       yaml.stringify({
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 2.0 }, // script format
+          Body: { widthScale: 3.0, heightScale: 2.0 }, // external format (×10)
         },
       })
     );
@@ -357,7 +359,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
     };
     writeCacheAndActors(sceneData);
 
-    // Blueprint YAML has visible: true (correct bool, as getComponentScriptValues now produces)
+    // Blueprint YAML has visible: true (correct bool)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
       yaml.stringify({
@@ -372,7 +374,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const body = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Body;
 
-    // visible must NOT be flipped to false by the bool-as-double bug
+    // visible must be true
     expect(body.visible).toBe(true);
   });
 
@@ -421,7 +423,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const rulesComp = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Rules;
 
-    // Rules must not be dropped — WASM drops them, but the merge fallback must restore them
+    // Rules must not be dropped — the three-way merge must restore them from local blueprint
     expect(rulesComp).toBeDefined();
     expect(rulesComp.rules).toBeDefined();
     expect(Array.isArray(rulesComp.rules)).toBe(true);

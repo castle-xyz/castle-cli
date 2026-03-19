@@ -1,0 +1,1171 @@
+{
+  "wgWUDokID": {
+    "cardId": "MG-hJvNNbu",
+    "snapshot": {
+      "library": {
+        "ab7afb79-093b-476b-9673-6f6ebabcb3d0": {
+          "entryId": "ab7afb79-093b-476b-9673-6f6ebabcb3d0",
+          "entryType": "actorBlueprint",
+          "title": "Chess",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "manager",
+                "disabled": false
+              },
+              "Script": {
+                "scriptProperties": [],
+                "errors": [],
+                "disabled": false
+              },
+              "Text": {
+                "content": "Chess",
+                "visible": true,
+                "order": 1,
+                "fontName": "DMSans",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 6.10169,
+                "alignment": "center",
+                "color": {
+                  "r": 0.88235,
+                  "g": 0.89019,
+                  "b": 0.90196,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "38ccbdcf-5122-466b-adfb-f87a02a5eae8": {
+          "entryId": "38ccbdcf-5122-466b-adfb-f87a02a5eae8",
+          "entryType": "actorBlueprint",
+          "title": "If you c...",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "If you can see this, update your app!",
+                "visible": true,
+                "order": 3,
+                "fontName": "DMSans",
+                "fontSize": 3,
+                "fontSizeScale": 1,
+                "emsPerLine": 14.23728,
+                "alignment": "center",
+                "color": {
+                  "r": 0.70196,
+                  "g": 0.72549,
+                  "b": 0.8196,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "74fb0a45-7c25-4c4b-ac4b-31ee790012ca": {
+          "entryId": "74fb0a45-7c25-4c4b-ac4b-31ee790012ca",
+          "entryType": "actorBlueprint",
+          "title": "Lose",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "You lose",
+                "visible": true,
+                "order": 2,
+                "fontName": "YatraOne",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 7.21804,
+                "alignment": "center",
+                "color": {
+                  "r": 0.92941,
+                  "g": 0.93725,
+                  "b": 0.94901,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        }
+      },
+      "actors": [
+        {
+          "actorId": "0",
+          "parentEntryId": "ab7afb79-093b-476b-9673-6f6ebabcb3d0",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": -1.5,
+                "angle": 0,
+                "widthScale": 0.3,
+                "heightScale": 0.15
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              },
+              "Text": {
+                "fontSizeScale": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "1",
+          "parentEntryId": "38ccbdcf-5122-466b-adfb-f87a02a5eae8",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 1.625,
+                "angle": 0,
+                "widthScale": 0.64999,
+                "heightScale": 0.22496
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              },
+              "Text": {
+                "fontSizeScale": 1.5
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "78CejfIdF": {
+    "cardId": "R0CcJxUESn",
+    "snapshot": {
+      "library": {
+        "ddac3aea-b1be-41ca-a4c3-20918adec6a1": {
+          "entryId": "ddac3aea-b1be-41ca-a4c3-20918adec6a1",
+          "entryType": "actorBlueprint",
+          "title": "18:39",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "18:39",
+                "visible": true,
+                "order": 2,
+                "fontName": "DMSans",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 6.10169,
+                "alignment": "center",
+                "color": {
+                  "r": 0.06666,
+                  "g": 0.12156,
+                  "b": 0.12156,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "ff4c5474-c283-4cd7-b3db-92f1c1d11269": {
+          "entryId": "ff4c5474-c283-4cd7-b3db-92f1c1d11269",
+          "entryType": "actorBlueprint",
+          "title": "64%",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "64%",
+                "visible": true,
+                "order": 1,
+                "fontName": "DMSans",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 6.10169,
+                "alignment": "center",
+                "color": {
+                  "r": 0.06666,
+                  "g": 0.12156,
+                  "b": 0.12156,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "ed131906-ea5a-4920-95f6-6aae9ab97dbc": {
+          "entryId": "ed131906-ea5a-4920-95f6-6aae9ab97dbc",
+          "entryType": "actorBlueprint",
+          "title": "Alone su...",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "Alone sus ",
+                "visible": true,
+                "order": 18,
+                "fontName": "DMSans",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 6.10169,
+                "alignment": "center",
+                "color": {
+                  "r": 0.92941,
+                  "g": 0.93725,
+                  "b": 0.94901,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        }
+      },
+      "actors": [
+        {
+          "actorId": "0",
+          "parentEntryId": "804465ed-9312-498a-b666-17c5dbe975af",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0.28571,
+                "y": 0.87497,
+                "angle": 0,
+                "widthScale": 0.96249,
+                "heightScale": 0.96249
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "1",
+          "parentEntryId": "5324e525-3095-46a3-96f3-74be961b32ce",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -3.5,
+                "y": -3.5,
+                "angle": 0,
+                "widthScale": 0.3,
+                "heightScale": 0.3
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "2",
+          "parentEntryId": "7daf1412-4dc6-4e8a-a1b9-908b46a8d9dc",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -3.25,
+                "y": -6.5,
+                "angle": 0,
+                "widthScale": 0.1,
+                "heightScale": 0.1
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "3",
+          "parentEntryId": "46bbca2a-bba1-419f-97d3-a50aaca78247",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -4.5,
+                "y": -6.5,
+                "angle": 0,
+                "widthScale": 0.1,
+                "heightScale": 0.1
+              },
+              "Drawing2": {
+                "initialFrame": 4
+              }
+            }
+          }
+        },
+        {
+          "actorId": "4",
+          "parentEntryId": "ddac3aea-b1be-41ca-a4c3-20918adec6a1",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": -6,
+                "angle": 0,
+                "widthScale": 0.3,
+                "heightScale": 0.15
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              },
+              "Text": {
+                "content": "20:31",
+                "fontSizeScale": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "Af-1kWA8u": {
+    "cardId": "K4X2Agv07",
+    "snapshot": {
+      "library": {
+        "d7d13adf-76fe-4ac0-bfb7-448c269a6d85": {
+          "entryId": "d7d13adf-76fe-4ac0-bfb7-448c269a6d85",
+          "entryType": "actorBlueprint",
+          "title": "Border",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.69998,
+                "heightScale": 0.69998,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -7.14273,
+                  "maxX": 7.14273,
+                  "minY": -10,
+                  "maxY": 10
+                },
+                "disabled": false
+              },
+              "Solid": {
+                "disabled": false
+              },
+              "Friction": {
+                "friction": 0.2,
+                "disabled": false
+              },
+              "RotatingMotion": {
+                "vx": 0,
+                "vy": 0,
+                "rotationsPerSecond": 0,
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 0.3,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              }
+            }
+          }
+        },
+        "22aa4126-affd-4a8d-93f5-92fb69c5af2a": {
+          "entryId": "22aa4126-affd-4a8d-93f5-92fb69c5af2a",
+          "entryType": "actorBlueprint",
+          "title": "Character",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.15997,
+                "heightScale": 0.15997,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -4.88281,
+                  "maxX": 4.88281,
+                  "minY": -4.88281,
+                  "maxY": 4.99986
+                },
+                "disabled": false
+              },
+              "Solid": {
+                "disabled": false
+              },
+              "Moving": {
+                "vx": 0,
+                "vy": 0,
+                "angularVelocity": 0,
+                "density": 1,
+                "disabled": false
+              },
+              "Falling": {
+                "gravity": 20,
+                "disabled": true
+              },
+              "Bouncy": {
+                "bounciness": 0.05,
+                "disabled": false
+              },
+              "Friction": {
+                "friction": 0.2,
+                "disabled": false
+              },
+              "SpeedLimit": {
+                "maximumSpeed": 3,
+                "disabled": false
+              },
+              "Sliding": {
+                "direction": "both",
+                "isRotationAllowed": false,
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "character",
+                "disabled": false
+              },
+              "LocalVariables": {
+                "localVariables": [
+                  {
+                    "name": "animation_rate",
+                    "value": 40
+                  }
+                ],
+                "undoRedoCount": 0,
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "ae9537b9-022f-42db-b608-df2ec79f1007": {
+          "entryId": "ae9537b9-022f-42db-b608-df2ec79f1007",
+          "entryType": "actorBlueprint",
+          "title": "Dust San...",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.3,
+                "heightScale": 0.15,
+                "visible": true,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "Text": {
+                "content": "Dust Sans",
+                "visible": true,
+                "order": 2,
+                "fontName": "Glacier",
+                "fontSize": 7,
+                "fontSizeScale": 1,
+                "emsPerLine": 6.79442,
+                "alignment": "center",
+                "color": {
+                  "r": 0.73333,
+                  "g": 0.28627,
+                  "b": 0.60392,
+                  "a": 1
+                },
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 1,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        }
+      },
+      "actors": [
+        {
+          "actorId": "0",
+          "parentEntryId": "86a7ce95-8257-4494-9a6a-9f661d9c378f",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": -6.49982,
+                "angle": 0,
+                "widthScale": 1.00002,
+                "heightScale": 0.1
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "1",
+          "parentEntryId": "86a7ce95-8257-4494-9a6a-9f661d9c378f",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 4.50001,
+                "angle": 0,
+                "widthScale": 1.00002,
+                "heightScale": 0.50001
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "2",
+          "parentEntryId": "526683f4-428f-473f-8f19-5c3a9002efe3",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -0.24999,
+                "y": -5.75,
+                "angle": 0,
+                "widthScale": 1.10001,
+                "heightScale": 0.05
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "3",
+          "parentEntryId": "526683f4-428f-473f-8f19-5c3a9002efe3",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 1.74995,
+                "angle": 0,
+                "widthScale": 1.10002,
+                "heightScale": 0.05
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "4",
+          "parentEntryId": "526683f4-428f-473f-8f19-5c3a9002efe3",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -4.74982,
+                "y": -2,
+                "angle": 4.71225,
+                "widthScale": 0.75001,
+                "heightScale": 0.05
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "cF9tkk3yxK": {
+    "cardId": "KgXzQLIRww",
+    "snapshot": {
+      "library": {
+        "77d89cf4-c8d9-4138-9aaf-70bc0853faad": {
+          "entryId": "77d89cf4-c8d9-4138-9aaf-70bc0853faad",
+          "entryType": "actorBlueprint",
+          "title": "Area - Sound maker (falling slab)",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.2,
+                "heightScale": 0.2,
+                "visible": false,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "LocalVariables": {
+                "localVariables": [
+                  {
+                    "name": "grow",
+                    "value": 10
+                  },
+                  {
+                    "name": "speed",
+                    "value": 0.2
+                  }
+                ],
+                "undoRedoCount": 0,
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 0.3,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "d8f6cb99-e574-4668-89a7-e17e7b84d074": {
+          "entryId": "d8f6cb99-e574-4668-89a7-e17e7b84d074",
+          "entryType": "actorBlueprint",
+          "title": "Area - Sound maker (jumping)",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.2,
+                "heightScale": 0.2,
+                "visible": false,
+                "relativeToCamera": false,
+                "layerName": "main",
+                "editorBounds": {
+                  "minX": -5,
+                  "maxX": 5,
+                  "minY": -5,
+                  "maxY": 5
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "",
+                "disabled": false
+              },
+              "LocalVariables": {
+                "localVariables": [
+                  {
+                    "name": "grow",
+                    "value": 2.5
+                  },
+                  {
+                    "name": "speed",
+                    "value": 0.2
+                  }
+                ],
+                "undoRedoCount": 0,
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 0.3,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        },
+        "3dc072a8-8068-4728-bf36-32acb2a4b9f3": {
+          "entryId": "3dc072a8-8068-4728-bf36-32acb2a4b9f3",
+          "entryType": "actorBlueprint",
+          "title": "B - Captured",
+          "actorBlueprint": {
+            "components": {
+              "Body": {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "width": 0.98995,
+                "height": 0.98995,
+                "widthScale": 0.69998,
+                "heightScale": 0.69998,
+                "visible": true,
+                "relativeToCamera": true,
+                "layerName": "camera",
+                "editorBounds": {
+                  "minX": -7.14276,
+                  "maxX": 7.14276,
+                  "minY": -10,
+                  "maxY": 10
+                },
+                "disabled": false
+              },
+              "Rules": {
+                "rules": [],
+                "disabled": false
+              },
+              "Tags": {
+                "tagsString": "black_screen",
+                "disabled": false
+              },
+              "Drawing2": {
+                "initialFrame": 1,
+                "currentFrame": 1,
+                "framesPerSecond": 4,
+                "playMode": "still",
+                "loopStartFrame": -1,
+                "loopEndFrame": -1,
+                "opacity": 0,
+                "playing": false,
+                "loop": false,
+                "disabled": false
+              },
+              "Camera": {
+                "zoom": 1,
+                "angle": 0,
+                "disabled": true
+              }
+            }
+          }
+        }
+      },
+      "actors": [
+        {
+          "actorId": "0",
+          "parentEntryId": "53a13de9-45cb-42bc-9ea3-c837ee9cb644",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": -3.5,
+                "y": -4.5,
+                "angle": 0,
+                "widthScale": 0.5,
+                "heightScale": 0.5
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "1",
+          "parentEntryId": "53a13de9-45cb-42bc-9ea3-c837ee9cb644",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 1.5,
+                "y": -4.5,
+                "angle": 0,
+                "widthScale": 0.5,
+                "heightScale": 0.5
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "2",
+          "parentEntryId": "53a13de9-45cb-42bc-9ea3-c837ee9cb644",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 6.5,
+                "y": -4.5,
+                "angle": 0,
+                "widthScale": 0.5,
+                "heightScale": 0.5
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "3",
+          "parentEntryId": "53a13de9-45cb-42bc-9ea3-c837ee9cb644",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 6.5,
+                "y": 0.5,
+                "angle": 0,
+                "widthScale": 0.5,
+                "heightScale": 0.5
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        },
+        {
+          "actorId": "4",
+          "parentEntryId": "53a13de9-45cb-42bc-9ea3-c837ee9cb644",
+          "bp": {
+            "components": {
+              "Body": {
+                "x": 11.5,
+                "y": 0.5,
+                "angle": 0,
+                "widthScale": 0.5,
+                "heightScale": 0.5
+              },
+              "Drawing2": {
+                "initialFrame": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
