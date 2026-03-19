@@ -220,23 +220,6 @@ export async function serve(
   // Fetch player ID and coreViews at startup in parallel (graceful offline fallback).
   const [playerId, coreViewsJson] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug)]);
 
-  // Auto-detect deck subdirectory if no deck.yaml in the current directory
-  if (!fs.existsSync(path.join(directory, 'deck.yaml'))) {
-    try {
-      const entries = fs.readdirSync(directory);
-      const deckSubdirs = entries.filter(
-        (d) =>
-          d.startsWith('deck-') &&
-          fs.statSync(path.join(directory, d)).isDirectory() &&
-          fs.existsSync(path.join(directory, d, 'deck.yaml'))
-      );
-      if (deckSubdirs.length === 1) {
-        directory = path.join(directory, deckSubdirs[0]);
-        console.log(`Using deck directory: ${directory}`);
-      }
-    } catch (e) {}
-  }
-
   // Sync card versions from server — skip gracefully when offline.
   try {
     await Decks.syncCardVersionsAsync({ deckDir: directory });
@@ -247,6 +230,17 @@ export async function serve(
   // Try to read deck.yaml — but it might not exist yet (mobile-first mode)
   let initialCardId: string | null = null;
   let cardDirectories: any = {};
+  let deckDirForRoutes = directory;
+
+  // Read deckId from deck.yaml if present (deck-locked mode)
+  let deckId: string | undefined;
+  const deckYamlPath = path.join(directory, 'deck.yaml');
+  if (fs.existsSync(deckYamlPath)) {
+    try {
+      const deckConfig = yaml.parse(fs.readFileSync(deckYamlPath, 'utf8'));
+      deckId = deckConfig.deckId || undefined;
+    } catch (e) {}
+  }
 
   try {
     let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: debug ? console.log : () => {} });
@@ -256,7 +250,7 @@ export async function serve(
 
       if (options.card) {
         initialCardId = options.card;
-        if (!deck.cards.find((card) => card.cardId == initialCardId)) {
+        if (!deck.cards.find((card: any) => card.cardId == initialCardId)) {
           console.error(`Card with ID ${initialCardId} not found in deck.`);
           process.exit(1);
         }
@@ -310,14 +304,14 @@ export async function serve(
       deckDir: directory,
       token,
       debug,
-      onStateWritten: (cardId) => {
+      expectedDeckId: deckId,
+      onStateWritten: (cardId, actualDeckDir) => {
+        deckDirForRoutes = actualDeckDir;
         version++;
 
         // Update card directories if this is a new card
-        const cardDir = path.join(directory, `card-${cardId}`);
-        const relativeDir = path.relative(directory, cardDir);
         if (!cardDirectories[cardId]) {
-          cardDirectories[cardId] = relativeDir;
+          cardDirectories[cardId] = `card-${cardId}`;
         }
 
         // Set initial card ID if not set yet
@@ -414,10 +408,10 @@ export async function serve(
 
       // Refresh card directories in case new cards arrived via mobile
       if (!cardDirectories[cardId]) {
-        const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
+        const cardFiles = await glob('**/card.yaml', { cwd: deckDirForRoutes, ignore: ['node_modules/**'] });
         for (let cardFile of cardFiles) {
           try {
-            let cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
+            let cardData = yaml.parse(fs.readFileSync(path.join(deckDirForRoutes, cardFile), 'utf8'));
             cardDirectories[cardData.cardId] = path.dirname(cardFile);
           } catch (e) {}
         }
@@ -431,8 +425,8 @@ export async function serve(
       try {
         let response = await Decks.newSceneDataForCardAsync({
           cardId,
-          deckDir: directory,
-          cardDir: path.join(directory, cardDirectories[cardId]),
+          deckDir: deckDirForRoutes,
+          cardDir: path.join(deckDirForRoutes, cardDirectories[cardId]),
         });
 
         res.json(response.sceneData);
@@ -447,7 +441,7 @@ export async function serve(
       if (!cardId || !cardDirectories[cardId]) {
         return res.json({ variables: [], passes: [], cards: [] });
       }
-      const cardDir = path.join(directory, cardDirectories[cardId]);
+      const cardDir = path.join(deckDirForRoutes, cardDirectories[cardId]);
       const variablesPath = path.join(cardDir, 'variables.yaml');
       let variables: any[] = [];
       if (fs.existsSync(variablesPath)) {

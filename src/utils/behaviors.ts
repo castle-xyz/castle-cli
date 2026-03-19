@@ -4,7 +4,7 @@ import _ from 'lodash';
 import { getCastleMetadata } from './castle-core-node.js';
 import * as Rules from './rules.js';
 
-function formatDisplayName(name) {
+function formatDisplayName(name: string) {
   return name.replace(/\s/g, '');
 }
 
@@ -36,8 +36,8 @@ export const enum BehaviorKey {
 // Body and Drawing2 use internal names — pass through without display name mapping
 const COMPONENTS_NO_RENAME = ['Body', 'Drawing2'];
 
-export function serializeComponents({ components, writeScriptFile }) {
-  let result = {};
+export function serializeComponents({ components, writeScriptFile }: { components: any; writeScriptFile: (code: string) => string }) {
+  let result: Record<string, any> = {};
   for (const key in components) {
     // Body and Drawing2 pass through without display name lookup
     if (COMPONENTS_NO_RENAME.includes(key)) {
@@ -62,8 +62,8 @@ export function serializeComponents({ components, writeScriptFile }) {
   return result;
 }
 
-export function deserializeComponents({ components, readFile }) {
-  let result = {};
+export function deserializeComponents({ components, readFile }: { components: any; readFile: (path: string) => string }) {
+  let result: Record<string, any> = {};
   for (const key in components) {
     // Body and Drawing2 pass through directly
     if (COMPONENTS_NO_RENAME.includes(key)) {
@@ -95,7 +95,7 @@ export function deserializeComponents({ components, readFile }) {
   return result;
 }
 
-function serializeComponent({ behavior, component, writeScriptFile }) {
+function serializeComponent({ behavior, component, writeScriptFile }: { behavior: any; component: any; writeScriptFile: (code: string) => string }) {
   if (!component.disabled) {
     delete component.disabled;
   }
@@ -129,7 +129,7 @@ function serializeComponent({ behavior, component, writeScriptFile }) {
   return serializeComponentInternals({ behavior, component });
 }
 
-export function serializeRulesComponent({ component }) {
+export function serializeRulesComponent({ component }: { component: any }) {
   let rules: any = [];
 
   if (component.rules) {
@@ -141,12 +141,12 @@ export function serializeRulesComponent({ component }) {
   return yaml.stringify(rules);
 }
 
-export function serializeScriptComponent({ component }) {
+export function serializeScriptComponent({ component }: { component: any }) {
   let code = component.code || '';
   return code;
 }
 
-export function serializeComponentInternals({ behavior, component }): Record<string, any> {
+export function serializeComponentInternals({ behavior, component }: { behavior: any; component: any }): Record<string, any> {
   if (!component.disabled) {
     delete component.disabled;
   }
@@ -183,7 +183,7 @@ export function serializeComponentInternals({ behavior, component }): Record<str
   return result;
 }
 
-function deserializeComponent({ behavior, component, readFile }) {
+function deserializeComponent({ behavior, component, readFile }: { behavior: any; component: any; readFile: (path: string) => string }) {
   let result: any = {};
 
   if (behavior.name == BehaviorKey.Rules) {
@@ -210,7 +210,7 @@ function deserializeComponent({ behavior, component, readFile }) {
       console.warn(`Error reading script file: ${component.file}`);
     }
   } else {
-    let displayNameToPropertySpec = {};
+    let displayNameToPropertySpec: Record<string, any> = {};
     for (const key in behavior.propertySpecs) {
       let propertySpec = behavior.propertySpecs[key];
       let name = propertySpec.name;

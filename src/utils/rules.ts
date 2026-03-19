@@ -2,8 +2,8 @@ import _ from 'lodash';
 import { getCastleMetadata } from './castle-core-node.js';
 import * as Behaviors from './behaviors.js';
 
-const TRIGGERS = {};
-const RULES = {}; // responses and conditions
+const TRIGGERS: Record<string, any> = {};
+const RULES: Record<string, any> = {}; // responses and conditions
 
 let initialized = false;
 
@@ -16,7 +16,7 @@ export async function initRules() {
   parseRules(rules.conditions, RULES);
 }
 
-function parseRules(rules, behaviors) {
+function parseRules(rules: any[], behaviors: Record<string, any>) {
   for (const rule of rules) {
     let behaviorId = rule.behaviorId;
     let name = rule.name;
@@ -31,7 +31,7 @@ function parseRules(rules, behaviors) {
     }
 
     if (rule.paramSpecs) {
-      let paramSpecs = {};
+      let paramSpecs: Record<string, any> = {};
 
       for (let param of rule.paramSpecs) {
         let paramName = param.name;
@@ -61,7 +61,7 @@ function parseRules(rules, behaviors) {
   }
 }
 
-export function getTrigger(behaviorId, name) {
+export function getTrigger(behaviorId: any, name: any) {
   try {
     return TRIGGERS[behaviorId][name];
   } catch (e) {
@@ -69,7 +69,7 @@ export function getTrigger(behaviorId, name) {
   }
 }
 
-export function getRule(behaviorId, name) {
+export function getRule(behaviorId: any, name: any) {
   try {
     return RULES[behaviorId][name];
   } catch (e) {
@@ -78,7 +78,7 @@ export function getRule(behaviorId, name) {
   }
 }
 
-function replaceBehaviorIdWithName(component) {
+function replaceBehaviorIdWithName(component: any) {
   if (component.behaviorId) {
     let behaviorDisplayName = Behaviors.BEHAVIOR_ID_TO_DISPLAY_NAME[parseInt(component.behaviorId)];
 
@@ -95,7 +95,7 @@ function replaceBehaviorIdWithName(component) {
   return component;
 }
 
-function replaceBehaviorNameWithId(component) {
+function replaceBehaviorNameWithId(component: any) {
   if (component.behaviorName) {
     let behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[component.behaviorName];
     component.behaviorId = parseInt(behaviorId);
@@ -105,7 +105,7 @@ function replaceBehaviorNameWithId(component) {
   return component;
 }
 
-export function serializeRule(rule) {
+export function serializeRule(rule: any) {
   rule = _.cloneDeep(rule);
 
   let topLevelResponses: any = [];
@@ -120,7 +120,7 @@ export function serializeRule(rule) {
   return result;
 }
 
-function serializeBaseRulerInner(rule) {
+function serializeBaseRulerInner(rule: any) {
   let result: any = {
     name: rule.name,
     params: rule.params,
@@ -144,7 +144,7 @@ function serializeBaseRulerInner(rule) {
   return result;
 }
 
-function serializeRuleInner(rule, topLevelResponses: any = []) {
+function serializeRuleInner(rule: any, topLevelResponses: any[] = []) {
   if (typeof rule != 'object') {
     return rule;
   }
@@ -205,10 +205,10 @@ function serializeRuleInner(rule, topLevelResponses: any = []) {
   return result;
 }
 
-export function deserializeRule(rule) {
+export function deserializeRule(rule: any) {
   rule = _.cloneDeep(rule);
 
-  let responses = rule.responses.map((response) => deserializeRuleInner(response));
+  let responses = rule.responses.map((response: any) => deserializeRuleInner(response));
   let response = nestResponses(responses);
 
   let result = {
@@ -219,7 +219,7 @@ export function deserializeRule(rule) {
   return result;
 }
 
-function nestResponses(responses, index = 0) {
+function nestResponses(responses: any[], index = 0) {
   let result: any = null;
 
   if (responses[index]) {
@@ -239,7 +239,7 @@ function nestResponses(responses, index = 0) {
   return result;
 }
 
-function deserializeBaseRulerInner(rule) {
+function deserializeBaseRulerInner(rule: any) {
   let result: any = {
     name: rule.name,
     params: {},
@@ -262,7 +262,7 @@ function deserializeBaseRulerInner(rule) {
   return result;
 }
 
-function deserializeRuleInner(rule) {
+function deserializeRuleInner(rule: any) {
   if (typeof rule != 'object') {
     return rule;
   }
@@ -284,7 +284,7 @@ function deserializeRuleInner(rule) {
           let type = paramSpec.type;
 
           if (type == 'response') {
-            let responses = params[key].map((response) => deserializeRuleInner(response));
+            let responses = params[key].map((response: any) => deserializeRuleInner(response));
             let response = nestResponses(responses);
             params[key] = response;
           }

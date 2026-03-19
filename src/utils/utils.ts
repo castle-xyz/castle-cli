@@ -9,7 +9,7 @@ export function isEqualUnordered(obj1: any, obj2: any) {
   });
 }
 
-export function mergeSkipArray(obj, src) {
+export function mergeSkipArray(obj: any, src: any) {
   return _.mergeWith({}, obj, src, (objValue, srcValue) => {
     if (_.isArray(objValue) && _.isArray(srcValue)) {
       return srcValue;

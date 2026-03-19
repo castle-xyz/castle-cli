@@ -11,7 +11,7 @@ const USER_FIELDS = `
   token
 `;
 
-async function API(query, variables = {}) {
+async function API(query: string, variables: Record<string, any> = {}) {
   let headers: any = {
     'X-OS': 'cli',
     'X-CLI-API-Version': '2',
@@ -41,7 +41,7 @@ async function API(query, variables = {}) {
   return response.data;
 }
 
-function handleAPIError(response) {
+function handleAPIError(response: any) {
   if (response.error) {
     let err: any = new Error(response.error.message);
     err.extensions = response.error.extensions;
@@ -88,7 +88,7 @@ export const startCLILogin = async () => {
   return response.data.startCLILogin;
 };
 
-export const pollForCLILogin = async (pollToken) => {
+export const pollForCLILogin = async (pollToken: string) => {
   let response = await API(
     `query($pollToken: String!) {
       pollForCLILogin(pollToken: $pollToken) {
@@ -115,7 +115,7 @@ export const logout = async () => {
   return response.data.logout;
 };
 
-export const deck = async (deckId) => {
+export const deck = async (deckId: string) => {
   let response = await API(
     `query($deckId: ID!) {
       deck(deckId: $deckId) {
@@ -137,7 +137,7 @@ export const deck = async (deckId) => {
   return response.data.deck;
 };
 
-export const createSceneDataUploadConfig = async (cardIds) => {
+export const createSceneDataUploadConfig = async (cardIds: string[]) => {
   let response = await API(
     `mutation($cardIds: [ID!]!) {
       createSceneDataUploadConfig(cardIds: $cardIds) {
@@ -155,7 +155,7 @@ export const createSceneDataUploadConfig = async (cardIds) => {
   return response.data.createSceneDataUploadConfig;
 };
 
-export const uploadSceneData = async (cards) => {
+export const uploadSceneData = async (cards: any[]) => {
   let response = await API(
     `mutation($cards: [CardSceneDataInput!]!, $isAutosave: Boolean) {
       uploadSceneData(cards: $cards, isAutosave: $isAutosave) {
@@ -171,7 +171,7 @@ export const uploadSceneData = async (cards) => {
   return response.data.uploadSceneData;
 };
 
-export const resolveDeepLink = async (url) => {
+export const resolveDeepLink = async (url: string) => {
   let response = await API(
     `query($url: String!) {
       resolveDeepLink(url: $url) {

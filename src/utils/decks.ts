@@ -33,7 +33,7 @@ function contentHash(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
 }
 
-function getCastleDir(deckDir) {
+function getCastleDir(deckDir: string) {
   let result = path.join(deckDir, '.castle');
 
   if (!fs.existsSync(result)) {
@@ -43,7 +43,7 @@ function getCastleDir(deckDir) {
   return result;
 }
 
-export function getCacheDir(deckDir) {
+export function getCacheDir(deckDir: string) {
   let result = path.join(deckDir, '.castle', '.cache');
 
   if (!fs.existsSync(result)) {
@@ -53,7 +53,7 @@ export function getCacheDir(deckDir) {
   return result;
 }
 
-export function getBlueprintsDir(cardDir) {
+export function getBlueprintsDir(cardDir: string) {
   // blueprints can be moved anywhere, this is just the default
   const blueprintsDir = path.join(cardDir, 'blueprints');
   if (!fs.existsSync(blueprintsDir)) {
@@ -119,7 +119,7 @@ export function getCurrentDeckCards(deckDir: string = '.'): string[] {
   }
 }
 
-export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
+export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { deckDir: string; cardId: string; sceneDataUrl: string }) {
   const response = await Axios.get(sceneDataUrl);
   const sceneData = response.data;
   const cacheDir = getCacheDir(deckDir);
@@ -130,7 +130,7 @@ export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
 
   let castleDir = getCastleDir(deckDir);
   let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
-  let cardVersions = {};
+  let cardVersions: Record<string, string> = {};
 
   try {
     cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));
@@ -142,7 +142,7 @@ export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }) {
   return sceneData;
 }
 
-function newFilenameForTitle({ title, extension, blueprintsDir }) {
+function newFilenameForTitle({ title, extension, blueprintsDir }: { title: string; extension: string; blueprintsDir: string }) {
   let dedupedTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
   let filename = path.join(blueprintsDir, `${dedupedTitle}.${extension}`);
 
@@ -378,7 +378,7 @@ async function writeAgentFilesAsync({ deckDir, sceneData }: { deckDir: string; s
   fs.writeFileSync(path.join(deckDir, 'CLAUDE.md'), fullContent);
 }
 
-export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
+export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: { cardId: string; sceneDataUrl: string; cardDir: string; deckDir: string }) {
   const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
 
@@ -420,7 +420,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
       newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
     );
 
-    const writeScriptFile = (content) => {
+    const writeScriptFile = (content: string) => {
       fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
       return scriptFilename;
     };
@@ -438,7 +438,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
   await writeAgentFilesAsync({ deckDir, sceneData });
 }
 
-export async function readDeckFromDirectoryAsync({ dir, log }) {
+export async function readDeckFromDirectoryAsync({ dir, log }: { dir?: string; log: (...args: any[]) => void }) {
   if (!dir) {
     dir = '.';
   }
@@ -478,7 +478,7 @@ export async function readDeckFromDirectoryAsync({ dir, log }) {
   return deck;
 }
 
-export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
+export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: { cardId: string; sceneDataUrl: string; cardDir: string; deckDir: string }) {
   const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
 
@@ -535,7 +535,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
       if (localComponents.Script?.file) scriptFilename = localComponents.Script.file;
     }
 
-    const writeScriptFile = (content) => {
+    const writeScriptFile = (content: string) => {
       fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
       return scriptFilename;
     };
@@ -553,8 +553,8 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
   await writeAgentFilesAsync({ deckDir, sceneData });
 }
 
-async function getEntryIdToBlueprintFilenameAsync(cardDir) {
-  const entryIdToConfigFilename = {};
+async function getEntryIdToBlueprintFilenameAsync(cardDir: string) {
+  const entryIdToConfigFilename: Record<string, string> = {};
 
   const configFiles = await glob('**/*.yaml', {
     cwd: cardDir,
@@ -746,7 +746,7 @@ export async function newSceneDataForCardAsync({
   };
 }
 
-async function pushCardAsync({ cardId, cardDir, deckDir }) {
+async function pushCardAsync({ cardId, cardDir, deckDir }: { cardId: string; cardDir: string; deckDir: string }) {
   let { sceneData, modified } = await newSceneDataForCardAsync({
     cardDir,
     deckDir,
@@ -763,7 +763,7 @@ async function pushCardAsync({ cardId, cardDir, deckDir }) {
   return null;
 }
 
-export async function pushCardsAsync({ deckDir, cards }) {
+export async function pushCardsAsync({ deckDir, cards }: { deckDir: string; cards: any[] }) {
   let cardIdsToSceneData: any = {};
 
   for (let card of cards) {
@@ -826,10 +826,10 @@ export async function pushCardsAsync({ deckDir, cards }) {
   }
 }
 
-export async function syncCardVersionsAsync({ deckDir, force = false }) {
+export async function syncCardVersionsAsync({ deckDir, force = false }: { deckDir: string; force?: boolean }) {
   let castleDir = getCastleDir(deckDir);
   let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
-  let cardVersions = {};
+  let cardVersions: Record<string, string> = {};
 
   try {
     cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));

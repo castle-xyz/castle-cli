@@ -30,16 +30,21 @@ export interface CLIMobileConnectionOptions {
   deckDir: string;
   token: string;
   debug?: boolean;
-  onStateWritten?: (cardId: string) => void;
+  expectedDeckId?: string;
+  onStateWritten?: (cardId: string, deckDir: string) => void;
 }
 
 export class CLIMobileConnection {
   private ws: WebSocket | null = null;
   private watchers: Map<string, FileWatcher> = new Map();
+  private cardDirs: Map<string, string> = new Map();
   private deckDir: string;
   private token: string;
   private debug: boolean;
-  private onStateWritten?: (cardId: string) => void;
+  private expectedDeckId: string | null;
+  private lockedDeckId: string | null = null;
+  private activeDeckDir: string | null = null;
+  private onStateWritten?: (cardId: string, deckDir: string) => void;
   private lastCliSessionIds: Map<string, string> = new Map();
   private logger: Logger;
   private connected = false;
@@ -61,10 +66,11 @@ export class CLIMobileConnection {
   // Pending screenshot request
   private screenshotResolve: ((data: string | null) => void) | null = null;
 
-  constructor({ deckDir, token, debug, onStateWritten }: CLIMobileConnectionOptions) {
+  constructor({ deckDir, token, debug, expectedDeckId, onStateWritten }: CLIMobileConnectionOptions) {
     this.deckDir = deckDir;
     this.token = token;
     this.debug = !!debug;
+    this.expectedDeckId = expectedDeckId ?? null;
     this.onStateWritten = onStateWritten;
 
     if (!fs.existsSync(deckDir)) fs.mkdirSync(deckDir, { recursive: true });
@@ -234,15 +240,39 @@ export class CLIMobileConnection {
 
   private _handleState(state: StateMessage) {
     const cardId = state.cardId;
-    const cardDir = path.join(this.deckDir, `card-${cardId}`);
+    let deckDir: string;
+
+    // Deck identity check
+    if (this.expectedDeckId !== null) {
+      // Deck-locked mode: only sync when the correct deck is open
+      if (state.deckId !== this.expectedDeckId) {
+        this.logger.cli(`⚠  Mobile has deck ${state.deckId} open, but this directory serves deck ${this.expectedDeckId}.\n   Switch to the correct deck on mobile to enable sync.`);
+        return;
+      }
+      deckDir = this.deckDir;
+    } else {
+      // Mobile-first mode: lock to the first deck that connects
+      if (this.lockedDeckId === null) {
+        this.lockedDeckId = state.deckId;
+        this.activeDeckDir = path.join(this.deckDir, `deck-${state.deckId}`);
+      } else if (state.deckId !== this.lockedDeckId) {
+        this.logger.cli(`⚠  Mobile switched to deck ${state.deckId}. Currently locked to deck ${this.lockedDeckId}.\n   Restart \`castle serve\` to work with a different deck.`);
+        return;
+      }
+      deckDir = this.activeDeckDir!;
+
+      // Create deck directory and deck.yaml stub (mobile-first only)
+      if (!fs.existsSync(deckDir)) fs.mkdirSync(deckDir, { recursive: true });
+      const deckYamlPath = path.join(deckDir, 'deck.yaml');
+      if (!fs.existsSync(deckYamlPath)) {
+        fs.writeFileSync(deckYamlPath, jsyaml.dump({ deckId: state.deckId }));
+      }
+    }
+
+    const cardDir = path.join(deckDir, `card-${cardId}`);
+    this.cardDirs.set(cardId, cardDir);
 
     this.logger.cli(`received state for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors`);
-
-    // Create deck.yaml stub if not exists
-    const deckYamlPath = path.join(this.deckDir, 'deck.yaml');
-    if (!fs.existsSync(deckYamlPath)) {
-      fs.writeFileSync(deckYamlPath, jsyaml.dump({ deckId: state.deckId }));
-    }
 
     // Create card directory and card.yaml stub if not exists
     if (!fs.existsSync(cardDir)) {
@@ -276,11 +306,11 @@ export class CLIMobileConnection {
 
       // Write scene data cache for web player
       const sceneData = mobileStateToSceneData(state);
-      const cacheDir = getCacheDir(this.deckDir);
+      const cacheDir = getCacheDir(deckDir);
       fs.writeFileSync(path.join(cacheDir, `${cardId}.json`), JSON.stringify(sceneData, null, 2));
 
       // Update cardversions.json (mark card as present from mobile)
-      const castleDir = path.join(this.deckDir, CASTLE_DIR);
+      const castleDir = path.join(deckDir, CASTLE_DIR);
       if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
       const cardVersionsPath = path.join(castleDir, 'cardversions.json');
       let cardVersions: any = {};
@@ -292,7 +322,7 @@ export class CLIMobileConnection {
 
       // Notify web player that content changed
       if (this.onStateWritten) {
-        this.onStateWritten(cardId);
+        this.onStateWritten(cardId, deckDir);
       }
     } finally {
       setTimeout(() => {
@@ -352,7 +382,7 @@ export class CLIMobileConnection {
   private _flushFileChanges() {
     // Find the most recently updated card
     for (const [cardId, _watcher] of this.watchers) {
-      const cardDir = path.join(this.deckDir, `card-${cardId}`);
+      const cardDir = this.cardDirs.get(cardId) ?? path.join(this.deckDir, `card-${cardId}`);
       const changes = detectChanges(cardDir);
       if (changes && changes.hasChanges) {
         this._sendChanges(changes);
