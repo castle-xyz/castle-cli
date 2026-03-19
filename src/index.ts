@@ -58,6 +58,7 @@ program
   .option('-p, --port <port>', 'Web player port')
   .option('-c, --card <cardId>', 'Initial card to serve')
   .option('--open', 'Automatically open browser')
+  .option('--debug', 'Show verbose connection and file-change logs')
   .action(async (directory, options) => {
     await serve(directory || '.', options);
   });

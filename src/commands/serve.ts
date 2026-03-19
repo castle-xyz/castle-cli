@@ -4,6 +4,7 @@ import portfinder from 'portfinder';
 import { glob } from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';
+import readline from 'readline';
 import watch from 'node-watch';
 import yaml from 'yaml';
 
@@ -39,14 +40,14 @@ function writeCache(relPath: string, data: string) {
 
 // Fetch the current player ID from castle.xyz, with local cache fallback.
 // Returns null if unavailable (CDN redirect won't work but local build still will).
-async function fetchPlayerId(): Promise<string | null> {
+async function fetchPlayerId(debug: boolean): Promise<string | null> {
   try {
     const res = await fetch(`${CASTLE_WWW}/api/player-id`, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const json = await res.json() as any;
       if (json.playerId) {
         writeCache('player-id', json.playerId);
-        console.log(`[serve] Player ID: ${json.playerId}`);
+        if (debug) console.log(`[serve] Player ID: ${json.playerId}`);
         return json.playerId;
       }
     }
@@ -55,10 +56,10 @@ async function fetchPlayerId(): Promise<string | null> {
   }
   const cached = readCache('player-id');
   if (cached) {
-    console.log(`[serve] Player ID: ${cached.trim()} (from cache)`);
+    if (debug) console.log(`[serve] Player ID: ${cached.trim()} (from cache)`);
     return cached.trim();
   }
-  console.log('[serve] Player ID unavailable — CDN fallback will not work (local build still works)');
+  if (debug) console.log('[serve] Player ID unavailable — CDN fallback will not work (local build still works)');
   return null;
 }
 
@@ -197,43 +198,40 @@ const HTML = `
   </body>
 </html>`;
 
-// Fetch coreViews JSON from the castle-www dev server (local) or production castle.xyz.
+// Fetch coreViews JSON from production castle.xyz.
 // coreViews is required by the C++ engine for UI overlays (feed, passes, inventory, etc.).
 // Caches to ~/.castle/cache/coreviews.json for offline use.
-async function fetchCoreViews(): Promise<string> {
-  const urls = [
-    `${CASTLE_WWW}/api/coreviews`,
-  ];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const text = await res.text();
-        writeCache('coreviews.json', text);
-        console.log(`[serve] Loaded coreViews from ${url}`);
-        return text;
-      }
-    } catch {
-      // try next
+async function fetchCoreViews(debug: boolean): Promise<string> {
+  try {
+    const res = await fetch(`${CASTLE_WWW}/api/coreviews`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const text = await res.text();
+      writeCache('coreviews.json', text);
+      if (debug) console.log('[serve] Loaded coreViews from castle.xyz');
+      return text;
     }
+  } catch {
+    // fall through to cache
   }
   const cached = readCache('coreviews.json');
   if (cached) {
-    console.log('[serve] Loaded coreViews from cache');
+    if (debug) console.log('[serve] Loaded coreViews from cache');
     return cached;
   }
-  console.log('[serve] coreViews unavailable — UI overlays (passes, inventory, feed) will not render');
+  if (debug) console.log('[serve] coreViews unavailable — UI overlays (passes, inventory, feed) will not render');
   return '{}';
 }
 
 export async function serve(
   directory: string = '.',
-  options: { port?: string; card?: string; open?: boolean } = {}
+  options: { port?: string; card?: string; open?: boolean; debug?: boolean } = {}
 ) {
+  const debug = !!options.debug;
+
   await initMetadata();
 
-  // Fetch player ID and coreViews at startup in parallel.
-  const [playerId, coreViewsJson] = await Promise.all([fetchPlayerId(), fetchCoreViews()]);
+  // Fetch player ID and coreViews at startup in parallel (graceful offline fallback).
+  const [playerId, coreViewsJson] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug)]);
 
   // Auto-detect deck subdirectory if no deck.yaml in the current directory
   if (!fs.existsSync(path.join(directory, 'deck.yaml'))) {
@@ -252,14 +250,19 @@ export async function serve(
     } catch (e) {}
   }
 
-  await Decks.syncCardVersionsAsync({ deckDir: directory });
+  // Sync card versions from server — skip gracefully when offline.
+  try {
+    await Decks.syncCardVersionsAsync({ deckDir: directory });
+  } catch (e: any) {
+    if (debug) console.log(`[serve] Offline — skipping card sync: ${e.message}`);
+  }
 
   // Try to read deck.yaml — but it might not exist yet (mobile-first mode)
   let initialCardId: string | null = null;
   let cardDirectories: any = {};
 
   try {
-    let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: console.log });
+    let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: debug ? console.log : () => {} });
 
     if (deck) {
       initialCardId = deck.initialCard.cardId;
@@ -281,7 +284,7 @@ export async function serve(
       }
     }
   } catch (e) {
-    console.log('No deck.yaml found — running in mobile-first mode');
+    if (debug) console.log('[serve] No deck.yaml found — running in mobile-first mode');
   }
 
   let port: any = null;
@@ -296,7 +299,7 @@ export async function serve(
   }
 
   if (!port) {
-    portfinder.basePort = 1337;
+    portfinder.basePort = 4321;
     port = await portfinder.getPortPromise();
   }
 
@@ -307,18 +310,19 @@ export async function serve(
   // node-watch exports differently in ESM vs CJS contexts
   const watchFn: any = typeof watch === 'function' ? watch : (watch as any).default;
   watchFn(directory, { recursive: true, filter: (name: string) => !name.includes(`${path.sep}.castle${path.sep}`) && !name.endsWith(`${path.sep}.castle`) }, (_evt: any, name: any) => {
-    if (name) {
-      console.log(`File ${path.relative(directory, name)} changed. Reloading...`);
+    if (name && debug) {
+      console.log(`[serve] File changed: ${path.relative(directory, name)}`);
     }
     version++;
   });
 
-  // Start mobile WebSocket connection
+  // Start mobile WebSocket connection (if logged in).
   const token = config.getToken();
   if (token) {
     const mobileConnection = new CLIMobileConnection({
       deckDir: directory,
       token,
+      debug,
       onStateWritten: (cardId) => {
         version++;
 
@@ -336,8 +340,8 @@ export async function serve(
       },
     });
     mobileConnection.start();
-  } else {
-    console.log('[serve] No token found — mobile connection disabled. Run `castle login` to enable.');
+  } else if (debug) {
+    console.log('[serve] No token found — mobile disabled. Run `castle login` to enable.');
   }
 
   try {
@@ -488,19 +492,37 @@ export async function serve(
         const addr = httpServer.address() as any;
         const actualPort = addr?.port ?? port;
         const url = `http://localhost:${actualPort}`;
-        console.log(`Server is running on ${url}`);
-        console.log('Listening for changes...\n');
+        console.log(`Serving on ${url}`);
 
         if (options.open) {
-          setTimeout(async () => {
-            await openBrowser(url);
-          }, 100);
+          setTimeout(async () => { await openBrowser(url); }, 100);
         }
 
         resolve({ app, port: actualPort, url });
       });
       httpServer.on('error', reject);
     });
+
+    // Keyboard shortcuts — only in interactive terminals.
+    if (process.stdin.isTTY) {
+      console.log('  o  open in browser  ·  r  reload  ·  q  quit');
+      readline.emitKeypressEvents(process.stdin);
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.on('keypress', (_str: string, key: any) => {
+        if (!key) return;
+        if ((key.ctrl && key.name === 'c') || key.name === 'q') {
+          process.exit(0);
+        }
+        if (key.name === 'o') {
+          openBrowser(server.url);
+        }
+        if (key.name === 'r') {
+          version++;
+          console.log('Reloading...');
+        }
+      });
+    }
 
     return server;
   } catch (e) {

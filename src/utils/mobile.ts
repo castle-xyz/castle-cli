@@ -29,6 +29,7 @@ const PONG_TIMEOUT_MS = 3000;
 export interface CLIMobileConnectionOptions {
   deckDir: string;
   token: string;
+  debug?: boolean;
   onStateWritten?: (cardId: string) => void;
 }
 
@@ -37,6 +38,7 @@ export class CLIMobileConnection {
   private watchers: Map<string, FileWatcher> = new Map();
   private deckDir: string;
   private token: string;
+  private debug: boolean;
   private onStateWritten?: (cardId: string) => void;
   private lastCliSessionIds: Map<string, string> = new Map();
   private logger: Logger;
@@ -59,9 +61,10 @@ export class CLIMobileConnection {
   // Pending screenshot request
   private screenshotResolve: ((data: string | null) => void) | null = null;
 
-  constructor({ deckDir, token, onStateWritten }: CLIMobileConnectionOptions) {
+  constructor({ deckDir, token, debug, onStateWritten }: CLIMobileConnectionOptions) {
     this.deckDir = deckDir;
     this.token = token;
+    this.debug = !!debug;
     this.onStateWritten = onStateWritten;
 
     if (!fs.existsSync(deckDir)) fs.mkdirSync(deckDir, { recursive: true });
@@ -74,7 +77,7 @@ export class CLIMobileConnection {
 
   start() {
     this.logger.cli(`project directory: ${this.deckDir}`);
-    console.log(`[mobile] project directory: ${this.deckDir}`);
+    if (this.debug) console.log(`[mobile] project directory: ${this.deckDir}`);
     this._connect();
   }
 
@@ -87,14 +90,14 @@ export class CLIMobileConnection {
 
     const url = `${WS_URL}?token=${this.token}`;
     this.logger.cli('connecting to tunnel...');
-    console.log('[mobile] connecting to tunnel...');
+    if (this.debug) console.log('[mobile] connecting to tunnel...');
 
     this.ws = new WebSocket(url);
 
     this.ws.on('open', () => {
       this.connected = true;
       this.logger.cli('connected to tunnel');
-      console.log('[mobile] connected to tunnel');
+      if (this.debug) console.log('[mobile] connected to tunnel');
 
       // Enable the cli tunnel feature
       this._send({ type: 'cli_tunnel_start_listening' });
@@ -131,7 +134,7 @@ export class CLIMobileConnection {
       this.connected = false;
       this._stopPing();
       this.logger.cli('disconnected from tunnel');
-      console.log('[mobile] disconnected from tunnel');
+      if (this.debug) console.log('[mobile] disconnected from tunnel');
       this._scheduleReconnect();
     });
 
@@ -148,7 +151,7 @@ export class CLIMobileConnection {
         // If no pong within timeout, connection is dead
         this.pongTimer = setTimeout(() => {
           this.logger.cli('pong timeout — reconnecting');
-          console.log('[mobile] pong timeout — reconnecting');
+          if (this.debug) console.log('[mobile] pong timeout — reconnecting');
           if (this.ws) {
             this.ws.terminate();
           }
