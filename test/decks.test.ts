@@ -466,6 +466,301 @@ describe('newSceneDataForCardAsync round-trip', () => {
     expect(actor.bp.components.Body.angle).toBeCloseTo(0.785, 2);
   });
 
+  it('preserves Tags.tagsString from blueprint YAML through newSceneDataForCardAsync', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: {
+              components: {
+                Body: { widthScale: 0.3, heightScale: 0.3 },
+                Tags: { tagsString: 'manager', disabled: false },
+              },
+            },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
+      },
+    };
+    writeCacheAndActors(sceneData);
+
+    // Blueprint YAML has Tags with tagsString (as written by clone)
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({
+        title: 'Test',
+        entryId: 'e1',
+        components: {
+          Body: { widthScale: 3.0, heightScale: 3.0 },
+          Tags: { tagsString: 'manager' },
+        },
+      })
+    );
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const tags = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Tags;
+
+    expect(tags).toBeDefined();
+    expect(tags.tagsString).toBe('manager');
+  });
+
+  it('round-trips initialFrame: non-default value written to and read from actors.yaml', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Drawing2: { initialFrame: 1 } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Drawing2: { initialFrame: 3 } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Drawing2: { initialFrame: 1 } } })
+    );
+
+    // Write actors.yaml using the write path
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    // Verify initialFrame is written (non-default value 3 != 1)
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].initialFrame).toBe(3);
+
+    // Verify round-trip read
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    expect(actor).toBeDefined();
+    expect(actor.bp.components.Drawing2.initialFrame).toBe(3);
+  });
+
+  it('does NOT write initialFrame when it equals the default (1)', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Drawing2: { initialFrame: 1 } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Drawing2: { initialFrame: 1 } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].initialFrame).toBeUndefined();
+  });
+
+  it('round-trips fontSizeScale: non-default value written to and read from actors.yaml', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Text: { content: 'Hello' } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { fontSizeScale: 2.5 } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Hello' } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].fontSizeScale).toBe(2.5);
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    expect(actor).toBeDefined();
+    expect(actor.bp.components.Text.fontSizeScale).toBe(2.5);
+  });
+
+  it('does NOT write fontSizeScale when it equals the default (1)', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { fontSizeScale: 1 } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].fontSizeScale).toBeUndefined();
+  });
+
+  it('round-trips content: differs from blueprint default, written to and read from actors.yaml', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Text: { content: 'Default text' } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { content: 'Custom text' } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Default text' } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].content).toBe('Custom text');
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    expect(actor).toBeDefined();
+    expect(actor.bp.components.Text.content).toBe('Custom text');
+  });
+
+  it('does NOT write content when it matches the blueprint default', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Text: { content: 'Same text' } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { content: 'Same text' } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Same text' } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].content).toBeUndefined();
+  });
+
+  it('round-trips targetDeckId: differs from blueprint default, written to and read from actors.yaml', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Link: { targetDeckId: 'defaultDeck' } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Link: { targetDeckId: 'customDeck' } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Link: { targetDeckId: 'defaultDeck' } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].targetDeckId).toBe('customDeck');
+
+    const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
+    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    expect(actor).toBeDefined();
+    expect(actor.bp.components.Link.targetDeckId).toBe('customDeck');
+  });
+
+  it('does NOT write targetDeckId when it matches the blueprint default', async () => {
+    const sceneData = {
+      snapshot: {
+        library: {
+          e1: {
+            entryType: 'actorBlueprint',
+            title: 'Test',
+            actorBlueprint: { components: { Body: { widthScale: 0.3 }, Link: { targetDeckId: 'sameDeck' } } },
+          },
+        },
+        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Link: { targetDeckId: 'sameDeck' } } } }],
+      },
+    };
+    const cacheDir = getCacheDir(deckDir);
+    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.yaml'),
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Link: { targetDeckId: 'sameDeck' } } })
+    );
+
+    await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
+      sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
+    });
+
+    const actorsObj = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsObj['a1'].targetDeckId).toBeUndefined();
+  });
+
   it('reads actor by title from actors.yaml — title→entryId lookup', async () => {
     const sceneData = {
       snapshot: {

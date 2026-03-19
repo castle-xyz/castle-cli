@@ -178,6 +178,21 @@ function buildActorsYamlObj(actors: any[], library: any): any {
     if (drawing2.initialFrame && drawing2.initialFrame !== 1) {
       actorEntry.initialFrame = drawing2.initialFrame;
     }
+    const text = actor.bp?.components?.Text ?? {};
+    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) {
+      actorEntry.fontSizeScale = text.fontSizeScale;
+    }
+    // Only save content if it differs from the blueprint default (same logic as castle-client)
+    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
+    if (text.content !== undefined && text.content !== blueprintContent) {
+      actorEntry.content = text.content;
+    }
+
+    const link = actor.bp?.components?.Link ?? {};
+    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
+    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) {
+      actorEntry.targetDeckId = link.targetDeckId;
+    }
 
     actorsObj[key] = actorEntry;
   }
@@ -634,6 +649,14 @@ export async function newSceneDataForCardAsync({
         if (data.initialFrame && data.initialFrame !== 1) {
           components.Drawing2 = { initialFrame: data.initialFrame };
         }
+        if (data.fontSizeScale !== undefined || data.content !== undefined) {
+          components.Text = {};
+          if (data.fontSizeScale !== undefined) components.Text.fontSizeScale = data.fontSizeScale;
+          if (data.content !== undefined) components.Text.content = data.content;
+        }
+        if (data.targetDeckId !== undefined) {
+          components.Link = { targetDeckId: data.targetDeckId };
+        }
 
         localActors.push({ actorId, parentEntryId, bp: { components } });
       }
@@ -652,6 +675,21 @@ export async function newSceneDataForCardAsync({
 
     const localBP = localLibrary[entryId]?.actorBlueprint ?? {};
     const processed = processedSnapshot.library[entryId].actorBlueprint;
+
+    // Strip engine-computed Body fields from `processed` so the cached values (e.g. fixtures,
+    // editorBounds) are not overwritten with empty/default values from the WASM output.
+    if (processed?.components?.Body) {
+      for (const field of BODY_COMPUTED_FIELDS) {
+        delete processed.components.Body[field];
+      }
+    }
+    // Strip engine-computed Drawing2 fields from `processed` (same reason).
+    if (processed?.components?.Drawing2) {
+      delete processed.components.Drawing2.hash;
+      delete processed.components.Drawing2.drawData;
+      delete processed.components.Drawing2.physicsBodyData;
+      delete processed.components.Drawing2.currentFrame;
+    }
 
     // Three-way merge:
     // - cached: has Drawing2.hash/drawData, server Rules.rules (complex data)

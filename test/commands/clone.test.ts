@@ -29,6 +29,7 @@ const MOCK_SCENE_DATA = {
               initialFrame: 1,
               drawData: { framesBounds: [{ minX: 0, maxX: 100, minY: 0, maxY: 100 }] },
             },
+            Tags: { tagsString: 'manager', disabled: false },
           },
         },
       },
@@ -146,5 +147,18 @@ describe('clone command', () => {
 
     const cacheDir = path.join(deckDir, '.castle', '.cache');
     expect(fs.existsSync(cacheDir)).toBe(true);
+  });
+
+  it('preserves Tags.tagsString in blueprint YAML', async () => {
+    const deckDir = path.join(tmpDir, 'test-deck');
+    await clone('deck-abc', { directory: deckDir });
+
+    const bpDir = path.join(deckDir, 'card-card-xyz', 'blueprints');
+    const files = fs.readdirSync(bpDir).filter(f => f.endsWith('.yaml'));
+    expect(files.length).toBeGreaterThan(0);
+
+    const bpData = yaml.parse(fs.readFileSync(path.join(bpDir, files[0]), 'utf-8'));
+    expect(bpData.components.Tags).toBeDefined();
+    expect(bpData.components.Tags.tagsString).toBe('manager');
   });
 });

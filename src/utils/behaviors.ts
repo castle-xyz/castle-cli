@@ -101,6 +101,10 @@ function serializeComponent({ behavior, component, writeScriptFile }) {
   }
 
   if (behavior.name == BehaviorKey.Rules) {
+    if (component.rules && !Array.isArray(component.rules) && typeof component.rules === 'object') {
+      // Already in serialized inline object format (rule-0, rule-1, ...) — pass through
+      return { rules: component.rules };
+    }
     const rulesObj: any = {};
     if (component.rules) {
       component.rules.forEach((rule: any, i: number) => {
@@ -115,6 +119,11 @@ function serializeComponent({ behavior, component, writeScriptFile }) {
     return {
       file: scriptFilename,
     };
+  } else if (behavior.name === 'Tags') {
+    const result: any = {};
+    if (component.tagsString) result.tagsString = component.tagsString;
+    if (component.disabled) result.disabled = component.disabled;
+    return result;
   }
 
   return serializeComponentInternals({ behavior, component });
@@ -159,10 +168,6 @@ export function serializeComponentInternals({ behavior, component }): Record<str
 
     let attribs = propertySpec.attribs;
     if (!attribs) {
-      continue;
-    }
-
-    if (!attribs.rulesGet && !attribs.rulesSet) {
       continue;
     }
 

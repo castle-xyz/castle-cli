@@ -6,11 +6,17 @@
   "bin": {
     "castle": "./bin/castle.js"
   },
+  "files": [
+    "bin/",
+    "dist/"
+  ],
   "scripts": {
     "build": "tsup && mkdir -p dist/assets/core && cp src/assets/core/castle-core-node.wasm dist/assets/core/ && cp src/assets/core/castle-core-node.cjs dist/assets/core/ && cp src/assets/AGENTS.md dist/assets/",
+    "prepublishOnly": "npm run build",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:chess": "npx tsx scripts/test-chess-playwright.ts"
   },
   "author": "",
   "license": "ISC",
