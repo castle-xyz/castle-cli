@@ -83,7 +83,7 @@ const HTML = `
 
   <body style="background-color: #000; display: flex; flex-direction: row; justify-content: center;">
 
-    <canvas id="canvas" width="400" height="560" style="margin-top: 20px;"></canvas>
+    <canvas id="canvas" tabindex="0" width="400" height="560" style="margin-top: 20px; outline: none;"></canvas>
     <div id="message" style="position: absolute; color: white; bottom: 20px; left: 20px;"></div>
 
     <script charset="utf-8">
@@ -188,6 +188,7 @@ const HTML = `
         var script = document.createElement('script');
         script.src = '/player/' + variant + '/castle-core.js';
         document.head.appendChild(script);
+        canvas.focus();
       }
 
       loadDeck();

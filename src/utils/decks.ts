@@ -339,6 +339,13 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
       // Convert internal format → script format via WASM (e.g. Body.widthScale ×10).
       const componentsForDisk = await toScriptFormat(components);
 
+      // WASM strips Rules.rules (complex non-Prop array) — restore from original scene data
+      // so serializeComponent can write the correct rules to the YAML file.
+      if (components.Rules?.rules !== undefined) {
+        if (!componentsForDisk.Rules) componentsForDisk.Rules = {};
+        componentsForDisk.Rules.rules = components.Rules.rules;
+      }
+
       // Include ALL components (Body and Drawing2 are no longer skipped)
       const blueprintData = {
         title,
@@ -460,6 +467,12 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
       // Convert internal format → script format via WASM.
       const componentsForDisk = await toScriptFormat(components);
 
+      // WASM strips Rules.rules (complex non-Prop array) — restore from original scene data.
+      if (components.Rules?.rules !== undefined) {
+        if (!componentsForDisk.Rules) componentsForDisk.Rules = {};
+        componentsForDisk.Rules.rules = components.Rules.rules;
+      }
+
       // Include ALL components (Body and Drawing2 are no longer skipped)
       const blueprintData = {
         title,
@@ -541,6 +554,20 @@ export async function newSceneDataForCardAsync({
                 );
               },
             });
+
+            // If local Rules.rules is empty but cache has rules, preserve cached rules.
+            // Empty local rules files result from a WASM stripping bug during clone/pull
+            // (Rules.rules is complex data not returned by getComponentScriptValues).
+            const localRules = localBlueprintData.components?.Rules?.rules;
+            const cachedRules = library[entryId].actorBlueprint?.components?.Rules?.rules;
+            if (
+              Array.isArray(localRules) &&
+              localRules.length === 0 &&
+              Array.isArray(cachedRules) &&
+              cachedRules.length > 0
+            ) {
+              delete localBlueprintData.components.Rules.rules;
+            }
           }
 
           let mergedBlueprint = Utils.mergeSkipArray(
