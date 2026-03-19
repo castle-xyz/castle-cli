@@ -63,19 +63,6 @@ async function fetchPlayerId(debug: boolean): Promise<string | null> {
   return null;
 }
 
-// Serve player files from local castle-www build (same origin, avoids CORS/CORP issues).
-// Falls back to CDN redirect if local build not found.
-function getCastleWwwVariantDir(playerId: string | null, variant: 'main' | 'nothread'): string | null {
-  if (!playerId) return null;
-  const localPath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    '../../../castle-www/public/player',
-    playerId,
-    variant
-  );
-  return fs.existsSync(localPath) ? localPath : null;
-}
-
 // Full player approach: load castle-core.js directly so we can inject real variables.
 // On file change, reload the page (simpler than re-calling createDeckFromJSON).
 const HTML = `
@@ -354,19 +341,26 @@ export async function serve(
       next();
     });
 
-    // Serve castle-core.js/wasm/worker from local castle-www build (same origin).
-    // Falls back to redirecting to CDN if local build not found.
+    // Serve castle-core.js/wasm/worker proxied from CDN (same origin).
+    // Proxy instead of redirect — browsers block cross-origin Worker construction
+    // when following redirects (new Worker(url) fails if url redirects cross-origin).
     for (const variant of ['main', 'nothread'] as const) {
-      const variantDir = getCastleWwwVariantDir(playerId, variant);
-      if (variantDir) {
-        app.use(`/player/${variant}`, express.static(variantDir, { setHeaders: (res) => {
-          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-          res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-        }}));
-      } else if (playerId) {
+      if (playerId) {
         const cdnBase = `${CASTLE_CDN}/player/${playerId}/${variant}`;
-        app.get(`/player/${variant}/:file`, (req, res) => {
-          res.redirect(`${cdnBase}/${req.params.file}`);
+        app.get(`/player/${variant}/:file`, async (req, res) => {
+          try {
+            const upstream = await fetch(`${cdnBase}/${req.params.file}`);
+            if (!upstream.ok) {
+              res.status(upstream.status).send(await upstream.text());
+              return;
+            }
+            const ct = upstream.headers.get('content-type');
+            if (ct) res.setHeader('Content-Type', ct);
+            const buf = await upstream.arrayBuffer();
+            res.send(Buffer.from(buf));
+          } catch (e: any) {
+            res.status(502).send(`Failed to fetch from CDN: ${e.message}`);
+          }
         });
       } else {
         app.get(`/player/${variant}/:file`, (req, res) => {

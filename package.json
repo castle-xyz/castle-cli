@@ -1,17 +1,19 @@
 {
-  "name": "castle-cli-3",
+  "name": "castle-cli",
   "type": "module",
-  "version": "1.0.0",
-  "description": "Castle CLI — combined web + mobile",
+  "version": "1.0.27",
+  "description": "Castle CLI",
   "bin": {
     "castle": "./bin/castle.js"
   },
   "scripts": {
-    "build": "tsup && mkdir -p dist/assets/core && cp src/assets/core/castle-core-node.wasm dist/assets/core/ && cp src/assets/core/castle-core-node.cjs dist/assets/core/",
+    "build": "tsup && mkdir -p dist/assets/core && cp src/assets/core/castle-core-node.wasm dist/assets/core/ && cp src/assets/core/castle-core-node.cjs dist/assets/core/ && cp src/assets/AGENTS.md dist/assets/",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "axios": "^1.7.0",
     "chokidar": "^4.0.0",

@@ -84,7 +84,7 @@ function replaceBehaviorIdWithName(component) {
 
     if (behaviorDisplayName) {
       component = {
-        behavior: behaviorDisplayName,
+        behaviorName: behaviorDisplayName,
         ...component,
       };
 
@@ -96,10 +96,10 @@ function replaceBehaviorIdWithName(component) {
 }
 
 function replaceBehaviorNameWithId(component) {
-  if (component.behavior) {
-    let behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[component.behavior];
+  if (component.behaviorName) {
+    let behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[component.behaviorName];
     component.behaviorId = parseInt(behaviorId);
-    delete component.behavior;
+    delete component.behaviorName;
   }
 
   return component;
@@ -122,7 +122,7 @@ export function serializeRule(rule) {
 
 function serializeBaseRulerInner(rule) {
   let result: any = {
-    type: rule.name,
+    name: rule.name,
     params: rule.params,
     behaviorId: rule.behaviorId,
   };
@@ -241,14 +241,9 @@ function nestResponses(responses, index = 0) {
 
 function deserializeBaseRulerInner(rule) {
   let result: any = {
-    name: rule.type,
-    behavior: rule.behavior,
+    name: rule.name,
     params: {},
   };
-
-  if (!result.behavior) {
-    delete result.behavior;
-  }
 
   if (rule.params) {
     result.params = rule.params;
@@ -256,6 +251,10 @@ function deserializeBaseRulerInner(rule) {
 
   if (result.params) {
     result.params = replaceBehaviorNameWithId(result.params);
+  }
+
+  if (rule.behaviorName) {
+    result.behaviorName = rule.behaviorName;
   }
 
   result = replaceBehaviorNameWithId(result);

@@ -86,28 +86,26 @@ describe('serve command', () => {
       JSON.stringify(MOCK_SCENE_DATA, null, 2)
     );
 
-    // Write actors.yaml
+    // Write actors.yaml in flat format (prompt.md format: title, degrees, ×10 widthScale)
     const actors = {
       a123: {
         title: 'Player',
-        entryId: 'entry-001',
         x: 10,
         y: 20,
-        angle: 0,
-        widthScale: 0.5,
-        heightScale: 0.5,
+        widthScale: 5.0,
+        heightScale: 5.0,
       },
     };
     fs.writeFileSync(path.join(deckDir, 'card-card-xyz', 'actors.yaml'), yaml.stringify(actors));
 
-    // Write blueprint
+    // Write blueprint (external format: ×10 widthScale)
     fs.writeFileSync(
       path.join(deckDir, 'card-card-xyz', 'blueprints', 'Player.yaml'),
       yaml.stringify({
         title: 'Player',
         entryId: 'entry-001',
         components: {
-          Body: { widthScale: 0.5, heightScale: 0.5 },
+          Body: { widthScale: 5.0, heightScale: 5.0 },
           Drawing2: { initialFrame: 1 },
         },
       })

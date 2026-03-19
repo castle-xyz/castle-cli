@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import yaml from 'js-yaml';
 import {
   titleToSlug,
   writeState,
@@ -34,13 +35,12 @@ function makeStateMessage(overrides = {}): StateMessage {
     },
     actors: {
       a100: {
-        title: 'Player',
-        entryId: 'entry-001',
+        title: 'Player', // mobile sends title (from extractActorsInfo)
         x: 10,
         y: 20,
-        angle: 0.785,
-        widthScale: 0.5,
-        heightScale: 0.5,
+        angle: 0.785,    // radians (internal engine format from mobile)
+        widthScale: 5.0, // ×10 (mobile sends widthScale * 10)
+        heightScale: 5.0,
       } as any,
     },
     variables: [
@@ -94,18 +94,24 @@ describe('writeState', () => {
     expect(fs.readFileSync(luaFile, 'utf-8')).toBe('function update() end');
   });
 
-  it('writes actors.yaml in nested display-name format', () => {
+  it('writes actors.yaml in flat format with title and degrees', () => {
     const state = makeStateMessage();
     writeState(tmpDir, state);
 
     const actorsPath = path.join(tmpDir, 'actors.yaml');
     expect(fs.existsSync(actorsPath)).toBe(true);
 
-    const content = fs.readFileSync(actorsPath, 'utf-8');
-    expect(content).toContain('a100');
-    expect(content).toContain('Layout');   // display name for Body
-    expect(content).toContain('0.785');    // raw radians (unchanged)
-    expect(content).toContain('5');        // widthScale ×10 (0.5 → 5.0)
+    const actorsObj = yaml.load(fs.readFileSync(actorsPath, 'utf-8')) as any;
+    expect(actorsObj['a100']).toBeDefined();
+    // Flat format: title, not entryId or nested components
+    expect(actorsObj['a100'].title).toBe('Player');
+    expect(actorsObj['a100'].components).toBeUndefined();
+    expect(actorsObj['a100'].x).toBe(10);
+    expect(actorsObj['a100'].y).toBe(20);
+    // Angle converted from radians (0.785) to degrees (~44.97)
+    expect(actorsObj['a100'].angle).toBeCloseTo(44.97, 1);
+    // widthScale stays ×10 (mobile sends ×10, we pass through)
+    expect(actorsObj['a100'].widthScale).toBe(5.0);
   });
 
   it('writes variables.yaml', () => {
@@ -117,6 +123,22 @@ describe('writeState', () => {
 
     const content = fs.readFileSync(varsPath, 'utf-8');
     expect(content).toContain('score');
+  });
+
+  it('writes AGENTS.md and CLAUDE.md combining state.prompt with CLI docs', () => {
+    const state = makeStateMessage({ prompt: '## Scene Context\nThis is a chess game.' });
+    writeState(tmpDir, state);
+
+    const agentsPath = path.join(tmpDir, 'AGENTS.md');
+    const claudePath = path.join(tmpDir, 'CLAUDE.md');
+    expect(fs.existsSync(agentsPath)).toBe(true);
+    expect(fs.existsSync(claudePath)).toBe(true);
+
+    const content = fs.readFileSync(agentsPath, 'utf-8');
+    // Should contain client prompt
+    expect(content).toContain('chess game');
+    // Should contain CLI docs
+    expect(content).toContain('actors.yaml');
   });
 
   it('writes meta.json with hashes and blueprintIdMap', () => {
@@ -224,7 +246,7 @@ describe('mobileStateToSceneData', () => {
     expect(library['entry-001'].actorBlueprint.components).toBeDefined();
   });
 
-  it('builds actors array from actors object', () => {
+  it('builds actors array from actors object with correct internal format', () => {
     const state = makeStateMessage();
     const sceneData = mobileStateToSceneData(state);
 
@@ -234,10 +256,12 @@ describe('mobileStateToSceneData', () => {
 
     const actor = actors[0];
     expect(actor.actorId).toBe('100'); // "a100" -> "100"
+    // parentEntryId looked up from title 'Player' → 'entry-001'
     expect(actor.parentEntryId).toBe('entry-001');
     expect(actor.bp.components.Body.x).toBe(10);
     expect(actor.bp.components.Body.y).toBe(20);
-    expect(actor.bp.components.Body.angle).toBe(0.785); // raw radians
-    expect(actor.bp.components.Body.widthScale).toBe(0.5);
+    expect(actor.bp.components.Body.angle).toBe(0.785); // radians (internal — unchanged)
+    // widthScale ÷10: mobile sends 5.0 (×10) → cache stores 0.5 (internal)
+    expect(actor.bp.components.Body.widthScale).toBeCloseTo(0.5);
   });
 });

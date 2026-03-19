@@ -15,16 +15,20 @@ const DEFAULT_FILES = [
   {
     path: '.gitignore',
     content: `.castle/.cache
+.castle/logs.txt
+.castle/commands.json
+.castle/screenshots/
+**/.castle/meta.json
 **/.DS_Store
 `,
   },
   {
-    path: '.vscode/settings.json',
-    content: `{
-  "files.exclude": {
-    ".castle/.cache": true
-  }
-}`,
+    path: '.castle/logs.txt',
+    content: '',
+  },
+  {
+    path: '.castle/commands.json',
+    content: '',
   },
 ];
 
@@ -103,6 +107,8 @@ export async function clone(deckArg: string, options: { directory?: string; repl
 
   let castleCacheDirectory = path.join(castleDirectory, '.cache');
   fs.mkdirSync(castleCacheDirectory);
+
+  fs.mkdirSync(path.join(castleDirectory, 'screenshots'));
 
   let deckFileName = path.join(deckDirectory, 'deck.yaml');
   fs.writeFileSync(

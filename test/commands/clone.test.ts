@@ -103,7 +103,7 @@ describe('clone command', () => {
     expect(data.cardId).toBe('card-xyz');
   });
 
-  it('creates actors.yaml in object format', async () => {
+  it('creates actors.yaml in flat format with title and degrees', async () => {
     const deckDir = path.join(tmpDir, 'test-deck');
     await clone('deck-abc', { directory: deckDir });
 
@@ -115,9 +115,16 @@ describe('clone command', () => {
     expect(typeof actors).toBe('object');
     expect(Array.isArray(actors)).toBe(false);
 
-    // Should have a-prefixed key
+    // Should have a-prefixed key with flat format
     expect(actors['a123']).toBeDefined();
-    expect(actors['a123'].entryId).toBe('entry-001');
+    expect(actors['a123'].title).toBe('Player'); // title instead of entryId
+    expect(actors['a123'].entryId).toBeUndefined();
+    expect(actors['a123'].components).toBeUndefined(); // flat format, no nested components
+    expect(actors['a123'].x).toBe(10);
+    expect(actors['a123'].y).toBe(20);
+    // Angle converted from radians (0.785) to degrees (~44.97)
+    expect(actors['a123'].angle).toBeCloseTo(44.97, 1);
+    expect(actors['a123'].widthScale).toBeCloseTo(5.0, 1); // ×10
   });
 
   it('creates blueprints directory with blueprint files', async () => {

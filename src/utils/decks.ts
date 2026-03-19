@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import * as Utils from './utils.js';
-import { applySnapshot, getSnapshotExternalValues } from './castle-core-node.js';
+import { applySnapshot, getSnapshotExternalValues, getCastleMetadata } from './castle-core-node.js';
 
 export const DEFAULT_ACTOR = {
   bp: {
@@ -158,7 +158,7 @@ function newFilenameForTitle({ title, extension, blueprintsDir }) {
 }
 
 // Build the actors.yaml object from internal-format sceneData actors.
-// Converts Body → Layout display name and applies ×10 to widthScale/heightScale.
+// Writes flat format with title (not entryId), angle in degrees, widthScale ×10.
 function buildActorsYamlObj(actors: any[], library: any): any {
   const actorsObj: any = {};
   for (const actor of actors) {
@@ -169,17 +169,17 @@ function buildActorsYamlObj(actors: any[], library: any): any {
     const body = actor.bp?.components?.Body ?? {};
     const drawing2 = actor.bp?.components?.Drawing2 ?? {};
 
-    const layout: any = { x: body.x ?? 0, y: body.y ?? 0 };
-    if (body.angle) layout.angle = body.angle; // radians — unchanged
-    if (body.widthScale !== undefined) layout.widthScale = body.widthScale * 10; // ×10
-    if (body.heightScale !== undefined) layout.heightScale = body.heightScale * 10; // ×10
-
-    const components: any = { Layout: layout };
+    const actorEntry: any = { title: entry.title };
+    actorEntry.x = body.x ?? 0;
+    actorEntry.y = body.y ?? 0;
+    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000; // degrees
+    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10; // ×10
+    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10; // ×10
     if (drawing2.initialFrame && drawing2.initialFrame !== 1) {
-      components.Drawing = { initialFrame: drawing2.initialFrame };
+      actorEntry.initialFrame = drawing2.initialFrame;
     }
 
-    actorsObj[key] = { entryId: actor.parentEntryId, components };
+    actorsObj[key] = actorEntry;
   }
   return actorsObj;
 }
@@ -253,6 +253,116 @@ export async function writeActorsAndVariablesAsync({
   fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify(meta, null, 2));
 }
 
+// Generate scene context section from WASM metadata and scene data.
+// Mirrors what the mobile app's buildPromptText() generates in state.prompt:
+// available behaviors, rules, actors, variables, and blueprints.
+export async function generateAgentContext(sceneData: any): Promise<string> {
+  const { behaviors, rules } = await getCastleMetadata();
+  const library = sceneData.snapshot.library ?? {};
+  const actors = sceneData.snapshot.actors ?? [];
+
+  // --- Behaviors ---
+  const behaviorLines: string[] = [];
+  for (const behavior of Object.values(behaviors) as any[]) {
+    const props: string[] = [];
+    for (const [propName, spec] of Object.entries(behavior.propertySpecs ?? {}) as [string, any][]) {
+      if (!spec.attribs?.rulesGet && !spec.attribs?.rulesSet) continue;
+      const label = spec.attribs?.label || spec.attribs?.scriptName || propName;
+      let desc = spec.type ?? '';
+      if (spec.attribs?.min != null) desc += `, min: ${spec.attribs.min}`;
+      if (spec.attribs?.max != null) desc += `, max: ${spec.attribs.max}`;
+      if (spec.attribs?.allowedValues?.length > 0) desc += `, values: [${spec.attribs.allowedValues.join(', ')}]`;
+      props.push(`    ${label}: ${desc}`);
+    }
+    if (props.length > 0) {
+      behaviorLines.push(`  ${behavior.displayName}:\n${props.join('\n')}`);
+    } else {
+      behaviorLines.push(`  ${behavior.displayName}: {}`);
+    }
+  }
+
+  // --- Rules ---
+  const ruleLines: string[] = [];
+  const behaviorNameToDisplay: Record<string, string> = {};
+  for (const b of Object.values(behaviors) as any[]) {
+    behaviorNameToDisplay[b.name] = b.displayName;
+  }
+  for (const ruleType of ['triggers', 'responses', 'conditions']) {
+    const section = (rules as any)[ruleType];
+    if (!Array.isArray(section)) continue;
+    ruleLines.push(`  ${ruleType}:`);
+    for (const entry of section) {
+      const display = behaviorNameToDisplay[entry.behaviorName] ?? entry.behaviorName;
+      if (display === 'Counter') continue;
+      const paramSpecs = entry.paramSpecs ?? [];
+      const paramNames = Array.isArray(paramSpecs)
+        ? paramSpecs.map((p: any) => p.name)
+        : Object.keys(paramSpecs);
+      const params = paramNames.join(', ');
+      ruleLines.push(`    - name: ${entry.name}, behavior: ${display}${params ? `, params: [${params}]` : ''}`);
+    }
+  }
+
+  // --- Blueprints ---
+  // Build behaviorName (internal) → displayName map from metadata
+  const behaviorInternalToDisplay: Record<string, string> = {};
+  for (const b of Object.values(behaviors) as any[]) {
+    behaviorInternalToDisplay[b.name] = b.displayName;
+  }
+  const bpLines: string[] = [];
+  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
+    if (entry.entryType !== 'actorBlueprint') continue;
+    const behaviorNames = Object.keys(entry.actorBlueprint?.components ?? {})
+      .map((k) => behaviorInternalToDisplay[k] ?? k);
+    bpLines.push(`  - title: "${entry.title}", entryId: ${entryId}, behaviors: [${behaviorNames.join(', ')}]`);
+  }
+
+  // --- Actors ---
+  const actorLines: string[] = [];
+  for (const actor of actors) {
+    const entry = library[actor.parentEntryId];
+    if (!entry) continue;
+    const body = actor.bp?.components?.Body ?? {};
+    const angleDeg = body.angle != null ? Math.round(body.angle * (180 / Math.PI) * 10) / 10 : 0;
+    actorLines.push(`  ${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`);
+  }
+
+  const parts: string[] = [];
+  if (behaviorLines.length > 0) {
+    parts.push(`Available behaviors:\n${behaviorLines.join('\n')}`);
+  }
+  if (ruleLines.length > 0) {
+    parts.push(`Available rules:\n${ruleLines.join('\n')}`);
+  }
+  if (bpLines.length > 0) {
+    parts.push(`All blueprints in the deck:\n${bpLines.join('\n')}`);
+  }
+  if (actorLines.length > 0) {
+    parts.push(`Actors in the scene (angles in degrees, positive Y is downward):\n${actorLines.join('\n')}`);
+  }
+
+  return parts.join('\n\n');
+}
+
+async function writeAgentFilesAsync({ deckDir, sceneData }: { deckDir: string; sceneData: any }) {
+  const cliDocs = (() => {
+    try {
+      const assetPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/AGENTS.md');
+      return fs.readFileSync(assetPath, 'utf8');
+    } catch {
+      return null;
+    }
+  })();
+  if (!cliDocs) return;
+  const sceneContext = await generateAgentContext(sceneData);
+  const fullContent = (sceneContext ? sceneContext + '\n\n---\n\n' : '') + cliDocs;
+  const agentsPath = path.join(deckDir, 'AGENTS.md');
+  const existing = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : null;
+  if (existing === fullContent) return;
+  fs.writeFileSync(agentsPath, fullContent);
+  fs.writeFileSync(path.join(deckDir, 'CLAUDE.md'), fullContent);
+}
+
 export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) {
   const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
@@ -294,15 +404,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
       blueprintsDir,
       newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
     );
-    const rulesFilename = path.relative(
-      blueprintsDir,
-      newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
-    );
 
-    const writeRulesFile = (content) => {
-      fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
-      return rulesFilename;
-    };
     const writeScriptFile = (content) => {
       fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
       return scriptFilename;
@@ -311,12 +413,14 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir })
     const blueprintData = {
       title,
       entryId,
-      components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
+      components: Behaviors.serializeComponents({ components, writeScriptFile }),
     };
     fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
+
+  await writeAgentFilesAsync({ deckDir, sceneData });
 }
 
 export async function readDeckFromDirectoryAsync({ dir, log }) {
@@ -411,20 +515,11 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
       blueprintsDir,
       newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
     );
-    let rulesFilename = path.relative(
-      blueprintsDir,
-      newFilenameForTitle({ title: title + '_rules', extension: 'yaml', blueprintsDir })
-    );
 
     if (localComponents) {
       if (localComponents.Script?.file) scriptFilename = localComponents.Script.file;
-      if (localComponents.Rules?.file) rulesFilename = localComponents.Rules.file;
     }
 
-    const writeRulesFile = (content) => {
-      fs.writeFileSync(path.join(blueprintsDir, rulesFilename), content);
-      return rulesFilename;
-    };
     const writeScriptFile = (content) => {
       fs.writeFileSync(path.join(blueprintsDir, scriptFilename), content);
       return scriptFilename;
@@ -433,12 +528,14 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }) 
     const blueprintData = {
       title,
       entryId,
-      components: Behaviors.serializeComponents({ components, writeRulesFile, writeScriptFile }),
+      components: Behaviors.serializeComponents({ components, writeScriptFile }),
     };
     fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
+
+  await writeAgentFilesAsync({ deckDir, sceneData });
 }
 
 async function getEntryIdToBlueprintFilenameAsync(cardDir) {
@@ -502,13 +599,16 @@ export async function newSceneDataForCardAsync({
     };
   }
 
-  // 2. Build local actors from actors.yaml (Layout→Body, Drawing→Drawing2, external values)
+  // 2. Build local actors from actors.yaml (flat format: title, degrees, ×10 widthScale)
   const localActors: any[] = [];
-  // Angle is stored in radians in actors.yaml but handleSetProperty converts degrees→radians.
-  // We bypass WASM for angle and restore it directly after applySnapshot.
-  const actorAngleMap: Record<string, number> = {};
   const actorsFilePath = path.join(cardDir, 'actors.yaml');
   let actorsFileExists = false;
+
+  // Build title→entryId map for looking up parentEntryId by title
+  const titleToEntryId: Record<string, string> = {};
+  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
+    if (entry.title) titleToEntryId[entry.title] = entryId;
+  }
 
   if (fs.existsSync(actorsFilePath)) {
     const actorsObj = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
@@ -516,32 +616,26 @@ export async function newSceneDataForCardAsync({
       actorsFileExists = true;
       for (const [key, data] of Object.entries(actorsObj) as [string, any][]) {
         const actorId = key.startsWith('a') ? key.slice(1) : key;
-        if (!library[data.entryId]) continue;
 
-        const layout = data.components?.Layout ?? {};
-        const drawing = data.components?.Drawing ?? {};
+        // Support both new flat format (title) and legacy nested format (entryId + components)
+        const parentEntryId = data.entryId || (data.title && titleToEntryId[data.title]);
+        if (!parentEntryId || !library[parentEntryId]) continue;
 
-        // Store angle separately — bypass WASM (handleSetProperty treats input as degrees)
-        if (layout.angle !== undefined) {
-          actorAngleMap[actorId] = layout.angle; // radians, set directly after applySnapshot
-        }
-
-        // Map Layout → Body (exclude angle; applySnapshot converts widthScale ÷10 via handleSetProperty)
-        const components: any = {
-          Body: {
-            x: layout.x ?? 0,
-            y: layout.y ?? 0,
-            widthScale: layout.widthScale ?? 0, // external ×10; applySnapshot converts ÷10
-            heightScale: layout.heightScale ?? 0,
-          },
+        // Flat format: { title, x, y, angle (degrees), widthScale ×10, initialFrame }
+        const body: any = {
+          x: data.x ?? 0,
+          y: data.y ?? 0,
+          widthScale: data.widthScale ?? 0, // ×10; applySnapshot converts ÷10
+          heightScale: data.heightScale ?? 0,
         };
+        if (data.angle !== undefined) body.angle = data.angle; // degrees; applySnapshot converts
 
-        // Map Drawing → Drawing2 (initialFrame only if non-default)
-        if (drawing.initialFrame && drawing.initialFrame !== 1) {
-          components.Drawing2 = { initialFrame: drawing.initialFrame };
+        const components: any = { Body: body };
+        if (data.initialFrame && data.initialFrame !== 1) {
+          components.Drawing2 = { initialFrame: data.initialFrame };
         }
 
-        localActors.push({ actorId, parentEntryId: data.entryId, bp: { components } });
+        localActors.push({ actorId, parentEntryId, bp: { components } });
       }
     }
   }
@@ -593,15 +687,6 @@ export async function newSceneDataForCardAsync({
   }
 
   // 5. Apply processed actors from actors.yaml (if file exists)
-  // Restore angles bypassed during applySnapshot (actors.yaml stores radians,
-  // but handleSetProperty for angle converts degrees→radians — so we skip WASM for angle)
-  for (const actor of processedSnapshot.actors) {
-    const angle = actorAngleMap[actor.actorId];
-    if (angle !== undefined && actor.bp?.components?.Body) {
-      actor.bp.components.Body.angle = angle;
-    }
-  }
-
   let modifiedLayout = false;
   if (actorsFileExists) {
     const oldActors = sceneData.snapshot.actors;
@@ -611,9 +696,15 @@ export async function newSceneDataForCardAsync({
     }
   }
 
+  const modified = modifiedLibrary || modifiedLayout;
+
+  if (modified) {
+    await writeAgentFilesAsync({ deckDir, sceneData });
+  }
+
   return {
     sceneData,
-    modified: modifiedLibrary || modifiedLayout,
+    modified,
   };
 }
 

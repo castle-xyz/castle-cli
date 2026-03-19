@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { StateMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
 
@@ -9,6 +10,16 @@ const ACTORS_FILE = 'actors.yaml';
 const VARIABLES_FILE = 'variables.yaml';
 const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
+
+// Load CLI docs once at module load time
+const CLI_DOCS = (() => {
+  try {
+    const assetPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/AGENTS.md');
+    return fs.readFileSync(assetPath, 'utf-8');
+  } catch {
+    return '';
+  }
+})();
 
 // Convert a blueprint title to a safe filename slug
 export function titleToSlug(title: string): string {
@@ -127,28 +138,25 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
     }
   }
 
-  // Write actors in nested display-name format (Layout/Drawing keys, ×10 widthScale/heightScale)
+  // Write actors in flat format (prompt.md format): title, x, y, angle (degrees), widthScale ×10
   const actorsForDisk: Record<string, any> = {};
   for (const [key, actorData] of Object.entries(state.actors) as [string, ActorData][]) {
     const ad = actorData;
-    const layout: any = { x: ad.x ?? 0, y: ad.y ?? 0 };
-    if (ad.angle !== undefined) layout.angle = ad.angle; // radians — unchanged
-    if (ad.widthScale !== undefined) layout.widthScale = ad.widthScale * 10; // ×10
-    if (ad.heightScale !== undefined) layout.heightScale = ad.heightScale * 10; // ×10
-    const components: any = { Layout: layout };
-    if (ad.initialFrame && ad.initialFrame !== 1) {
-      components.Drawing = { initialFrame: ad.initialFrame };
-    }
-    if (ad.content !== undefined) {
-      components.Text = {
-        content: ad.content,
-        ...(ad.fontSizeScale !== undefined && { fontSizeScale: ad.fontSizeScale }),
-      };
-    }
-    if (ad.targetDeckId !== undefined) {
-      components.Link = { targetDeckId: ad.targetDeckId };
-    }
-    actorsForDisk[key] = { entryId: ad.entryId, components };
+    const actorEntry: any = {};
+    if (ad.title) actorEntry.title = ad.title;
+    else if (ad.entryId) actorEntry.entryId = ad.entryId; // fallback if title not available
+    actorEntry.x = ad.x ?? 0;
+    actorEntry.y = ad.y ?? 0;
+    // Mobile sends angle in radians (internal format) — convert to degrees for disk format
+    if (ad.angle !== undefined) actorEntry.angle = Math.round(ad.angle * (180 / Math.PI) * 1000) / 1000;
+    // Mobile sends widthScale already ×10 (from extractActorsInfo: widthScale * 10)
+    if (ad.widthScale !== undefined) actorEntry.widthScale = ad.widthScale;
+    if (ad.heightScale !== undefined) actorEntry.heightScale = ad.heightScale;
+    if (ad.initialFrame && ad.initialFrame !== 1) actorEntry.initialFrame = ad.initialFrame;
+    if (ad.content !== undefined) actorEntry.content = ad.content;
+    if (ad.fontSizeScale !== undefined) actorEntry.fontSizeScale = ad.fontSizeScale;
+    if (ad.targetDeckId !== undefined) actorEntry.targetDeckId = ad.targetDeckId;
+    actorsForDisk[key] = actorEntry;
   }
   const actorsContent = yaml.dump(actorsForDisk, { lineWidth: 120, noRefs: true });
   fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
@@ -158,6 +166,13 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
   const variablesContent = yaml.dump(state.variables, { lineWidth: 120, noRefs: true });
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
+
+  // Write AGENTS.md and CLAUDE.md: client prompt + CLI docs
+  if (CLI_DOCS) {
+    const fullPrompt = (state.prompt ? state.prompt + '\n' : '') + CLI_DOCS;
+    fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), fullPrompt);
+    fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), fullPrompt);
+  }
 
   // Write meta
   const meta: MetaData = {
@@ -339,34 +354,39 @@ export function mobileStateToSceneData(state: StateMessage): any {
     };
   }
 
-  // Build actors array from state.actors (object format: { "a123": { entryId, x, y, ... } })
+  // Build title→entryId map for actor parentEntryId lookup
+  const titleToEntryId: Record<string, string> = {};
+  for (const [entryId, bp] of Object.entries(state.blueprints)) {
+    titleToEntryId[bp.title] = entryId;
+  }
+
+  // Build actors array from state.actors (object format: { "a123": { title, x, y, ... } })
+  // Mobile sends angle in radians (internal) and widthScale ×10 (external).
+  // Scene data cache uses internal format: angle in radians, widthScale ÷10.
   const actors: any[] = [];
   for (const [key, actorData] of Object.entries(state.actors)) {
     const actorId = key.startsWith('a') ? key.slice(1) : key;
     const ad = actorData as ActorData;
 
+    const parentEntryId = ad.entryId || (ad.title && titleToEntryId[ad.title]) || '';
+
     const bodyComponents: any = {
       x: ad.x || 0,
       y: ad.y || 0,
-      angle: ad.angle || 0,
-      widthScale: ad.widthScale || 0,
-      heightScale: ad.heightScale || 0,
+      angle: ad.angle || 0,                    // radians (internal) — correct
+      widthScale: (ad.widthScale || 0) / 10,   // ÷10 to convert from ×10 to internal
+      heightScale: (ad.heightScale || 0) / 10, // ÷10
     };
 
-    const bpComponents: any = {
-      Body: bodyComponents,
-    };
-
+    const bpComponents: any = { Body: bodyComponents };
     if (ad.initialFrame && ad.initialFrame !== 1) {
       bpComponents.Drawing2 = { initialFrame: ad.initialFrame };
     }
 
     actors.push({
       actorId,
-      parentEntryId: ad.entryId,
-      bp: {
-        components: bpComponents,
-      },
+      parentEntryId,
+      bp: { components: bpComponents },
     });
   }
 

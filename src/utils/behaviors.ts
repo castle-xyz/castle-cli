@@ -36,7 +36,7 @@ export const enum BehaviorKey {
 // Body and Drawing2 use internal names — pass through without display name mapping
 const COMPONENTS_NO_RENAME = ['Body', 'Drawing2'];
 
-export function serializeComponents({ components, writeRulesFile, writeScriptFile }) {
+export function serializeComponents({ components, writeScriptFile }) {
   let result = {};
   for (const key in components) {
     // Body and Drawing2 pass through without display name lookup
@@ -55,7 +55,6 @@ export function serializeComponents({ components, writeRulesFile, writeScriptFil
       result[formatDisplayName(behavior.displayName)] = serializeComponent({
         behavior,
         component: components[key],
-        writeRulesFile,
         writeScriptFile,
       });
     }
@@ -96,24 +95,19 @@ export function deserializeComponents({ components, readFile }) {
   return result;
 }
 
-function serializeComponent({ behavior, component, writeRulesFile, writeScriptFile }) {
+function serializeComponent({ behavior, component, writeScriptFile }) {
   if (!component.disabled) {
     delete component.disabled;
   }
 
   if (behavior.name == BehaviorKey.Rules) {
-    let rules: any = [];
-
+    const rulesObj: any = {};
     if (component.rules) {
-      for (let rule of component.rules) {
-        rules.push(Rules.serializeRule(rule));
-      }
+      component.rules.forEach((rule: any, i: number) => {
+        rulesObj[`rule-${i}`] = Rules.serializeRule(rule);
+      });
     }
-
-    let rulesFilename = writeRulesFile(yaml.stringify(rules));
-    return {
-      file: rulesFilename,
-    };
+    return { rules: rulesObj };
   } else if (behavior.name == BehaviorKey.Script) {
     let code = component.code || '';
 
@@ -190,14 +184,16 @@ function deserializeComponent({ behavior, component, readFile }) {
   if (behavior.name == BehaviorKey.Rules) {
     result.rules = [];
 
-    try {
-      let rules = readFile(component.file);
-      let parsedRules = yaml.parse(rules);
-      for (let rule of parsedRules) {
-        result.rules.push(Rules.deserializeRule(rule));
+    if (component.rules && typeof component.rules === 'object' && !Array.isArray(component.rules)) {
+      // Inline format: { rule-0: {...}, rule-1: {...} }
+      const keys = Object.keys(component.rules).sort((a, b) => {
+        const ai = parseInt(a.replace('rule-', ''));
+        const bi = parseInt(b.replace('rule-', ''));
+        return ai - bi;
+      });
+      for (const key of keys) {
+        result.rules.push(Rules.deserializeRule(component.rules[key]));
       }
-    } catch (e) {
-      console.warn(`Error reading rules file: ${component.file}`);
     }
   } else if (behavior.name == BehaviorKey.Script) {
     result.code = '';

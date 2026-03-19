@@ -81,7 +81,7 @@ describe('pull command', () => {
     vi.clearAllMocks();
   });
 
-  it('pulls updates and writes actors.yaml in object format', async () => {
+  it('pulls updates and writes actors.yaml in flat format', async () => {
     await pull({ directory: deckDir });
 
     const actorsPath = path.join(deckDir, 'card-card-xyz', 'actors.yaml');
@@ -91,6 +91,8 @@ describe('pull command', () => {
     expect(typeof actors).toBe('object');
     expect(Array.isArray(actors)).toBe(false);
     expect(actors['a123']).toBeDefined();
+    expect(actors['a123'].title).toBe('Player');
+    expect(actors['a123'].entryId).toBeUndefined();
   });
 
   it('preserves local script files during pull', async () => {
