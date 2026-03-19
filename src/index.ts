@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import updateNotifier from 'update-notifier';
 
 import { clone } from './commands/clone.js';
 import { pull } from './commands/pull.js';
@@ -19,6 +20,8 @@ try {
   const pkg = require(path.join(__dirname, '../package.json'));
   packageVersion = pkg.version;
 } catch (e) {}
+
+updateNotifier({ pkg: { name: 'castle-cli', version: packageVersion } }).notify();
 
 const program = new Command();
 
