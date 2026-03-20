@@ -157,6 +157,21 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
 
+  // Write AGENTS.md and CLAUDE.md with prompt + CLI file-format docs
+  const cliDocs = `## Castle CLI File Format
+
+Edit these files to modify the scene:
+
+- \`actors.yaml\` — actor instances (title, x, y, angle in degrees, widthScale ×10)
+- \`variables.yaml\` — variable definitions
+- \`blueprints/<Name>.yaml\` — blueprint component properties
+- \`blueprints/<Name>.lua\` — blueprint Lua script
+
+Changes are synced to the mobile app automatically.`;
+  const agentContent = state.prompt ? `${state.prompt}\n\n${cliDocs}` : cliDocs;
+  fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), agentContent);
+  fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), agentContent);
+
   // Write meta
   const meta: MetaData = {
     deckId: state.deckId,
@@ -321,6 +336,35 @@ export function detectChanges(cardDir: string): FileChanges | null {
   }
 
   return result;
+}
+
+// Update stored hashes to reflect current file state (call after sending an EditMessage)
+export function updateMetaHashes(cardDir: string): void {
+  const meta = readMeta(cardDir);
+  if (!meta) return;
+
+  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
+  if (fs.existsSync(bpDir)) {
+    for (const file of fs.readdirSync(bpDir)) {
+      if (file.endsWith('.yaml') || file.endsWith('.lua')) {
+        const relPath = path.join(BLUEPRINTS_DIR, file);
+        const content = fs.readFileSync(path.join(cardDir, relPath), 'utf-8');
+        meta.hashes[relPath] = contentHash(content);
+      }
+    }
+  }
+
+  const actorsPath = path.join(cardDir, ACTORS_FILE);
+  if (fs.existsSync(actorsPath)) {
+    meta.hashes[ACTORS_FILE] = contentHash(fs.readFileSync(actorsPath, 'utf-8'));
+  }
+
+  const variablesPath = path.join(cardDir, VARIABLES_FILE);
+  if (fs.existsSync(variablesPath)) {
+    meta.hashes[VARIABLES_FILE] = contentHash(fs.readFileSync(variablesPath, 'utf-8'));
+  }
+
+  writeMeta(cardDir, meta);
 }
 
 // Convert mobile StateMessage → scene data JSON (for web player cache)

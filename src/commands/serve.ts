@@ -229,6 +229,7 @@ export async function serve(
 
   // Try to read deck.yaml — but it might not exist yet (mobile-first mode)
   let initialCardId: string | null = null;
+  let activeCardId: string | null = null;
   let cardDirectories: any = {};
   let deckDirForRoutes = directory;
 
@@ -314,10 +315,11 @@ export async function serve(
           cardDirectories[cardId] = `card-${cardId}`;
         }
 
-        // Set initial card ID if not set yet
+        // Set initial card ID if not set yet; always track the active card
         if (!initialCardId) {
           initialCardId = cardId;
         }
+        activeCardId = cardId;
       },
     });
     mobileConnection.start();
@@ -399,7 +401,7 @@ export async function serve(
 
     app.get('/scene-data', async (req, res) => {
       let queryCardId = req.query.cardId as string | undefined;
-      let cardId = queryCardId ? queryCardId : initialCardId;
+      let cardId = queryCardId ? queryCardId : (activeCardId || initialCardId);
 
       if (!cardId) {
         res.status(503).json({ error: 'No card available yet. Connect mobile app or clone a deck.' });
@@ -437,7 +439,7 @@ export async function serve(
 
     app.get('/variables', async (req, res) => {
       const queryCardId = req.query.cardId as string | undefined;
-      const cardId = queryCardId || initialCardId;
+      const cardId = queryCardId || activeCardId || initialCardId;
       if (!cardId || !cardDirectories[cardId]) {
         return res.json({ variables: [], passes: [], cards: [] });
       }
