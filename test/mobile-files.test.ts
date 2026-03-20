@@ -5,52 +5,39 @@ import * as path from 'path';
 import yaml from 'yaml';
 import {
   titleToSlug,
-  writeState,
   writeStateInternal,
   detectChanges,
-  mobileStateToSceneData,
+  updateMetaHashes,
 } from '../src/utils/mobile-files.js';
-import type { StateMessage, StateInternalMessage } from '../src/utils/mobile-protocol.js';
+import type { StateInternalMessage } from '../src/utils/mobile-protocol.js';
 import { initMetadata } from '../src/utils/init.js';
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'castle-test-'));
 }
 
-function makeStateMessage(overrides = {}): StateMessage {
-  return {
-    type: 'state',
+function writeTestState(cardDir: string) {
+  const bpDir = path.join(cardDir, 'blueprints');
+  fs.mkdirSync(bpDir, { recursive: true });
+  fs.mkdirSync(path.join(cardDir, '.castle'), { recursive: true });
+
+  const slug = titleToSlug('Player');
+  const bpData = { title: 'Player', entryId: 'entry-001', components: { Body: { widthScale: 0.5, heightScale: 0.5 } } };
+  fs.writeFileSync(path.join(bpDir, `${slug}.yaml`), yaml.stringify(bpData, { lineWidth: 120 }));
+
+  const actors = { a100: { title: 'Player', x: 10, y: 20 } };
+  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
+
+  const variables = [{ variableId: 'var-1', name: 'score', initialValue: 0, lifetime: 'card' }];
+  fs.writeFileSync(path.join(cardDir, 'variables.yaml'), yaml.stringify(variables, { lineWidth: 120 }));
+
+  fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify({
     deckId: 'deck-123',
     cardId: 'card-456',
-    cliSessionId: 'session-abc',
-    blueprints: {
-      'entry-001': {
-        entryId: 'entry-001',
-        title: 'Player',
-        components: {
-          Body: { widthScale: 0.5, heightScale: 0.5 },
-          Drawing2: { initialFrame: 1 },
-          Script: { code: '' },
-        },
-        scriptCode: 'function update() end',
-      },
-    },
-    actors: {
-      a100: {
-        title: 'Player', // mobile sends title (from extractActorsInfo)
-        x: 10,
-        y: 20,
-        angle: 0.785,    // radians (internal engine format from mobile)
-        widthScale: 5.0, // ×10 (mobile sends widthScale * 10)
-        heightScale: 5.0,
-      } as any,
-    },
-    variables: [
-      { variableId: 'var-1', name: 'score', initialValue: 0, lifetime: 'card' },
-    ],
-    prompt: 'test prompt',
-    ...overrides,
-  };
+    hashes: {},
+    blueprintIdMap: { [slug]: 'entry-001' },
+  }));
+  updateMetaHashes(cardDir);
 }
 
 describe('titleToSlug', () => {
@@ -70,95 +57,6 @@ describe('titleToSlug', () => {
   });
 });
 
-describe('writeState', () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTempDir();
-  });
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it('writes blueprint YAML and lua files', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
-
-    const bpDir = path.join(tmpDir, 'blueprints');
-    expect(fs.existsSync(bpDir)).toBe(true);
-
-    const yamlFile = path.join(bpDir, 'Player.yaml');
-    expect(fs.existsSync(yamlFile)).toBe(true);
-
-    const luaFile = path.join(bpDir, 'Player.lua');
-    expect(fs.existsSync(luaFile)).toBe(true);
-    expect(fs.readFileSync(luaFile, 'utf-8')).toBe('function update() end');
-  });
-
-  it('writes actors.yaml in flat format with title and degrees', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
-
-    const actorsPath = path.join(tmpDir, 'actors.yaml');
-    expect(fs.existsSync(actorsPath)).toBe(true);
-
-    const actorsObj = yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) as any;
-    expect(actorsObj['a100']).toBeDefined();
-    // Flat format: title, not entryId or nested components
-    expect(actorsObj['a100'].title).toBe('Player');
-    expect(actorsObj['a100'].components).toBeUndefined();
-    expect(actorsObj['a100'].x).toBe(10);
-    expect(actorsObj['a100'].y).toBe(20);
-    // Angle converted from radians (0.785) to degrees (~44.97)
-    expect(actorsObj['a100'].angle).toBeCloseTo(44.97, 1);
-    // widthScale stays ×10 (mobile sends ×10, we pass through)
-    expect(actorsObj['a100'].widthScale).toBe(5.0);
-  });
-
-  it('writes variables.yaml', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
-
-    const varsPath = path.join(tmpDir, 'variables.yaml');
-    expect(fs.existsSync(varsPath)).toBe(true);
-
-    const content = fs.readFileSync(varsPath, 'utf-8');
-    expect(content).toContain('score');
-  });
-
-  it('writes AGENTS.md and CLAUDE.md combining state.prompt with CLI docs', () => {
-    const state = makeStateMessage({ prompt: '## Scene Context\nThis is a chess game.' });
-    writeState(tmpDir, state);
-
-    const agentsPath = path.join(tmpDir, 'AGENTS.md');
-    const claudePath = path.join(tmpDir, 'CLAUDE.md');
-    expect(fs.existsSync(agentsPath)).toBe(true);
-    expect(fs.existsSync(claudePath)).toBe(true);
-
-    const content = fs.readFileSync(agentsPath, 'utf-8');
-    // Should contain client prompt
-    expect(content).toContain('chess game');
-    // Should contain CLI docs
-    expect(content).toContain('actors.yaml');
-  });
-
-  it('writes meta.json with hashes and blueprintIdMap', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
-
-    const metaPath = path.join(tmpDir, '.castle', 'meta.json');
-    expect(fs.existsSync(metaPath)).toBe(true);
-
-    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-    expect(meta.deckId).toBe('deck-123');
-    expect(meta.cardId).toBe('card-456');
-    expect(meta.hashes).toBeDefined();
-    expect(meta.blueprintIdMap).toBeDefined();
-    expect(meta.blueprintIdMap['Player']).toBe('entry-001');
-  });
-});
-
 describe('detectChanges', () => {
   let tmpDir: string;
 
@@ -175,9 +73,8 @@ describe('detectChanges', () => {
     expect(result).toBeNull();
   });
 
-  it('detects no changes after writeState', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
+  it('detects no changes after writeTestState', () => {
+    writeTestState(tmpDir);
 
     const changes = detectChanges(tmpDir);
     expect(changes).toBeDefined();
@@ -185,8 +82,7 @@ describe('detectChanges', () => {
   });
 
   it('detects changed blueprint YAML', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
+    writeTestState(tmpDir);
 
     // Modify blueprint YAML
     const yamlPath = path.join(tmpDir, 'blueprints', 'Player.yaml');
@@ -199,8 +95,7 @@ describe('detectChanges', () => {
   });
 
   it('detects changed actors.yaml', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
+    writeTestState(tmpDir);
 
     // Modify actors.yaml
     const actorsPath = path.join(tmpDir, 'actors.yaml');
@@ -213,8 +108,7 @@ describe('detectChanges', () => {
   });
 
   it('detects changed variables.yaml', () => {
-    const state = makeStateMessage();
-    writeState(tmpDir, state);
+    writeTestState(tmpDir);
 
     // Modify variables.yaml
     const varsPath = path.join(tmpDir, 'variables.yaml');
@@ -332,43 +226,3 @@ describe('writeStateInternal', () => {
   });
 });
 
-describe('mobileStateToSceneData', () => {
-  it('converts state to scene data format', () => {
-    const state = makeStateMessage();
-    const sceneData = mobileStateToSceneData(state);
-
-    expect(sceneData.snapshot).toBeDefined();
-    expect(sceneData.snapshot.library).toBeDefined();
-    expect(sceneData.snapshot.actors).toBeDefined();
-  });
-
-  it('builds library from blueprints', () => {
-    const state = makeStateMessage();
-    const sceneData = mobileStateToSceneData(state);
-
-    const library = sceneData.snapshot.library;
-    expect(library['entry-001']).toBeDefined();
-    expect(library['entry-001'].entryType).toBe('actorBlueprint');
-    expect(library['entry-001'].title).toBe('Player');
-    expect(library['entry-001'].actorBlueprint.components).toBeDefined();
-  });
-
-  it('builds actors array from actors object with correct internal format', () => {
-    const state = makeStateMessage();
-    const sceneData = mobileStateToSceneData(state);
-
-    const actors = sceneData.snapshot.actors;
-    expect(Array.isArray(actors)).toBe(true);
-    expect(actors.length).toBe(1);
-
-    const actor = actors[0];
-    expect(actor.actorId).toBe('100'); // "a100" -> "100"
-    // parentEntryId looked up from title 'Player' → 'entry-001'
-    expect(actor.parentEntryId).toBe('entry-001');
-    expect(actor.bp.components.Body.x).toBe(10);
-    expect(actor.bp.components.Body.y).toBe(20);
-    expect(actor.bp.components.Body.angle).toBe(0.785); // radians (internal — unchanged)
-    // widthScale ÷10: mobile sends 5.0 (×10) → cache stores 0.5 (internal)
-    expect(actor.bp.components.Body.widthScale).toBeCloseTo(0.5);
-  });
-});

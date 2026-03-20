@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import yaml from 'yaml';
-import { StateMessage, StateInternalMessage, StateInternalDiffMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
+import { StateInternalMessage, StateInternalDiffMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
 
@@ -35,7 +35,7 @@ interface MetaData {
   cardId: string;
   hashes: FileHashes;
   blueprintIdMap: Record<string, string>; // slug -> entryId
-  lastActors?: Record<string, any>; // actors dict last written by writeState (disk format, for diff computation)
+  lastActors?: Record<string, any>; // actors dict last written to disk (disk format, for diff computation)
 }
 
 function readMeta(dir: string): MetaData | null {
@@ -51,168 +51,6 @@ function readMeta(dir: string): MetaData | null {
 
 function writeMeta(dir: string, meta: MetaData): void {
   fs.writeFileSync(path.join(dir, META_FILE), JSON.stringify(meta, null, 2));
-}
-
-// Check if a directory is safe to write to (empty, or same deck)
-export function canWriteToDir(dir: string, deckId: string): { ok: boolean; reason?: string } {
-  if (!fs.existsSync(dir)) return { ok: true };
-
-  const entries = fs.readdirSync(dir).filter(e => !e.startsWith('.'));
-  if (entries.length === 0) return { ok: true };
-
-  const meta = readMeta(dir);
-  if (meta && meta.deckId === deckId) return { ok: true };
-  if (meta && meta.deckId !== deckId) {
-    return { ok: false, reason: `directory contains data for deck ${meta.deckId}, not ${deckId}` };
-  }
-
-  // Has files but no meta — don't overwrite an existing project
-  return { ok: false, reason: 'directory contains existing files without castle-cli metadata' };
-}
-
-// Write scene state to disk (cardDir is the per-card directory)
-export function writeState(cardDir: string, state: StateMessage): MetaData {
-  // Ensure directories exist
-  if (!fs.existsSync(cardDir)) fs.mkdirSync(cardDir, { recursive: true });
-  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
-  if (!fs.existsSync(bpDir)) fs.mkdirSync(bpDir, { recursive: true });
-  const castleDir = path.join(cardDir, CASTLE_DIR);
-  if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
-
-  const hashes: FileHashes = {};
-  const blueprintIdMap: Record<string, string> = {};
-
-  // Write blueprint files
-  const writtenSlugs = new Set<string>();
-  for (const [entryId, bp] of Object.entries(state.blueprints)) {
-    let slug = titleToSlug(bp.title);
-
-    // Handle duplicate slugs
-    if (writtenSlugs.has(slug)) {
-      let counter = 2;
-      while (writtenSlugs.has(`${slug}-${counter}`)) counter++;
-      slug = `${slug}-${counter}`;
-    }
-    writtenSlugs.add(slug);
-    blueprintIdMap[slug] = entryId;
-
-    // Extract draw/physics data (if present) before writing YAML — stored in companion .draw.json
-    const bpComponents = { ...bp.components };
-    const drawFileData: any = {};
-    if (bpComponents.Drawing2) {
-      const d2: any = { ...bpComponents.Drawing2 };
-      const d2extract: any = {};
-      if (d2.drawData !== undefined) { d2extract.drawData = d2.drawData; delete d2.drawData; }
-      if (d2.physicsBodyData !== undefined) { d2extract.physicsBodyData = d2.physicsBodyData; delete d2.physicsBodyData; }
-      if (d2.hash !== undefined) { d2extract.hash = d2.hash; delete d2.hash; }
-      if (Object.keys(d2extract).length > 0) drawFileData.Drawing2 = d2extract;
-      bpComponents.Drawing2 = d2;
-    }
-    if (bpComponents.Body) {
-      const body: any = { ...bpComponents.Body };
-      const bodyExtract: any = {};
-      if (body.fixtures !== undefined) { bodyExtract.fixtures = body.fixtures; delete body.fixtures; }
-      if (body.editorBounds !== undefined) { bodyExtract.editorBounds = body.editorBounds; delete body.editorBounds; }
-      if (Object.keys(bodyExtract).length > 0) drawFileData.Body = bodyExtract;
-      bpComponents.Body = body;
-    }
-    if (Object.keys(drawFileData).length > 0) {
-      fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
-    }
-
-    // Write YAML (components without draw data or script code)
-    const bpData: any = {
-      title: bp.title,
-      entryId: bp.entryId,
-      components: bpComponents,
-    };
-
-    // Reference the lua file if there's script code
-    if (bp.scriptCode) {
-      if (bpData.components?.Script) {
-        bpData.components.Script.file = `${slug}.lua`;
-      }
-    }
-
-    const yamlContent = yaml.stringify(bpData, { lineWidth: 120 });
-    const yamlPath = path.join(BLUEPRINTS_DIR, `${slug}.yaml`);
-    fs.writeFileSync(path.join(cardDir, yamlPath), yamlContent);
-    hashes[yamlPath] = contentHash(yamlContent);
-
-    // Write lua file
-    if (bp.scriptCode) {
-      const luaPath = path.join(BLUEPRINTS_DIR, `${slug}.lua`);
-      fs.writeFileSync(path.join(cardDir, luaPath), bp.scriptCode);
-      hashes[luaPath] = contentHash(bp.scriptCode);
-    }
-  }
-
-  // Clean up blueprint files that no longer exist
-  const existingBpFiles = fs.existsSync(bpDir) ? fs.readdirSync(bpDir) : [];
-  for (const file of existingBpFiles) {
-    const slug = file.endsWith('.draw.json')
-      ? file.slice(0, -'.draw.json'.length)
-      : file.replace(/\.(yaml|lua)$/, '');
-    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua') || file.endsWith('.draw.json'))) {
-      fs.unlinkSync(path.join(bpDir, file));
-    }
-  }
-
-  // Write actors in flat format (prompt.md format): title, x, y, angle (degrees), widthScale ×10
-  const actorsForDisk: Record<string, any> = {};
-  for (const [key, actorData] of Object.entries(state.actors) as [string, ActorData][]) {
-    const ad = actorData;
-    const actorEntry: any = {};
-    if (ad.title) actorEntry.title = ad.title;
-    else if (ad.entryId) actorEntry.entryId = ad.entryId; // fallback if title not available
-    actorEntry.x = ad.x ?? 0;
-    actorEntry.y = ad.y ?? 0;
-    // Mobile sends angle in radians (internal format) — convert to degrees for disk format
-    if (ad.angle !== undefined) actorEntry.angle = Math.round(ad.angle * (180 / Math.PI) * 1000) / 1000;
-    // Mobile sends widthScale already ×10 (from extractActorsInfo: widthScale * 10)
-    if (ad.widthScale !== undefined) actorEntry.widthScale = ad.widthScale;
-    if (ad.heightScale !== undefined) actorEntry.heightScale = ad.heightScale;
-    if (ad.initialFrame && ad.initialFrame !== 1) actorEntry.initialFrame = ad.initialFrame;
-    if (ad.content !== undefined) actorEntry.content = ad.content;
-    if (ad.fontSizeScale !== undefined) actorEntry.fontSizeScale = ad.fontSizeScale;
-    if (ad.targetDeckId !== undefined) actorEntry.targetDeckId = ad.targetDeckId;
-    actorsForDisk[key] = actorEntry;
-  }
-  const actorsContent = yaml.stringify(actorsForDisk, { lineWidth: 120 });
-  fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
-  hashes[ACTORS_FILE] = contentHash(actorsContent);
-
-  // Write variables
-  const variablesContent = yaml.stringify(state.variables, { lineWidth: 120 });
-  fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
-  hashes[VARIABLES_FILE] = contentHash(variablesContent);
-
-  // Write AGENTS.md and CLAUDE.md with prompt + CLI file-format docs
-  const cliDocs = `## Castle CLI File Format
-
-Edit these files to modify the scene:
-
-- \`actors.yaml\` — actor instances (title, x, y, angle in degrees, widthScale ×10)
-- \`variables.yaml\` — variable definitions
-- \`blueprints/<Name>.yaml\` — blueprint component properties
-- \`blueprints/<Name>.lua\` — blueprint Lua script
-
-Changes are synced to the mobile app automatically.`;
-  const agentContent = state.prompt ? `${state.prompt}\n\n${cliDocs}` : cliDocs;
-  fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), agentContent);
-  fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), agentContent);
-
-  // Write meta
-  const meta: MetaData = {
-    deckId: state.deckId,
-    cardId: state.cardId,
-    hashes,
-    blueprintIdMap,
-    lastActors: actorsForDisk,
-  };
-  writeMeta(cardDir, meta);
-
-  return meta;
 }
 
 export interface BlueprintChange {
@@ -610,21 +448,6 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
 
-  // Write AGENTS.md and CLAUDE.md
-  const cliDocs = `## Castle CLI File Format
-
-Edit these files to modify the scene:
-
-- \`actors.yaml\` — actor instances (title, x, y, angle in degrees, widthScale ×10)
-- \`variables.yaml\` — variable definitions
-- \`blueprints/<Name>.yaml\` — blueprint component properties
-- \`blueprints/<Name>.lua\` — blueprint Lua script
-
-Changes are synced to the mobile app automatically.`;
-  const agentContent = state.prompt ? `${state.prompt}\n\n${cliDocs}` : cliDocs;
-  fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), agentContent);
-  fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), agentContent);
-
   const meta: MetaData = {
     deckId: state.deckId,
     cardId: state.cardId,
@@ -696,60 +519,3 @@ export function mobileInternalStateToSceneData(state: StateInternalMessage): any
   };
 }
 
-// Convert mobile StateMessage → scene data JSON (for web player cache)
-export function mobileStateToSceneData(state: StateMessage): any {
-  // Build library from blueprints
-  const library: any = {};
-  for (const [entryId, bp] of Object.entries(state.blueprints)) {
-    library[entryId] = {
-      entryType: 'actorBlueprint',
-      title: bp.title,
-      actorBlueprint: {
-        components: bp.components,
-      },
-    };
-  }
-
-  // Build title→entryId map for actor parentEntryId lookup
-  const titleToEntryId: Record<string, string> = {};
-  for (const [entryId, bp] of Object.entries(state.blueprints)) {
-    titleToEntryId[bp.title] = entryId;
-  }
-
-  // Build actors array from state.actors (object format: { "a123": { title, x, y, ... } })
-  // Mobile sends angle in radians (internal) and widthScale ×10 (external).
-  // Scene data cache uses internal format: angle in radians, widthScale ÷10.
-  const actors: any[] = [];
-  for (const [key, actorData] of Object.entries(state.actors)) {
-    const actorId = key.startsWith('a') ? key.slice(1) : key;
-    const ad = actorData as ActorData;
-
-    const parentEntryId = ad.entryId || (ad.title && titleToEntryId[ad.title]) || '';
-
-    const bodyComponents: any = {
-      x: ad.x || 0,
-      y: ad.y || 0,
-      angle: ad.angle || 0,                    // radians (internal) — correct
-      widthScale: (ad.widthScale || 0) / 10,   // ÷10 to convert from ×10 to internal
-      heightScale: (ad.heightScale || 0) / 10, // ÷10
-    };
-
-    const bpComponents: any = { Body: bodyComponents };
-    if (ad.initialFrame && ad.initialFrame !== 1) {
-      bpComponents.Drawing2 = { initialFrame: ad.initialFrame };
-    }
-
-    actors.push({
-      actorId,
-      parentEntryId,
-      bp: { components: bpComponents },
-    });
-  }
-
-  return {
-    snapshot: {
-      library,
-      actors,
-    },
-  };
-}

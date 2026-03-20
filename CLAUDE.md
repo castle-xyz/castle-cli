@@ -28,21 +28,29 @@ Castle CLI is a Node.js/TypeScript toolchain for developing interactive card-bas
 
 ### File Format
 
-Each card directory contains:
+The deck root and card subdirectories contain:
 ```
-card-{cardId}/
-├── card.yaml         # Card metadata
-├── scene-data.json   # Full serialized card state (blueprints + actors)
-├── variables.yaml    # Variable definitions
-├── actors.yaml       # Actor instances (positions, state)
-├── blueprints/       # One YAML file per blueprint
-└── scripts/          # Optional Lua scripts
+deck-{deckId}/
+├── deck.yaml                 # Deck metadata
+├── AGENTS.md                 # Agent instructions (generated)
+├── .castle/                  # Deck-level runtime state (git-ignored)
+│   ├── logs.txt              # Combined CLI + deck script logs
+│   ├── commands.json         # JSONL command interface (CLI polls this)
+│   └── screenshots/          # Captured screenshots
+└── card-{cardId}/            # One subdirectory per card
+    ├── card.yaml             # Card metadata
+    ├── SCENE.md              # Generated scene context for agents
+    ├── variables.yaml        # Variable definitions
+    ├── actors.yaml           # Actor instances (positions, state)
+    ├── .castle/
+    │   └── meta.json         # Content hashes for change detection
+    └── blueprints/           # Blueprint files
+        ├── {name}.yaml       # Blueprint definition (components as YAML)
+        ├── {name}.lua        # Optional Lua script for blueprint
+        └── {name}.draw.json  # Optional extracted drawing/physics data
 ```
 
-`.castle/` inside a deck is git-ignored and holds runtime state:
-- `logs.txt` — combined CLI + deck script logs
-- `commands.json` — JSONL command interface (CLI polls this)
-- `screenshots/`, `cache/` — ephemeral build artifacts
+Note: `scene-data.json` is NOT a disk file — it is generated on-the-fly by the `/scene-data` HTTP endpoint.
 
 ### Key Source Files
 
@@ -53,6 +61,7 @@ card-{cardId}/
 | `src/commands/clone.ts` / `push.ts` / `pull.ts` | Server sync commands |
 | `src/utils/decks.ts` | Core file I/O: YAML parsing, scene data generation |
 | `src/utils/mobile.ts` | WebSocket handler for mobile ↔ CLI state sync |
+| `src/utils/mobile-protocol.ts` | Message type definitions for the mobile WebSocket protocol |
 | `src/utils/mobile-files.ts` | Format conversion between mobile state and YAML files |
 | `src/utils/castle-core-node.ts` | WASM module wrapper (downloads from CDN, caches in `~/.castle/cache/node/`) |
 | `src/utils/api.ts` | GraphQL client for `api.castle.xyz` |
@@ -71,7 +80,12 @@ The engine uses internal values (e.g. `Body.widthScale = 0.5`, 0–1 scale) whil
 
 ### Mobile Sync Protocol
 
-The mobile app sends a `StateMessage` (full serialized game state) over WebSocket → CLI writes to YAML files on disk. A file watcher detects local changes → sends `EditMessage` back to the mobile app. Files are the single source of truth; WebSocket is the transport layer.
+The mobile app sends state over WebSocket via three message types:
+- `StateMessage` — full state in external (editor) format (legacy)
+- `StateInternalMessage` — full state in raw internal format (requires WASM conversion via `getSnapshotExternalValues`)
+- `StateInternalDiffMessage` — incremental diff with only changed entries; deletions use `{ removed: true }`
+
+The CLI writes received state to YAML files on disk. A file watcher detects local changes → sends `EditMessage` back to the mobile app. Files are the single source of truth; WebSocket is the transport layer.
 
 ### JSONL Commands
 
@@ -86,6 +100,38 @@ Set `CASTLE_LOCAL_NODE` to use a local build of the WASM module instead of downl
 - `CASTLE_LOCAL_NODE=/path/to/dir` — loads from the specified directory
 
 The directory must contain `castle-core-node.js` and `castle-core-node.wasm`.
+
+### Mobile Actor Key Sync
+
+Mobile always assigns fresh entity IDs for new actors (e.g. CLI adds `a1`, mobile assigns `a1048576`). The CLI handles this via:
+
+- **`editId` on `EditMessage`**: incrementing ID sent with every CLI-originated edit. Mobile uses this to suppress the state echo that would otherwise overwrite CLI-assigned keys on disk.
+- **`_suppressDiffUntil` in `CLIConnection.js`**: timestamp-based suppression window (set to `Date.now() + DEBOUNCE_MS + 100` on each CLI edit). `sendStateInternalDiff` is a no-op while `Date.now() < _suppressDiffUntil`. Also extended inside `sendStateInternalDebounced` while suppression is active — this is critical because `toolEditScene` triggers multiple `UPDATE_SCENE` events, each resetting the 500ms debounce timer and potentially pushing it past the suppression window.
+- **Optimistic delete in `mobile.ts`**: when CLI sends `removeActor`, it immediately removes the key from `lastMobileActors` so a subsequent re-add of the same key is tracked in `pendingActors`.
+
+### Mock Mobile Test (Sync Bug Reproduction)
+
+`scripts/mock-mobile.ts` is a fake mobile client that connects to the Castle relay and simulates a device. Use it to reproduce and test the actor sync bug without a real device.
+
+**Setup** (two terminals):
+```bash
+# Terminal 1 — serve a deck dir (must be logged in)
+npx tsx src/index.ts serve /tmp/some-deck-dir --debug
+
+# Terminal 2 — fake mobile client
+npx tsx scripts/mock-mobile.ts <deckId> <cardId>
+```
+
+The script sends initial state with 2 blueprints (Mario, Goomba) and 3 actors (a1, a2, a3). Once both are running, edit `actors.yaml` in the served deck dir to trigger syncs.
+
+Watch `.castle/logs.txt` in the deck dir for CLI-side events. Mock-mobile logs to stdout.
+
+**Relay protocol note:** Both CLI and mock-mobile send `{ type: 'cli_tunnel_start_listening' }` on WebSocket connect — this is how the relay at `wss://ws.castlexyz.com/ws` pairs the two connections. Without it, the relay does not route messages back to the sender.
+
+**Debugging state echo issues:** If mobile is still sending `state_internal_diff` after CLI edits, check:
+1. Is the `[CLIConnection] sendStateInternalDiff suppressed` log appearing? If not, either `_suppressDiffUntil` isn't being set or the timer fires after the window.
+2. Multiple `UPDATE_SCENE` events after `toolEditScene` push the debounce timer past the suppression window — that's why `sendStateInternalDebounced` extends `_suppressDiffUntil` on each call while suppression is active.
+3. Check for stale JS bundles on device — React Native fast refresh can partially apply changes. If the new log format appears in `_applyEdit` but not in `sendStateInternalDiff`, the bundle is stale and needs a full reload.
 
 ### Adding New Decks to Round-Trip Tests
 

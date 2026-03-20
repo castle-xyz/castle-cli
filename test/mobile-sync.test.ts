@@ -18,34 +18,42 @@ import * as os from 'os';
 import * as path from 'path';
 import yaml from 'yaml';
 import {
-  writeState,
+  titleToSlug,
   detectChanges,
   updateMetaHashes,
 } from '../src/utils/mobile-files.js';
-import type { StateMessage } from '../src/utils/mobile-protocol.js';
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'castle-sync-test-'));
 }
 
-function makeState(actors: Record<string, any> = {}): StateMessage {
-  return {
-    type: 'state',
+const TEST_BLUEPRINTS: Record<string, any> = {
+  'bp-001': { title: 'Player', components: { Body: { widthScale: 0.5, heightScale: 0.5 } } },
+};
+
+function writeTestState(cardDir: string, actors: Record<string, any>) {
+  const bpDir = path.join(cardDir, 'blueprints');
+  fs.mkdirSync(bpDir, { recursive: true });
+  fs.mkdirSync(path.join(cardDir, '.castle'), { recursive: true });
+
+  const blueprintIdMap: Record<string, string> = {};
+  for (const [entryId, bp] of Object.entries(TEST_BLUEPRINTS)) {
+    const slug = titleToSlug(bp.title);
+    blueprintIdMap[slug] = entryId;
+    fs.writeFileSync(
+      path.join(bpDir, `${slug}.yaml`),
+      yaml.stringify({ title: bp.title, entryId, components: bp.components }, { lineWidth: 120 })
+    );
+  }
+  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
+
+  fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify({
     deckId: 'deck-1',
     cardId: 'card-1',
-    cliSessionId: 'session-1',
-    blueprints: {
-      'bp-001': {
-        entryId: 'bp-001',
-        title: 'Player',
-        components: { Body: { widthScale: 0.5, heightScale: 0.5 } },
-        scriptCode: '',
-      },
-    },
-    actors,
-    variables: [],
-    prompt: '',
-  };
+    hashes: {},
+    blueprintIdMap,
+  }));
+  updateMetaHashes(cardDir);
 }
 
 /**
@@ -86,11 +94,9 @@ describe('circular edit: delete actor then add it back', () => {
 
   it('correctly handles the full delete-then-add-back cycle', () => {
     const mobileActor = { title: 'Player', x: 10, y: 20, angle: 0, widthScale: 5, heightScale: 5 };
-    const stateWithA  = makeState({ a100: mobileActor as any });
-    const stateWithoutA = makeState({});
 
     // ── Phase 1: Mobile sends initial state with actor A ─────────────────────
-    writeState(tmpDir, stateWithA);
+    writeTestState(tmpDir, { a100: mobileActor });
     expect(detectChanges(tmpDir)!.hasChanges).toBe(false);
     // lastMobileActors = { a100: ... }
 
@@ -104,7 +110,7 @@ describe('circular edit: delete actor then add it back', () => {
     const desiredAfterDelete: Record<string, any> = {};
 
     // ── Phase 3: Mobile sends RACING state WITH actor A ───────────────────────
-    writeState(tmpDir, stateWithA);
+    writeTestState(tmpDir, { a100: mobileActor });
 
     // _reapplyPendingActors: no added keys → vacuously satisfied → don't re-write.
     // Deletion is fire-and-forget: we sent the edit, mobile will process it.
@@ -115,7 +121,7 @@ describe('circular edit: delete actor then add it back', () => {
     // already sent, so mobile will process it and remove A eventually.
 
     // ── Phase 4: Mobile processes delete, sends state WITHOUT actor A ─────────
-    writeState(tmpDir, stateWithoutA);
+    writeTestState(tmpDir, {});
     // No pending additions → _reapplyPendingActors does nothing
     expect(detectChanges(tmpDir)!.hasChanges).toBe(false); // stable ✓
 
@@ -130,7 +136,7 @@ describe('circular edit: delete actor then add it back', () => {
     const desiredAfterAdd: Record<string, any> = { a100: userActorA };
 
     // ── Phase 6: Mobile sends RACING state WITHOUT actor A ────────────────────
-    writeState(tmpDir, stateWithoutA);
+    writeTestState(tmpDir, {});
 
     // _reapplyPendingActors: a100 missing from current → not satisfied → re-writes file
     const satisfiedAfterAddRace = reapplyPendingActors(tmpDir, addedKeysAfterAdd, desiredAfterAdd);
@@ -147,7 +153,7 @@ describe('circular edit: delete actor then add it back', () => {
     updateMetaHashes(tmpDir);
 
     // ── Phase 7: Mobile acknowledges add, sends state WITH actor A ────────────
-    writeState(tmpDir, stateWithA); // mobile writes with full actor fields
+    writeTestState(tmpDir, { a100: mobileActor }); // mobile writes with full actor fields
 
     // _reapplyPendingActors: a100 present → satisfied → clear
     const satisfiedAfterAddAck = reapplyPendingActors(tmpDir, addedKeysAfterAdd, desiredAfterAdd);
@@ -169,8 +175,7 @@ describe('circular edit: mobile has additional game actors beyond what user edit
     const mobileActorB = { title: 'Enemy',  x: 50, y: 50, angle: 0, widthScale: 5, heightScale: 5 };
 
     // Mobile starts with just actor A (user's scene)
-    const stateWithAOnly = makeState({ a100: mobileActorA as any });
-    writeState(tmpDir, stateWithAOnly);
+    writeTestState(tmpDir, { a100: mobileActorA });
 
     // User writes actor A to the file (no changes yet)
     expect(detectChanges(tmpDir)!.hasChanges).toBe(false);
@@ -189,8 +194,7 @@ describe('circular edit: mobile has additional game actors beyond what user edit
     const desired = userActors;
 
     // Mobile responds with {a100, a200} — game engine added a200 automatically
-    const stateWithBoth = makeState({ a100: mobileActorA as any, a200: mobileActorB as any });
-    writeState(tmpDir, stateWithBoth);
+    writeTestState(tmpDir, { a100: mobileActorA, a200: mobileActorB });
 
     // _reapplyPendingActors: a100 is present in {a100, a200} → satisfied → NO loop
     const satisfied = reapplyPendingActors(tmpDir, addedKeys, desired);

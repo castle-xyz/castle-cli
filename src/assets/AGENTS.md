@@ -89,19 +89,26 @@ This project is synced from a Castle deck via a CLI bridge. The files on disk mi
 ### File structure
 
 ```
-blueprints/
-  <name>.yaml       # Blueprint definition (components as YAML)
-  <name>.lua         # Blueprint script (Lua code, if the blueprint has a Script behavior)
-actors.yaml          # All actor instances in the scene
-variables.yaml       # Deck variables
-AGENTS.md            # This file — documentation and scene context (read-only)
-.castle/
-  meta.json          # Internal metadata (do not edit)
-  logs.txt           # CLI and deck logs
-  commands.json      # Write commands here (screenshot, stopAndPlay, etc.)
-  screenshots/
-    latest.png       # Most recent screenshot
-    001.png ...      # Rolling screenshot history
+deck-{deckId}/                   # Deck root
+  AGENTS.md                      # This file — agent instructions (read-only)
+  deck.yaml                      # Deck metadata
+  .castle/                       # Deck-level runtime state
+    logs.txt                     # CLI and deck logs
+    commands.json                # Write commands here (screenshot, stopAndPlay, etc.)
+    screenshots/
+      latest.png                 # Most recent screenshot
+      001.png ...                # Rolling screenshot history
+  card-{cardId}/                 # Card subdirectory (one per card in the deck)
+    card.yaml                    # Card metadata
+    SCENE.md                     # Generated scene context (read-only)
+    actors.yaml                  # All actor instances in the scene
+    variables.yaml               # Deck variables
+    .castle/
+      meta.json                  # Internal metadata (do not edit)
+    blueprints/
+      <name>.yaml                # Blueprint definition (components as YAML)
+      <name>.lua                 # Blueprint script (Lua code, if blueprint has Script behavior)
+      <name>.draw.json           # Drawing/physics data extracted from blueprint (do not edit)
 ```
 
 ### Blueprints

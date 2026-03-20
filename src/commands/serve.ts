@@ -57,6 +57,14 @@ const HTML = `
 
       async function loadDeck() {
         var [sceneRes, varsRes, coreViewsRes] = await Promise.all([fetch('/scene-data'), fetch('/variables'), fetch('/coreviews')]);
+
+        if (!sceneRes.ok) {
+          var msg = document.getElementById('message');
+          msg.style.cssText = 'position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: sans-serif; text-align: center; padding: 20px;';
+          msg.innerHTML = '<div style="font-size: 20px; margin-bottom: 12px;">Castle Server Running</div><div style="font-size: 14px; color: #aaa;">Open Castle on your phone and select a deck to connect.</div>';
+          return;
+        }
+
         var sceneText = await sceneRes.text();
         var varsJson = await varsRes.json();
         var coreViewsText = await coreViewsRes.text();

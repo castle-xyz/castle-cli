@@ -3,7 +3,6 @@ import * as path from 'path';
 import WebSocket from 'ws';
 import yaml from 'yaml';
 import {
-  StateMessage,
   StateInternalMessage,
   StateInternalDiffMessage,
   EditMessage,
@@ -12,7 +11,7 @@ import {
   CLIScreenshotMessage,
   AppToCliMessage,
 } from './mobile-protocol.js';
-import { writeState, writeStateInternal, applyStateDiff, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
+import { writeStateInternal, applyStateDiff, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
@@ -68,6 +67,12 @@ export class CLIMobileConnection {
   // addedActors: disk-format data for each added key, to restore if mobile's state lacks them.
   // Deletions are fire-and-forget; only additions are enforced to avoid fighting game-managed actors.
   private pendingActors: Map<string, { addedActors: Record<string, any>; addedKeys: string[] }> = new Map();
+
+  // Serialization queue: ensures only one state handler runs at a time to prevent races.
+  private _stateQueue: Promise<void> = Promise.resolve();
+  private _msgSeq: number = 0;
+  private _latestFullStateSeq: number = 0;
+  private _editIdCounter: number = 0;
 
   // Commands
   private commandsPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -227,12 +232,29 @@ export class CLIMobileConnection {
   }
 
   private _handleMessage(msg: AppToCliMessage) {
-    if (msg.type === 'state') {
-      this._handleState(msg as StateMessage).catch((e) => this.logger.cli(`[mobile] error handling state: ${e}`));
-    } else if (msg.type === 'state_internal') {
-      this._handleStateInternal(msg as StateInternalMessage).catch((e) => this.logger.cli(`[mobile] error handling state_internal: ${e}`));
+    if (msg.type === 'state_internal') {
+      const seq = ++this._msgSeq;
+      this._latestFullStateSeq = seq;
+      this._stateQueue = this._stateQueue.then(() =>
+        this._handleStateInternal(msg as StateInternalMessage).catch((e) =>
+          this.logger.cli(`[mobile] error handling state_internal: ${e}`)
+        )
+      );
     } else if (msg.type === 'state_internal_diff') {
-      this._handleStateInternalDiff(msg as StateInternalDiffMessage).catch((e) => this.logger.cli(`[mobile] error handling state_internal_diff: ${e}`));
+      const seq = ++this._msgSeq;
+      const capturedFullStateSeq = this._latestFullStateSeq;
+      this._stateQueue = this._stateQueue.then(() => {
+        // Skip this diff if a newer full state_internal was enqueued after it.
+        // The mobile builds full state from EDITOR_LIBRARY/EDITOR_ACTORS at send time,
+        // so a newer full state already incorporates all changes from this diff.
+        if (this._latestFullStateSeq > capturedFullStateSeq) {
+          if (this.debug) console.log(`[mobile] skipping stale state_internal_diff (seq=${seq}, latestFull=${this._latestFullStateSeq})`);
+          return;
+        }
+        return this._handleStateInternalDiff(msg as StateInternalDiffMessage).catch((e) =>
+          this.logger.cli(`[mobile] error handling state_internal_diff: ${e}`)
+        );
+      });
     } else if (msg.type === 'logs') {
       this._handleLogs(msg as LogsMessage);
     } else if (msg.type === 'screenshot') {
@@ -257,116 +279,6 @@ export class CLIMobileConnection {
       const count = entry.count && entry.count > 1 ? ` (${entry.count}x)` : '';
       this.logger.deck(`${entry.log}${count}`, entry.level, entry.blueprintTitle);
     }
-  }
-
-  private async _handleState(state: StateMessage) {
-    const cardId = state.cardId;
-    let deckDir: string;
-
-    // Deck identity check
-    if (this.expectedDeckId !== null) {
-      // Deck-locked mode: only sync when the correct deck is open
-      if (state.deckId !== this.expectedDeckId) {
-        this.logger.cli(`⚠  Mobile has deck ${state.deckId} open, but this directory serves deck ${this.expectedDeckId}.\n   Switch to the correct deck on mobile to enable sync.`);
-        return;
-      }
-      deckDir = this.deckDir;
-    } else {
-      // Mobile-first mode: lock to the first deck that connects
-      if (this.lockedDeckId === null) {
-        this.lockedDeckId = state.deckId;
-        this.activeDeckDir = path.join(this.deckDir, `deck-${state.deckId}`);
-      } else if (state.deckId !== this.lockedDeckId) {
-        this.logger.cli(`⚠  Mobile switched to deck ${state.deckId}. Currently locked to deck ${this.lockedDeckId}.\n   Restart \`castle serve\` to work with a different deck.`);
-        return;
-      }
-      deckDir = this.activeDeckDir!;
-
-      // Create deck directory and standard files (mobile-first only)
-      initializeDeckDir(deckDir, state.deckId);
-    }
-
-    const cardDir = path.join(deckDir, `card-${cardId}`);
-    this.cardDirs.set(cardId, cardDir);
-
-    const actorKeys = Object.keys(state.actors);
-    this.logger.cli(`received state for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors`);
-
-    initializeCardDir(cardDir, cardId);
-
-    // Handle session changes (wipe workspace on new session or device)
-    const lastSessionId = this.lastCliSessionIds.get(cardId);
-    const sessionChanged = !!lastSessionId && lastSessionId !== state.cliSessionId;
-    if (!lastSessionId || sessionChanged) {
-      if (fs.existsSync(cardDir)) {
-        for (const entry of fs.readdirSync(cardDir)) {
-          // Preserve card.yaml
-          if (entry === 'card.yaml') continue;
-          fs.rmSync(path.join(cardDir, entry), { recursive: true, force: true });
-        }
-        this.logger.cli(sessionChanged ? `session changed — wiped card workspace for ${cardId}` : `wiped card workspace for fresh sync (${cardId})`);
-      }
-    }
-    this.lastCliSessionIds.set(cardId, state.cliSessionId);
-
-    // Snapshot any pending user changes before writeState overwrites files.
-    // This preserves user edits (e.g., deletions) that arrived while writingState=true.
-    const prePendingChanges = detectChanges(cardDir);
-
-    // Write files
-    try {
-      writeState(cardDir, state);
-      // Save mobile's actor keys so _sendChanges can compute which keys were newly added by the user.
-      this.lastMobileActors.set(cardDir, { ...state.actors } as Record<string, any>);
-      this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
-
-      // Write SCENE.md (per-card blueprints + actors) and deck-level AGENTS.md/CLAUDE.md
-      const sceneData = mobileStateToSceneData(state);
-      const sceneContext = await generateSceneContext(sceneData);
-      if (sceneContext) {
-        fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
-      }
-      await writeDeckAgentFilesAsync(deckDir);
-
-      // Update cardversions.json (mark card as present from mobile)
-      const castleDir = path.join(deckDir, CASTLE_DIR);
-      if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
-      const cardVersionsPath = path.join(castleDir, 'cardversions.json');
-      let cardVersions: any = {};
-      try {
-        cardVersions = JSON.parse(fs.readFileSync(cardVersionsPath, 'utf-8'));
-      } catch (e: any) {
-        if (e.code !== 'ENOENT') {
-          console.warn('[mobile] failed to parse cardversions.json:', e);
-        }
-      }
-      cardVersions[cardId] = 'mobile';
-      fs.writeFileSync(cardVersionsPath, JSON.stringify(cardVersions, null, 2));
-
-      // Notify web player that content changed
-      if (this.onStateWritten) {
-        this.onStateWritten(cardId, deckDir);
-      }
-    } finally {
-      // Re-apply pending user changes that writeState may have overwritten (e.g., deletions).
-      // Must run before _reapplyPendingActors so that explicit deletions can clear pendingActors.
-      if (prePendingChanges?.hasChanges) {
-        this._reapplyPreWriteChanges(prePendingChanges, cardDir);
-      }
-      this._reapplyPendingActors(cardDir);
-    }
-
-    // Start watcher for this card if not already running
-    if (!this.watchers.has(cardId)) {
-      const watcher = new FileWatcher(cardDir, (changes) => {
-        this._sendChanges(changes, cardDir);
-      });
-      watcher.start();
-      this.watchers.set(cardId, watcher);
-    }
-
-    // Start commands poll
-    this._startCommandsPoll();
   }
 
   private async _handleStateInternal(state: StateInternalMessage) {
@@ -556,6 +468,7 @@ export class CLIMobileConnection {
     const edit: EditMessage = {
       type: 'edit',
       description,
+      editId: ++this._editIdCounter,
     };
 
     if (changedBlueprintCount > 0) {
@@ -570,6 +483,17 @@ export class CLIMobileConnection {
 
     this._sendToApp(edit);
     updateMetaHashes(cardDir);
+
+    // Optimistically remove deleted keys from lastMobileActors so that a subsequent re-add of
+    // the same key (before the echo returns) is correctly tracked in pendingActors below.
+    if (changes.changedActors) {
+      const lm = this.lastMobileActors.get(cardDir) ?? {};
+      let changed = false;
+      for (const [k, v] of Object.entries(changes.changedActors)) {
+        if ((v as any).removeActor && k in lm) { delete lm[k]; changed = true; }
+      }
+      if (changed) this.lastMobileActors.set(cardDir, lm);
+    }
 
     // Track newly added actors so we can re-apply them if mobile races us with stale state.
     // Only additions are re-applied — deletions are fire-and-forget.
@@ -913,6 +837,10 @@ export class CLIMobileConnection {
 
   stop() {
     this.shouldReconnect = false;
+    this._stateQueue = Promise.resolve();
+    this._msgSeq = 0;
+    this._latestFullStateSeq = 0;
+    this._editIdCounter = 0;
     this._stopCommandsPoll();
     this._stopPing();
     if (this.reconnectTimer) {

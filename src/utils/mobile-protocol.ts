@@ -1,36 +1,4 @@
 // Messages from app -> CLI
-export interface StateMessage {
-  type: 'state';
-  deckId: string;
-  cardId: string;
-  cliSessionId: string;
-  blueprints: Record<string, BlueprintData>;
-  actors: Record<string, ActorData>;
-  variables: VariableData[];
-  prompt: string;
-}
-
-export interface BlueprintData {
-  entryId: string;
-  title: string;
-  components: Record<string, any>;
-  scriptCode: string | null;
-}
-
-export interface ActorData {
-  title?: string;
-  entryId?: string;
-  x?: number;
-  y?: number;
-  angle?: number;
-  widthScale?: number;
-  heightScale?: number;
-  initialFrame?: number;
-  content?: string;
-  fontSizeScale?: number;
-  targetDeckId?: string;
-}
-
 export interface VariableData {
   variableId: string;
   name: string;
@@ -42,6 +10,7 @@ export interface VariableData {
 export interface EditMessage {
   type: 'edit';
   description: string;
+  editId?: number;          // incrementing ID; mobile should not echo state for this edit
   blueprints?: Record<string, any>;
   actors?: Record<string, any>;
   variables?: Record<string, any>;
@@ -51,10 +20,6 @@ export interface EditResultMessage {
   type: 'editResult';
   success: boolean;
   error?: string;
-}
-
-export interface PingMessage {
-  type: 'ping';
 }
 
 export interface PongMessage {
@@ -80,14 +45,6 @@ export interface ScreenshotMessage {
   requestId?: string;
 }
 
-export interface RequestScreenshotMessage {
-  type: 'requestScreenshot';
-}
-
-export interface StopAndPlayMessage {
-  type: 'stopAndPlay';
-}
-
 export interface CLIScreenshotMessage {
   type: 'cliScreenshot';
   data: string; // base64 PNG
@@ -106,7 +63,6 @@ export interface StateInternalMessage {
   blueprints: Record<string, any>;  // raw EDITOR_LIBRARY entries
   actors: Record<string, any>;      // raw EDITOR_ACTORS entries
   variables: VariableData[];
-  prompt: string;
 }
 
 // Incremental diff message: only changed blueprints/actors vs last sent full state
@@ -120,5 +76,5 @@ export interface StateInternalDiffMessage {
   variables?: VariableData[];              // full list (always included, small)
 }
 
-export type AppToCliMessage = StateMessage | StateInternalMessage | StateInternalDiffMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
-export type CliToAppMessage = EditMessage | PingMessage | RequestScreenshotMessage | StopAndPlayMessage;
+export type AppToCliMessage = StateInternalMessage | StateInternalDiffMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
+export type CliToAppMessage = EditMessage;
