@@ -12,56 +12,9 @@ import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
 import { CLIMobileConnection } from '../utils/mobile.js';
 import * as config from '../utils/config.js';
-import * as os from 'os';
+import { getCacheDir, readCache, writeCache, fetchPlayerId } from '../utils/cache.js';
 
 const CASTLE_CDN = 'https://cdn.castle.xyz';
-const CASTLE_WWW = 'https://castle.xyz';
-
-// Cache directory for player builds and coreViews.
-function getCacheDir() {
-  return path.join(os.homedir(), '.castle', 'cache');
-}
-
-// Read a cached file, returning null if not found.
-function readCache(relPath: string): string | null {
-  try {
-    return fs.readFileSync(path.join(getCacheDir(), relPath), 'utf-8');
-  } catch {
-    return null;
-  }
-}
-
-// Write a value to the cache.
-function writeCache(relPath: string, data: string) {
-  const full = path.join(getCacheDir(), relPath);
-  fs.mkdirSync(path.dirname(full), { recursive: true });
-  fs.writeFileSync(full, data, 'utf-8');
-}
-
-// Fetch the current player ID from castle.xyz, with local cache fallback.
-// Returns null if unavailable (CDN redirect won't work but local build still will).
-async function fetchPlayerId(debug: boolean): Promise<string | null> {
-  try {
-    const res = await fetch(`${CASTLE_WWW}/api/player-id`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      const json = await res.json() as any;
-      if (json.playerId) {
-        writeCache('player-id', json.playerId);
-        if (debug) console.log(`[serve] Player ID: ${json.playerId}`);
-        return json.playerId;
-      }
-    }
-  } catch {
-    // fall through to cache
-  }
-  const cached = readCache('player-id');
-  if (cached) {
-    if (debug) console.log(`[serve] Player ID: ${cached.trim()} (from cache)`);
-    return cached.trim();
-  }
-  if (debug) console.log('[serve] Player ID unavailable — CDN fallback will not work (local build still works)');
-  return null;
-}
 
 // Full player approach: load castle-core.js directly so we can inject real variables.
 // On file change, reload the page (simpler than re-calling createDeckFromJSON).

@@ -7,5 +7,4 @@ export default defineConfig({
   outDir: 'dist',
   splitting: false,
   clean: true,
-  external: ['castle-core-node.cjs'],
 });

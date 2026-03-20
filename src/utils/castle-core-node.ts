@@ -1,20 +1,34 @@
 import { createRequire } from 'module';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fetchPlayerId, getCacheDir, readCacheBinary, writeCacheBinary } from './cache.js';
 
 const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CASTLE_CDN = 'https://cdn.castle.xyz';
 
 let M: any = null;
 let metadataCache: { behaviors: any; rules: any } | null = null;
 
+async function ensureCachedNodeFiles(playerId: string): Promise<void> {
+  const cdnBase = `${CASTLE_CDN}/player/${playerId}/node`;
+  for (const filename of ['castle-core-node.js', 'castle-core-node.wasm']) {
+    const relPath = `node/${playerId}/${filename}`;
+    if (readCacheBinary(relPath) === null) {
+      const res = await fetch(`${cdnBase}/${filename}`);
+      if (!res.ok) throw new Error(`Failed to fetch ${filename}: ${res.status}`);
+      writeCacheBinary(relPath, Buffer.from(await res.arrayBuffer()));
+    }
+  }
+}
+
 async function getModule(): Promise<any> {
   if (M) return M;
-  const CastleNode = require(path.join(__dirname, '../assets/core/castle-core-node.cjs'));
-  const wasmBinary = readFileSync(
-    path.join(__dirname, '../assets/core/castle-core-node.wasm')
-  );
+  const playerId = await fetchPlayerId(false);
+  if (!playerId) throw new Error('Cannot load castle-core: no player ID (no network and no cache)');
+  await ensureCachedNodeFiles(playerId);
+  const nodeDir = path.join(getCacheDir(), 'node', playerId);
+  const CastleNode = require(path.join(nodeDir, 'castle-core-node.js'));
+  const wasmBinary = fs.readFileSync(path.join(nodeDir, 'castle-core-node.wasm'));
   M = await CastleNode({ wasmBinary });
   M.ccall('castle_node_init', 'number', [], []);
   return M;
