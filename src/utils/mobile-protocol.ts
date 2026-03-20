@@ -94,5 +94,20 @@ export interface CLIScreenshotMessage {
   suffix: string;
 }
 
-export type AppToCliMessage = StateMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
+// Message sent by mobile with raw EDITOR_LIBRARY/EDITOR_ACTORS (internal format)
+// Blueprints: EDITOR_LIBRARY entries { entryType, title, actorBlueprint: { components: {...} } }
+// Actors: keyed by `a{actorId}`, each { actorId?, parentEntryId, bp: { components: { Body, ... } } }
+//   with Body values in internal format (widthScale 0–1, angle radians)
+export interface StateInternalMessage {
+  type: 'state_internal';
+  deckId: string;
+  cardId: string;
+  cliSessionId: string;
+  blueprints: Record<string, any>;  // raw EDITOR_LIBRARY entries
+  actors: Record<string, any>;      // raw EDITOR_ACTORS entries
+  variables: VariableData[];
+  prompt: string;
+}
+
+export type AppToCliMessage = StateMessage | StateInternalMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
 export type CliToAppMessage = EditMessage | PingMessage | RequestScreenshotMessage | StopAndPlayMessage;

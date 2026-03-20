@@ -4,13 +4,14 @@ import WebSocket from 'ws';
 import yaml from 'yaml';
 import {
   StateMessage,
+  StateInternalMessage,
   EditMessage,
   LogsMessage,
   ScreenshotMessage,
   CLIScreenshotMessage,
   AppToCliMessage,
 } from './mobile-protocol.js';
-import { writeState, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData, updateMetaHashes } from './mobile-files.js';
+import { writeState, writeStateInternal, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
@@ -224,6 +225,8 @@ export class CLIMobileConnection {
   private _handleMessage(msg: AppToCliMessage) {
     if (msg.type === 'state') {
       this._handleState(msg as StateMessage).catch((e) => this.logger.cli(`[mobile] error handling state: ${e}`));
+    } else if (msg.type === 'state_internal') {
+      this._handleStateInternal(msg as StateInternalMessage).catch((e) => this.logger.cli(`[mobile] error handling state_internal: ${e}`));
     } else if (msg.type === 'logs') {
       this._handleLogs(msg as LogsMessage);
     } else if (msg.type === 'screenshot') {
@@ -330,8 +333,10 @@ export class CLIMobileConnection {
       let cardVersions: any = {};
       try {
         cardVersions = JSON.parse(fs.readFileSync(cardVersionsPath, 'utf-8'));
-      } catch (e) {
-        console.warn('[mobile] failed to parse cardversions.json:', e);
+      } catch (e: any) {
+        if (e.code !== 'ENOENT') {
+          console.warn('[mobile] failed to parse cardversions.json:', e);
+        }
       }
       cardVersions[cardId] = 'mobile';
       fs.writeFileSync(cardVersionsPath, JSON.stringify(cardVersions, null, 2));
@@ -359,6 +364,101 @@ export class CLIMobileConnection {
     }
 
     // Start commands poll
+    this._startCommandsPoll();
+  }
+
+  private async _handleStateInternal(state: StateInternalMessage) {
+    const cardId = state.cardId;
+    let deckDir: string;
+
+    if (this.expectedDeckId !== null) {
+      if (state.deckId !== this.expectedDeckId) {
+        this.logger.cli(`⚠  Mobile has deck ${state.deckId} open, but this directory serves deck ${this.expectedDeckId}.\n   Switch to the correct deck on mobile to enable sync.`);
+        return;
+      }
+      deckDir = this.deckDir;
+    } else {
+      if (this.lockedDeckId === null) {
+        this.lockedDeckId = state.deckId;
+        this.activeDeckDir = path.join(this.deckDir, `deck-${state.deckId}`);
+      } else if (state.deckId !== this.lockedDeckId) {
+        this.logger.cli(`⚠  Mobile switched to deck ${state.deckId}. Currently locked to deck ${this.lockedDeckId}.\n   Restart \`castle serve\` to work with a different deck.`);
+        return;
+      }
+      deckDir = this.activeDeckDir!;
+      initializeDeckDir(deckDir, state.deckId);
+    }
+
+    const cardDir = path.join(deckDir, `card-${cardId}`);
+    this.cardDirs.set(cardId, cardDir);
+
+    const actorKeys = Object.keys(state.actors);
+    this.logger.cli(`received state_internal for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors`);
+
+    initializeCardDir(cardDir, cardId);
+
+    const lastSessionId = this.lastCliSessionIds.get(cardId);
+    const sessionChanged = !!lastSessionId && lastSessionId !== state.cliSessionId;
+    if (!lastSessionId || sessionChanged) {
+      if (fs.existsSync(cardDir)) {
+        for (const entry of fs.readdirSync(cardDir)) {
+          if (entry === 'card.yaml') continue;
+          fs.rmSync(path.join(cardDir, entry), { recursive: true, force: true });
+        }
+        this.logger.cli(sessionChanged ? `session changed — wiped card workspace for ${cardId}` : `wiped card workspace for fresh sync (${cardId})`);
+      }
+    }
+    this.lastCliSessionIds.set(cardId, state.cliSessionId);
+
+    const prePendingChanges = detectChanges(cardDir);
+
+    try {
+      const meta = await writeStateInternal(cardDir, state);
+      this.lastMobileActors.set(cardDir, { ...(meta.lastActors ?? {}) });
+      this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
+
+      const sceneData = mobileInternalStateToSceneData(state);
+      const cacheDir = getCacheDir(deckDir);
+      fs.writeFileSync(path.join(cacheDir, `${cardId}.json`), JSON.stringify(sceneData, null, 2));
+
+      const sceneContext = await generateSceneContext(sceneData);
+      if (sceneContext) {
+        fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
+      }
+      await writeDeckAgentFilesAsync(deckDir);
+
+      const castleDir = path.join(deckDir, CASTLE_DIR);
+      if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
+      const cardVersionsPath = path.join(castleDir, 'cardversions.json');
+      let cardVersions: any = {};
+      try {
+        cardVersions = JSON.parse(fs.readFileSync(cardVersionsPath, 'utf-8'));
+      } catch (e: any) {
+        if (e.code !== 'ENOENT') {
+          console.warn('[mobile] failed to parse cardversions.json:', e);
+        }
+      }
+      cardVersions[cardId] = 'mobile';
+      fs.writeFileSync(cardVersionsPath, JSON.stringify(cardVersions, null, 2));
+
+      if (this.onStateWritten) {
+        this.onStateWritten(cardId, deckDir);
+      }
+    } finally {
+      if (prePendingChanges?.hasChanges) {
+        this._reapplyPreWriteChanges(prePendingChanges, cardDir);
+      }
+      this._reapplyPendingActors(cardDir);
+    }
+
+    if (!this.watchers.has(cardId)) {
+      const watcher = new FileWatcher(cardDir, (changes) => {
+        this._sendChanges(changes, cardDir);
+      });
+      watcher.start();
+      this.watchers.set(cardId, watcher);
+    }
+
     this._startCommandsPoll();
   }
 
@@ -459,6 +559,11 @@ export class CLIMobileConnection {
             }
           }
         }
+      } else if (!(key in merged)) {
+        // User added this actor before writeState ran; writeState removed it, so re-add it.
+        // The FileWatcher debounce hadn't fired yet, so pendingActors was never set — fix that here.
+        merged[key] = data;
+        needsWrite = true;
       }
     }
 

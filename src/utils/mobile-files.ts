@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import yaml from 'yaml';
-import { StateMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
+import { StateMessage, StateInternalMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
+import { serializeComponents } from './behaviors.js';
+import { getSnapshotExternalValues } from './castle-core-node.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
 const ACTORS_FILE = 'actors.yaml';
@@ -399,6 +401,229 @@ export function updateMetaHashes(cardDir: string): void {
   }
 
   writeMeta(cardDir, meta);
+}
+
+// Body fields that are engine-computed and should not be written to blueprint YAMLs
+// (same list as BODY_COMPUTED_FIELDS in decks.ts)
+const BP_BODY_STRIP_FIELDS = [
+  'x', 'y', 'angle',
+  'width', 'height',
+  'fixtures',
+  'editorBounds',
+  'relativeToCameraFix',
+  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  'layerName',
+];
+
+// Write scene state from raw EDITOR_LIBRARY/EDITOR_ACTORS (internal format) to disk.
+// Converts blueprint component values to display format via WASM before writing YAML.
+export async function writeStateInternal(cardDir: string, state: StateInternalMessage): Promise<MetaData> {
+  if (!fs.existsSync(cardDir)) fs.mkdirSync(cardDir, { recursive: true });
+  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
+  if (!fs.existsSync(bpDir)) fs.mkdirSync(bpDir, { recursive: true });
+  const castleDir = path.join(cardDir, CASTLE_DIR);
+  if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
+
+  const hashes: FileHashes = {};
+  const blueprintIdMap: Record<string, string> = {};
+
+  // Convert blueprint component values from internal → display format (for YAML compatibility).
+  // Build an internal-format snapshot for WASM conversion.
+  const internalLibrary: any = {};
+  for (const [entryId, entry] of Object.entries(state.blueprints)) {
+    if ((entry as any).entryType !== 'actorBlueprint') continue;
+    internalLibrary[entryId] = {
+      entryType: 'actorBlueprint',
+      title: (entry as any).title,
+      actorBlueprint: { components: { ...((entry as any).actorBlueprint?.components ?? {}) } },
+    };
+  }
+
+  let externalLibrary: Record<string, any>;
+  try {
+    const externalSnapshot = await getSnapshotExternalValues({ library: internalLibrary, actors: [] });
+    externalLibrary = externalSnapshot.library ?? {};
+  } catch (e) {
+    // If WASM conversion fails, use the internal library as-is
+    externalLibrary = internalLibrary;
+  }
+
+  // Write blueprint files
+  const writtenSlugs = new Set<string>();
+  for (const [entryId, entry] of Object.entries(state.blueprints)) {
+    const entryTyped = entry as any;
+    if (entryTyped.entryType !== 'actorBlueprint') continue;
+
+    const title = entryTyped.title ?? 'untitled';
+    let slug = titleToSlug(title);
+
+    if (writtenSlugs.has(slug)) {
+      let counter = 2;
+      while (writtenSlugs.has(`${slug}-${counter}`)) counter++;
+      slug = `${slug}-${counter}`;
+    }
+    writtenSlugs.add(slug);
+    blueprintIdMap[slug] = entryId;
+
+    // Use display-format components from WASM conversion; fall back to internal
+    const rawComponents = { ...(externalLibrary[entryId]?.actorBlueprint?.components ?? entryTyped.actorBlueprint?.components ?? {}) };
+
+    // Strip engine-only Drawing2 fields (preserved in cache, not needed in YAML)
+    if (rawComponents.Drawing2) {
+      const d2 = { ...rawComponents.Drawing2 };
+      delete d2.drawData;
+      delete d2.physicsBodyData;
+      delete d2.hash;
+      delete d2.currentFrame;
+      rawComponents.Drawing2 = d2;
+    }
+
+    // Strip engine-computed Body fields
+    if (rawComponents.Body) {
+      const body = { ...rawComponents.Body };
+      for (const field of BP_BODY_STRIP_FIELDS) {
+        delete body[field];
+      }
+      rawComponents.Body = body;
+    }
+
+    // Serialize components: maps internal names → display names, serializes Rules/Script
+    let scriptCode: string | null = null;
+    const serializedComponents = serializeComponents({
+      components: rawComponents,
+      writeScriptFile: (code: string) => {
+        scriptCode = code;
+        return `${slug}.lua`;
+      },
+    });
+
+    const bpData: any = { title, entryId, components: serializedComponents };
+
+    // Reference lua file in Script component if script was written
+    if (scriptCode && serializedComponents.Script) {
+      serializedComponents.Script = { file: `${slug}.lua` };
+    }
+
+    const yamlContent = yaml.stringify(bpData, { lineWidth: 120 });
+    const yamlPath = path.join(BLUEPRINTS_DIR, `${slug}.yaml`);
+    fs.writeFileSync(path.join(cardDir, yamlPath), yamlContent);
+    hashes[yamlPath] = contentHash(yamlContent);
+
+    if (scriptCode) {
+      const luaPath = path.join(BLUEPRINTS_DIR, `${slug}.lua`);
+      fs.writeFileSync(path.join(cardDir, luaPath), scriptCode);
+      hashes[luaPath] = contentHash(scriptCode);
+    }
+  }
+
+  // Clean up blueprint files that no longer exist
+  const existingBpFiles = fs.existsSync(bpDir) ? fs.readdirSync(bpDir) : [];
+  for (const file of existingBpFiles) {
+    const slug = file.replace(/\.(yaml|lua)$/, '');
+    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua'))) {
+      fs.unlinkSync(path.join(bpDir, file));
+    }
+  }
+
+  // Write actors.yaml — convert internal format (widthScale 0–1, radians) to disk format (×10, degrees)
+  const actorsForDisk: Record<string, any> = {};
+  for (const [key, actor] of Object.entries(state.actors)) {
+    const actorTyped = actor as any;
+    const body = actorTyped.bp?.components?.Body ?? {};
+    const drawing2 = actorTyped.bp?.components?.Drawing2 ?? {};
+    const text = actorTyped.bp?.components?.Text ?? {};
+    const link = actorTyped.bp?.components?.Link ?? {};
+
+    const parentEntryId = actorTyped.parentEntryId;
+    const entry = state.blueprints[parentEntryId] as any;
+    const title = entry?.title;
+    if (!title) continue;
+
+    const actorEntry: any = { title };
+    actorEntry.x = body.x ?? 0;
+    actorEntry.y = body.y ?? 0;
+    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000;
+    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10;
+    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10;
+    if (drawing2.initialFrame && drawing2.initialFrame !== 1) actorEntry.initialFrame = drawing2.initialFrame;
+    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) actorEntry.fontSizeScale = text.fontSizeScale;
+    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
+    if (text.content !== undefined && text.content !== blueprintContent) actorEntry.content = text.content;
+    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
+    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) actorEntry.targetDeckId = link.targetDeckId;
+
+    actorsForDisk[key] = actorEntry;
+  }
+  const actorsContent = yaml.stringify(actorsForDisk, { lineWidth: 120 });
+  fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
+  hashes[ACTORS_FILE] = contentHash(actorsContent);
+
+  // Write variables
+  const variablesContent = yaml.stringify(state.variables, { lineWidth: 120 });
+  fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
+  hashes[VARIABLES_FILE] = contentHash(variablesContent);
+
+  // Write AGENTS.md and CLAUDE.md
+  const cliDocs = `## Castle CLI File Format
+
+Edit these files to modify the scene:
+
+- \`actors.yaml\` — actor instances (title, x, y, angle in degrees, widthScale ×10)
+- \`variables.yaml\` — variable definitions
+- \`blueprints/<Name>.yaml\` — blueprint component properties
+- \`blueprints/<Name>.lua\` — blueprint Lua script
+
+Changes are synced to the mobile app automatically.`;
+  const agentContent = state.prompt ? `${state.prompt}\n\n${cliDocs}` : cliDocs;
+  fs.writeFileSync(path.join(cardDir, 'AGENTS.md'), agentContent);
+  fs.writeFileSync(path.join(cardDir, 'CLAUDE.md'), agentContent);
+
+  const meta: MetaData = {
+    deckId: state.deckId,
+    cardId: state.cardId,
+    hashes,
+    blueprintIdMap,
+    lastActors: actorsForDisk,
+  };
+  writeMeta(cardDir, meta);
+
+  return meta;
+}
+
+// Convert StateInternalMessage → scene data JSON (for web player cache).
+// Uses EDITOR_LIBRARY directly, preserving drawData and physicsBodyData.
+export function mobileInternalStateToSceneData(state: StateInternalMessage): any {
+  // Build library directly from raw EDITOR_LIBRARY entries (drawData preserved)
+  const library: any = {};
+  for (const [entryId, entry] of Object.entries(state.blueprints)) {
+    const entryTyped = entry as any;
+    library[entryId] = {
+      entryType: entryTyped.entryType ?? 'actorBlueprint',
+      title: entryTyped.title,
+      actorBlueprint: {
+        components: entryTyped.actorBlueprint?.components ?? {},
+      },
+    };
+  }
+
+  // Build actors array from state.actors (internal format: widthScale 0–1, angle radians)
+  const actors: any[] = [];
+  for (const [key, actor] of Object.entries(state.actors)) {
+    const actorTyped = actor as any;
+    const actorId = actorTyped.actorId ?? (key.startsWith('a') ? key.slice(1) : key);
+    actors.push({
+      actorId,
+      parentEntryId: actorTyped.parentEntryId,
+      bp: actorTyped.bp ?? {},
+    });
+  }
+
+  return {
+    snapshot: {
+      library,
+      actors,
+    },
+  };
 }
 
 // Convert mobile StateMessage → scene data JSON (for web player cache)
