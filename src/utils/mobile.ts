@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import WebSocket from 'ws';
-import yaml from 'js-yaml';
+import yaml from 'yaml';
 import {
   StateMessage,
   EditMessage,
@@ -62,10 +62,10 @@ export class CLIMobileConnection {
   private lastMobileActors: Map<string, Record<string, any>> = new Map();
 
   // Tracks actor edits we sent that mobile may not have processed yet.
-  // addedKeys: keys the user newly added (vs lastMobileActors) — these need re-apply if mobile races us.
-  // desired:   the full actors dict to re-write if mobile's state is missing any addedKeys.
+  // addedKeys: keys the user newly added — these need re-apply if mobile races us with stale state.
+  // addedActors: disk-format data for each added key, to restore if mobile's state lacks them.
   // Deletions are fire-and-forget; only additions are enforced to avoid fighting game-managed actors.
-  private pendingActors: Map<string, { desired: Record<string, any>; addedKeys: string[] }> = new Map();
+  private pendingActors: Map<string, { addedActors: Record<string, any>; addedKeys: string[] }> = new Map();
 
   // Commands
   private commandsPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -234,11 +234,15 @@ export class CLIMobileConnection {
     } else if (msg.type === 'cliScreenshot') {
       this._handleCLIScreenshot(msg as CLIScreenshotMessage);
     } else if (msg.type === 'editResult') {
-      if (!(msg as any).success) {
-        this.logger.cli(`edit failed: ${(msg as any).error}`);
+      const result = msg as any;
+      console.log(`[mobile] editResult: success=${result.success} error=${result.error ?? 'none'}`);
+      if (!result.success) {
+        this.logger.cli(`edit failed: ${result.error}`);
       }
     } else if (msg.type === 'pong') {
       // keepalive response
+    } else {
+      console.log(`[mobile] unknown message type: ${(msg as any).type}`, JSON.stringify(msg).slice(0, 200));
     }
   }
 
@@ -279,7 +283,9 @@ export class CLIMobileConnection {
     const cardDir = path.join(deckDir, `card-${cardId}`);
     this.cardDirs.set(cardId, cardDir);
 
-    this.logger.cli(`received state for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors`);
+    const actorKeys = Object.keys(state.actors);
+    this.logger.cli(`received state for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors`);
+    console.log(`[mobile] STATE received: actors=[${actorKeys.join(', ')}]`);
 
     initializeCardDir(cardDir, cardId);
 
@@ -298,12 +304,17 @@ export class CLIMobileConnection {
     }
     this.lastCliSessionIds.set(cardId, state.cliSessionId);
 
+    // Snapshot any pending user changes before writeState overwrites files.
+    // This preserves user edits (e.g., deletions) that arrived while writingState=true.
+    const prePendingChanges = detectChanges(cardDir);
+
     // Write files
     this.writingState = true;
     try {
       writeState(cardDir, state);
       // Save mobile's actor keys so _sendChanges can compute which keys were newly added by the user.
       this.lastMobileActors.set(cardDir, { ...state.actors } as Record<string, any>);
+      console.log(`[mobile] STATE written to disk: actors=[${Object.keys(state.actors).join(', ')}]`);
       this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
 
       // Write scene data cache for web player
@@ -335,7 +346,13 @@ export class CLIMobileConnection {
       }
     } finally {
       setTimeout(() => {
+        console.log(`[mobile] writingState=false for ${cardId}, calling _reapplyPendingActors`);
         this.writingState = false;
+        // Re-apply pending user changes that writeState may have overwritten (e.g., deletions).
+        // Must run before _reapplyPendingActors so that explicit deletions can clear pendingActors.
+        if (prePendingChanges?.hasChanges) {
+          this._reapplyPreWriteChanges(prePendingChanges, cardDir);
+        }
         this._reapplyPendingActors(cardDir);
       }, 600);
     }
@@ -344,7 +361,10 @@ export class CLIMobileConnection {
     if (!this.watchers.has(cardId)) {
       const watcher = new FileWatcher(cardDir, (changes) => {
         if (!this.writingState) {
+          console.log(`[mobile] WATCHER fired (writingState=false), sending changes`);
           this._sendChanges(changes, cardDir);
+        } else {
+          console.log(`[mobile] WATCHER fired but writingState=true, suppressing`);
         }
       });
       watcher.start();
@@ -370,6 +390,19 @@ export class CLIMobileConnection {
     const description = `cli: updated ${parts.join(', ')}`;
     this.logger.cli(`sending edit: ${description}`);
 
+    // changes.changedActors is already a sparse diff (added/changed/removed) from detectChanges.
+    // Log the diff for debugging.
+    if (changes.changedActors) {
+      const lastMobile = this.lastMobileActors.get(cardDir) ?? {};
+      const addedKeys = Object.keys(changes.changedActors).filter(k => !(changes.changedActors![k] as any).removeActor && !(k in lastMobile));
+      const removedKeys = Object.keys(changes.changedActors).filter(k => (changes.changedActors![k] as any).removeActor);
+      const changedKeys = Object.keys(changes.changedActors).filter(k => !(changes.changedActors![k] as any).removeActor && k in lastMobile);
+      console.log(`[mobile] SENDING sparse edit: added=[${addedKeys}] changed=[${changedKeys.length}] removed=[${removedKeys}]`);
+      for (const key of addedKeys) {
+        console.log(`[mobile] SENDING added actor ${key}:`, JSON.stringify(changes.changedActors[key]));
+      }
+    }
+
     const edit: EditMessage = {
       type: 'edit',
       description,
@@ -388,45 +421,131 @@ export class CLIMobileConnection {
     this._sendToApp(edit);
     updateMetaHashes(cardDir);
 
-    // Remember which actor keys were newly added (vs last mobile state).
-    // Only additions are re-applied if mobile races us — deletions are fire-and-forget.
+    // Track newly added actors so we can re-apply them if mobile races us with stale state.
+    // Only additions are re-applied — deletions are fire-and-forget.
     if (changes.changedActors !== null) {
-      const desired = changes.changedActors;
+      const actorDiff = changes.changedActors;
       const lastMobile = this.lastMobileActors.get(cardDir) ?? {};
-      const addedKeys = Object.keys(desired).filter(k => !(k in lastMobile));
-      this.pendingActors.set(cardDir, { desired, addedKeys });
+      const addedActors: Record<string, any> = {};
+      const addedKeys: string[] = [];
+      for (const [k, v] of Object.entries(actorDiff)) {
+        if (!(v as any).removeActor && !(k in lastMobile)) {
+          addedActors[k] = v;
+          addedKeys.push(k);
+        }
+      }
+      if (addedKeys.length > 0) {
+        this.pendingActors.set(cardDir, { addedActors, addedKeys });
+      } else {
+        this.pendingActors.delete(cardDir);
+      }
+    }
+  }
+
+  // Re-apply user changes (deletions, modifications) that writeState may have overwritten.
+  // Called before _reapplyPendingActors so explicit deletions can clear pendingActors.
+  private _reapplyPreWriteChanges(prePendingChanges: FileChanges, cardDir: string) {
+    const changedActors = prePendingChanges.changedActors;
+    if (!changedActors) return;
+
+    const actorsPath = path.join(cardDir, 'actors.yaml');
+    let currentActors: Record<string, any> = {};
+    try {
+      currentActors = (yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) as Record<string, any>) ?? {};
+    } catch {}
+
+    const merged = { ...currentActors };
+    let needsWrite = false;
+
+    for (const [key, data] of Object.entries(changedActors)) {
+      if ((data as any).removeActor) {
+        // User deleted this actor before writeState ran; if writeState put it back, remove it again.
+        if (key in merged) {
+          delete merged[key];
+          needsWrite = true;
+          console.log(`[mobile] _reapplyPreWriteChanges: re-deleting ${key} (writeState restored it)`);
+          // Also clear from pendingActors so _reapplyPendingActors doesn't re-add it.
+          const pending = this.pendingActors.get(cardDir);
+          if (pending) {
+            const newAddedKeys = pending.addedKeys.filter(k => k !== key);
+            if (newAddedKeys.length === 0) {
+              this.pendingActors.delete(cardDir);
+            } else if (newAddedKeys.length < pending.addedKeys.length) {
+              const newAddedActors = { ...pending.addedActors };
+              delete newAddedActors[key];
+              this.pendingActors.set(cardDir, { addedActors: newAddedActors, addedKeys: newAddedKeys });
+            }
+          }
+        }
+      }
+    }
+
+    if (needsWrite) {
+      fs.writeFileSync(actorsPath, yaml.stringify(merged, { lineWidth: 120 }));
+      const changes = detectChanges(cardDir);
+      if (changes?.hasChanges) {
+        this._sendChanges(changes, cardDir);
+      }
     }
   }
 
   // Called after writeState() completes (writingState is back to false).
-  // If mobile's racing state was missing any of the actor keys we newly added,
-  // re-write the file with our intended actors and leave meta.hashes alone.
-  // The hash mismatch means detectChanges() will see a change, the FileWatcher fires,
-  // and _sendChanges re-sends the edit.
+  // If mobile's state was missing any actor we newly added, re-add them to actors.yaml and re-send.
+  // Satisfaction is checked by key OR by blueprint title (mobile assigns a new entity ID on creation).
   // Deletions are fire-and-forget — we only enforce additions to avoid fighting game-managed actors.
   private _reapplyPendingActors(cardDir: string) {
     const pending = this.pendingActors.get(cardDir);
-    if (pending === undefined) return;
+    if (pending === undefined) {
+      console.log(`[mobile] _reapplyPendingActors: no pending for ${cardDir}`);
+      return;
+    }
 
-    const actorsPath = path.join(cardDir, 'actors.yaml');
-    const raw = fs.existsSync(actorsPath) ? fs.readFileSync(actorsPath, 'utf-8') : '';
-    const current: Record<string, any> = (yaml.load(raw) as any) || {};
-    const currentKeys = new Set(Object.keys(current));
+    const lastMobile = this.lastMobileActors.get(cardDir) ?? {};
 
-    // Satisfied if every key we *added* is present in mobile's state.
-    // Mobile may have extra game actors — that's fine.
-    if (pending.addedKeys.every(k => currentKeys.has(k))) {
+    // An added actor is "satisfied" if mobile has it by key, OR if mobile has any actor with
+    // the same title (mobile assigns a new entity ID on creation, so the key will differ).
+    const missingKeys = pending.addedKeys.filter(key => {
+      if (key in lastMobile) return false;
+      const actorData = pending.addedActors[key];
+      if (!actorData) return false;
+      const title = (actorData as any).title;
+      if (title && Object.values(lastMobile).some((a: any) => a.title === title)) return false;
+      return true;
+    });
+
+    console.log(`[mobile] _reapplyPendingActors: addedKeys=[${pending.addedKeys}] missingKeys=[${missingKeys}] lastMobileCount=${Object.keys(lastMobile).length}`);
+
+    if (missingKeys.length === 0) {
+      console.log(`[mobile] _reapplyPendingActors: satisfied, clearing pending`);
       this.pendingActors.delete(cardDir);
+      return;
+    }
+
+    // Mobile is missing some additions. Read the current actors.yaml (written by writeState
+    // with mobile's stale state), add the missing actors back, and re-send.
+    const actorsPath = path.join(cardDir, 'actors.yaml');
+    let currentActors: Record<string, any> = {};
+    try {
+      const content = fs.readFileSync(actorsPath, 'utf-8');
+      currentActors = (yaml.parse(content) as Record<string, any>) ?? {};
+    } catch {}
+
+    const mergedActors: Record<string, any> = { ...currentActors };
+    for (const key of missingKeys) {
+      mergedActors[key] = pending.addedActors[key];
+    }
+
+    console.log(`[mobile] _reapplyPendingActors: MISSING keys [${missingKeys}], re-writing actors.yaml`);
+    this.logger.cli(`re-applying pending actor edit (mobile missing: [${missingKeys}])`);
+
+    fs.writeFileSync(actorsPath, yaml.stringify(mergedActors, { lineWidth: 120 }));
+
+    const changes = detectChanges(cardDir);
+    if (changes && changes.hasChanges) {
+      console.log(`[mobile] _reapplyPendingActors: re-sending edit`);
+      this._sendChanges(changes, cardDir);
     } else {
-      this.logger.cli(`re-applying pending actor edit (mobile state actor keys: [${[...currentKeys]}], expected additions: [${pending.addedKeys}])`);
-      fs.writeFileSync(actorsPath, yaml.dump(pending.desired, { lineWidth: 120, noRefs: true }));
-      // Send directly — don't wait for the FileWatcher. The FileWatcher fires ~700ms later
-      // and may be suppressed if mobile sends another state in that window (writingState=true),
-      // which would permanently drop the re-send and cause a loop.
-      const changes = detectChanges(cardDir);
-      if (changes && changes.hasChanges) {
-        this._sendChanges(changes, cardDir);
-      }
+      console.log(`[mobile] _reapplyPendingActors: no changes detected after re-write`);
     }
   }
 

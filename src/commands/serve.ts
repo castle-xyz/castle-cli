@@ -15,6 +15,7 @@ import * as config from '../utils/config.js';
 import { getCacheDir, readCache, writeCache, fetchPlayerId } from '../utils/cache.js';
 
 const CASTLE_CDN = 'https://cdn.castle.xyz';
+const CASTLE_WWW = 'https://castle.xyz';
 
 // Full player approach: load castle-core.js directly so we can inject real variables.
 // On file change, reload the page (simpler than re-calling createDeckFromJSON).

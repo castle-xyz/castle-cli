@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import yaml from 'js-yaml';
+import yaml from 'yaml';
 import { StateMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
@@ -33,6 +33,7 @@ interface MetaData {
   cardId: string;
   hashes: FileHashes;
   blueprintIdMap: Record<string, string>; // slug -> entryId
+  lastActors?: Record<string, any>; // actors dict last written by writeState (disk format, for diff computation)
 }
 
 function readMeta(dir: string): MetaData | null {
@@ -106,7 +107,7 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
       }
     }
 
-    const yamlContent = yaml.dump(bpData, { lineWidth: 120, noRefs: true });
+    const yamlContent = yaml.stringify(bpData, { lineWidth: 120 });
     const yamlPath = path.join(BLUEPRINTS_DIR, `${slug}.yaml`);
     fs.writeFileSync(path.join(cardDir, yamlPath), yamlContent);
     hashes[yamlPath] = contentHash(yamlContent);
@@ -148,12 +149,12 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
     if (ad.targetDeckId !== undefined) actorEntry.targetDeckId = ad.targetDeckId;
     actorsForDisk[key] = actorEntry;
   }
-  const actorsContent = yaml.dump(actorsForDisk, { lineWidth: 120, noRefs: true });
+  const actorsContent = yaml.stringify(actorsForDisk, { lineWidth: 120 });
   fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
   hashes[ACTORS_FILE] = contentHash(actorsContent);
 
   // Write variables
-  const variablesContent = yaml.dump(state.variables, { lineWidth: 120, noRefs: true });
+  const variablesContent = yaml.stringify(state.variables, { lineWidth: 120 });
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
 
@@ -178,6 +179,7 @@ Changes are synced to the mobile app automatically.`;
     cardId: state.cardId,
     hashes,
     blueprintIdMap,
+    lastActors: actorsForDisk,
   };
   writeMeta(cardDir, meta);
 
@@ -228,7 +230,7 @@ export function detectChanges(cardDir: string): FileChanges | null {
       const yamlContent = fs.readFileSync(path.join(cardDir, yamlPath), 'utf-8');
       let bpData: any;
       try {
-        bpData = yaml.load(yamlContent) as any;
+        bpData = yaml.parse(yamlContent) as any;
       } catch (e: any) {
         console.error(`[files] failed to parse ${yamlFile}: ${e.reason || e.message}`);
         continue;
@@ -260,7 +262,7 @@ export function detectChanges(cardDir: string): FileChanges | null {
             const { file, ...rest } = components.Script;
             components.Script = rest;
           }
-          edit.components = yaml.dump(components, { lineWidth: 120, noRefs: true });
+          edit.components = yaml.stringify(components, { lineWidth: 120 });
         }
 
         if (luaContent) {
@@ -294,7 +296,7 @@ export function detectChanges(cardDir: string): FileChanges | null {
               const { file, ...rest } = components.Script;
               components.Script = rest;
             }
-            edit.components = yaml.dump(components, { lineWidth: 120, noRefs: true });
+            edit.components = yaml.stringify(components, { lineWidth: 120 });
           }
         }
 
@@ -307,14 +309,39 @@ export function detectChanges(cardDir: string): FileChanges | null {
     }
   }
 
-  // Check actors
+  // Check actors — compute a sparse diff vs. the last written state
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
     const content = fs.readFileSync(actorsPath, 'utf-8');
     if (meta.hashes[ACTORS_FILE] !== contentHash(content)) {
       try {
-        result.hasChanges = true;
-        result.changedActors = yaml.load(content) as any;
+        const currentActors = (yaml.parse(content) as Record<string, any>) ?? {};
+        // If lastActors is missing (old meta without diff support), skip actor diff.
+        if (meta.lastActors !== undefined) {
+          const lastActors = meta.lastActors;
+          const actorsDiff: Record<string, any> = {};
+
+          // Added or changed actors
+          for (const [key, data] of Object.entries(currentActors)) {
+            if (!(key in lastActors)) {
+              actorsDiff[key] = data; // new
+            } else if (JSON.stringify(data) !== JSON.stringify(lastActors[key])) {
+              actorsDiff[key] = data; // changed
+            }
+          }
+
+          // Removed actors
+          for (const key of Object.keys(lastActors)) {
+            if (!(key in currentActors)) {
+              actorsDiff[key] = { removeActor: true };
+            }
+          }
+
+          if (Object.keys(actorsDiff).length > 0) {
+            result.hasChanges = true;
+            result.changedActors = actorsDiff;
+          }
+        }
       } catch (e: any) {
         console.error(`[files] failed to parse actors.yaml: ${e.reason || e.message}`);
       }
@@ -327,8 +354,8 @@ export function detectChanges(cardDir: string): FileChanges | null {
     const content = fs.readFileSync(variablesPath, 'utf-8');
     if (meta.hashes[VARIABLES_FILE] !== contentHash(content)) {
       try {
+        result.changedVariables = yaml.parse(content) as any;
         result.hasChanges = true;
-        result.changedVariables = yaml.load(content) as any;
       } catch (e: any) {
         console.error(`[files] failed to parse variables.yaml: ${e.reason || e.message}`);
       }
@@ -356,7 +383,11 @@ export function updateMetaHashes(cardDir: string): void {
 
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
-    meta.hashes[ACTORS_FILE] = contentHash(fs.readFileSync(actorsPath, 'utf-8'));
+    const actorsContent = fs.readFileSync(actorsPath, 'utf-8');
+    meta.hashes[ACTORS_FILE] = contentHash(actorsContent);
+    try {
+      meta.lastActors = (yaml.parse(actorsContent) as Record<string, any>) ?? {};
+    } catch {}
   }
 
   const variablesPath = path.join(cardDir, VARIABLES_FILE);

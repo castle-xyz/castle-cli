@@ -71,12 +71,17 @@ export async function clone(deckArg: string, options: { directory?: string; repl
     let cardDirectory = path.join(deckDirectory, `card-${card.cardId}`);
     initializeCardDir(cardDirectory, card.cardId);
 
-    await Decks.cloneCardAsync({
-      cardId: card.cardId,
-      sceneDataUrl: card.sceneDataUrl,
-      cardDir: cardDirectory,
-      deckDir: deckDirectory,
-    });
+    try {
+      await Decks.cloneCardAsync({
+        cardId: card.cardId,
+        sceneDataUrl: card.sceneDataUrl,
+        cardDir: cardDirectory,
+        deckDir: deckDirectory,
+      });
+    } catch (e: any) {
+      console.error(`Failed to clone card ${card.cardId}: ${e?.message ?? e}`);
+      process.exit(1);
+    }
   }
 
   console.log(`Deck ${deckId} cloned successfully to ${deckDirectory}`);

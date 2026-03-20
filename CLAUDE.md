@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run build       # Compile TypeScript via tsup → dist/, copies WASM + assets
+npm run build       # Compile TypeScript via tsup → dist/, copies assets
 npm run dev         # Run src/index.ts directly with tsx (no build needed)
 npm run test        # Single run with vitest
 npm run test:watch  # Vitest watch mode
@@ -54,7 +54,7 @@ card-{cardId}/
 | `src/utils/decks.ts` | Core file I/O: YAML parsing, scene data generation |
 | `src/utils/mobile.ts` | WebSocket handler for mobile ↔ CLI state sync |
 | `src/utils/mobile-files.ts` | Format conversion between mobile state and YAML files |
-| `src/utils/castle-core-node.ts` | WASM module wrapper (loads `.cjs` + `.wasm` binary) |
+| `src/utils/castle-core-node.ts` | WASM module wrapper (downloads from CDN, caches in `~/.castle/cache/node/`) |
 | `src/utils/api.ts` | GraphQL client for `api.castle.xyz` |
 | `src/utils/config.ts` | Auth token persistence in `~/.castle/config.json` |
 
@@ -79,4 +79,4 @@ The mobile app sends a `StateMessage` (full serialized game state) over WebSocke
 
 ### WASM Module
 
-`assets/core/castle-core-node.{cjs,wasm}` is the compiled C++ game engine. It is loaded by `castle-core-node.ts` and exposes behavior/rules metadata and value-conversion functions. It is treated as an external dependency in tsup and copied to `dist/assets/core/` during build.
+The compiled C++ game engine is downloaded from `https://cdn.castle.xyz/player/{playerId}/node/` and cached in `~/.castle/cache/node/{playerId}/`. It is loaded by `castle-core-node.ts` and exposes behavior/rules metadata and value-conversion functions. The player ID is fetched from `https://castle.xyz/api/player-id` and cached locally.

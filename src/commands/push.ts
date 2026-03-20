@@ -40,13 +40,25 @@ export async function push(options: { directory?: string } = {}) {
     }
   }
 
-  await Decks.pushCardsAsync({
-    deckDir: directory,
-    cards: cardIds.map((cardId) => ({
-      cardId,
-      cardDir: path.join(directory, cardIdToDirectory[cardId]),
-    })),
-  });
+  try {
+    await Decks.pushCardsAsync({
+      deckDir: directory,
+      cards: cardIds.map((cardId) => ({
+        cardId,
+        cardDir: path.join(directory, cardIdToDirectory[cardId]),
+      })),
+    });
+  } catch (e: any) {
+    const code: string = e?.extensions?.code ?? '';
+    if (code === 'LOGIN_REQUIRED') {
+      console.error('You need to be logged in to push. Run `castle login` first.');
+    } else if (code === 'DECK_INVALID_PERMISSIONS') {
+      console.error('You do not have permission to push to this deck.');
+    } else {
+      console.error(`Push failed: ${e?.message ?? e}`);
+    }
+    process.exit(1);
+  }
 
   console.log('Push complete');
 }

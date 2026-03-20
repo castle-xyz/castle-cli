@@ -8,7 +8,11 @@ export async function logout() {
     return;
   }
 
-  await API.logout();
+  try {
+    await API.logout();
+  } catch (e: any) {
+    console.error(`Logout request failed: ${e?.message ?? e}`);
+  }
   config.setToken(null);
   console.log('Successfully logged out');
 }

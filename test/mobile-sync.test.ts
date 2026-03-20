@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import yaml from 'js-yaml';
+import yaml from 'yaml';
 import {
   writeState,
   detectChanges,
@@ -65,7 +65,7 @@ function reapplyPendingActors(
 ): boolean {
   const actorsPath = path.join(cardDir, 'actors.yaml');
   const raw = fs.existsSync(actorsPath) ? fs.readFileSync(actorsPath, 'utf-8') : '';
-  const current: Record<string, any> = (yaml.load(raw) as any) || {};
+  const current: Record<string, any> = (yaml.parse(raw) as any) || {};
   const currentKeys = new Set(Object.keys(current));
 
   // Satisfied if every key we *added* is now present (mobile may have extra game actors).
@@ -74,7 +74,7 @@ function reapplyPendingActors(
   }
 
   // Some added actors are missing from mobile's state — re-write and re-send.
-  fs.writeFileSync(actorsPath, yaml.dump(desired, { lineWidth: 120, noRefs: true }));
+  fs.writeFileSync(actorsPath, yaml.stringify(desired, { lineWidth: 120 }));
   return false;
 }
 
@@ -95,7 +95,7 @@ describe('circular edit: delete actor then add it back', () => {
     // lastMobileActors = { a100: ... }
 
     // ── Phase 2: User deletes actor A ────────────────────────────────────────
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.dump({}, { lineWidth: 120, noRefs: true }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({}, { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={}, lastMobile={a100} → addedKeys=[] (nothing added)
@@ -121,7 +121,7 @@ describe('circular edit: delete actor then add it back', () => {
 
     // ── Phase 5: User adds actor A BACK ──────────────────────────────────────
     const userActorA = { title: 'Player', x: 10, y: 20 };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.dump({ a100: userActorA }, { lineWidth: 120, noRefs: true }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({ a100: userActorA }, { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={a100}, lastMobile={} → addedKeys=['a100']
@@ -137,7 +137,7 @@ describe('circular edit: delete actor then add it back', () => {
     expect(satisfiedAfterAddRace).toBe(false); // must re-apply
 
     // actors.yaml was re-written with actor A
-    const actorsAfterReapply = yaml.load(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as any;
+    const actorsAfterReapply = yaml.parse(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as any;
     expect(actorsAfterReapply?.a100).toBeDefined();
 
     // detectChanges must find a change so FileWatcher re-sends the EditMessage
@@ -177,7 +177,7 @@ describe('circular edit: mobile has additional game actors beyond what user edit
 
     // User adds actor A (simulate the scenario where they deleted and re-added it)
     const userActors = { a100: { title: 'Player', x: 10, y: 20 } };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.dump(userActors, { lineWidth: 120, noRefs: true }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify(userActors, { lineWidth: 120 }));
 
     // Simulate _sendChanges: lastMobile had {a100}, desired has {a100}
     // addedKeys = [] because a100 was already in lastMobile. But let's say the

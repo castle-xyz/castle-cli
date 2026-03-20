@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import yaml from 'js-yaml';
+import yaml from 'yaml';
 import {
   titleToSlug,
   writeState,
@@ -101,7 +101,7 @@ describe('writeState', () => {
     const actorsPath = path.join(tmpDir, 'actors.yaml');
     expect(fs.existsSync(actorsPath)).toBe(true);
 
-    const actorsObj = yaml.load(fs.readFileSync(actorsPath, 'utf-8')) as any;
+    const actorsObj = yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) as any;
     expect(actorsObj['a100']).toBeDefined();
     // Flat format: title, not entryId or nested components
     expect(actorsObj['a100'].title).toBe('Player');

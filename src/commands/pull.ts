@@ -35,24 +35,34 @@ export async function pull(options: { directory?: string } = {}) {
     if (cardIdToDirectory[cardId]) {
       console.log(`Pulling updates for card ${card.cardId}...`);
 
-      await Decks.pullCardAsync({
-        cardId: card.cardId,
-        sceneDataUrl: card.sceneDataUrl,
-        cardDir: path.join(directory, cardIdToDirectory[cardId]),
-        deckDir: directory,
-      });
+      try {
+        await Decks.pullCardAsync({
+          cardId: card.cardId,
+          sceneDataUrl: card.sceneDataUrl,
+          cardDir: path.join(directory, cardIdToDirectory[cardId]),
+          deckDir: directory,
+        });
+      } catch (e: any) {
+        console.error(`Failed to pull card ${card.cardId}: ${e?.message ?? e}`);
+        process.exit(1);
+      }
     } else {
       console.log(`No directory found for card ${card.cardId}. Cloning...`);
 
       let cardDirectory = path.join(directory, `card-${card.cardId}`);
       initializeCardDir(cardDirectory, card.cardId);
 
-      await Decks.cloneCardAsync({
-        cardId: card.cardId,
-        sceneDataUrl: card.sceneDataUrl,
-        cardDir: cardDirectory,
-        deckDir: directory,
-      });
+      try {
+        await Decks.cloneCardAsync({
+          cardId: card.cardId,
+          sceneDataUrl: card.sceneDataUrl,
+          cardDir: cardDirectory,
+          deckDir: directory,
+        });
+      } catch (e: any) {
+        console.error(`Failed to clone card ${card.cardId}: ${e?.message ?? e}`);
+        process.exit(1);
+      }
     }
   }
 
