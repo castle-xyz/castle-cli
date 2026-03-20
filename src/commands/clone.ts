@@ -6,6 +6,7 @@ import yaml from 'yaml';
 
 import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
+import { initMetadata } from '../utils/init.js';
 
 const DEFAULT_FILES = [
   {
@@ -91,6 +92,7 @@ export default class Clone extends BaseCommand<typeof Clone> {
   };
 
   public async run(): Promise<{ deckId: string; directory: string }> {
+    await initMetadata();
     const { args } = await this.parse(Clone);
     const { flags } = await this.parse(Clone);
 

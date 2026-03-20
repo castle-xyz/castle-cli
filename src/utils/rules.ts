@@ -1,13 +1,20 @@
 import _ from 'lodash';
-import RulesConfig from '../assets/rules.json' with { type: 'json' };
+import { getCastleMetadata } from './castle-core-node.js';
 import * as Behaviors from './behaviors.js';
 
 const TRIGGERS = {};
 const RULES = {}; // responses and conditions
 
-parseRules(RulesConfig.triggers, TRIGGERS);
-parseRules(RulesConfig.responses, RULES);
-parseRules(RulesConfig.conditions, RULES);
+let initialized = false;
+
+export async function initRules() {
+  if (initialized) return;
+  initialized = true;
+  const { rules } = await getCastleMetadata();
+  parseRules(rules.triggers, TRIGGERS);
+  parseRules(rules.responses, RULES);
+  parseRules(rules.conditions, RULES);
+}
 
 function parseRules(rules, behaviors) {
   for (const rule of rules) {

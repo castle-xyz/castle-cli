@@ -6,6 +6,7 @@ import * as path from 'path';
 import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
+import { initMetadata } from '../utils/init.js';
 
 export default class Push extends BaseCommand<typeof Push> {
   static description = 'Push updates to a deck';
@@ -19,6 +20,7 @@ export default class Push extends BaseCommand<typeof Push> {
   };
 
   public async run(): Promise<void> {
+    await initMetadata();
     await this.loginRequiredAsync();
 
     const { args } = await this.parse(Push);

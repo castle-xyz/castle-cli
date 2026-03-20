@@ -10,6 +10,7 @@ import watch from 'node-watch';
 import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
+import { initMetadata } from '../utils/init.js';
 
 // get the current version when page loads, so that if you reload the page it doesn't immediately
 // show the reload alert
@@ -131,6 +132,7 @@ export default class Serve extends BaseCommand<typeof Serve> {
   };
 
   public async run(): Promise<void> {
+    await initMetadata();
     const { args } = await this.parse(Serve);
     const { flags } = await this.parse(Serve);
 

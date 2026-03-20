@@ -6,6 +6,7 @@ import yaml from 'yaml';
 import * as path from 'path';
 
 import * as Decks from '../utils/decks.js';
+import { initMetadata } from '../utils/init.js';
 
 export default class Pull extends BaseCommand<typeof Pull> {
   static description = 'Pull updates from a deck';
@@ -19,6 +20,7 @@ export default class Pull extends BaseCommand<typeof Pull> {
   };
 
   public async run(): Promise<void> {
+    await initMetadata();
     const { args } = await this.parse(Pull);
 
     //this.log('euowuoequwouqo');

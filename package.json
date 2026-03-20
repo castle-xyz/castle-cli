@@ -5,7 +5,7 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/assets/core && cp src/assets/core/castle-core-node.wasm dist/assets/core/castle-core-node.wasm && cp src/assets/core/castle-core-node.cjs dist/assets/core/castle-core-node.cjs",
     "local": "npm run build && ./bin/run.js",
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "npm version patch && npm run build && oclif manifest && oclif readme",

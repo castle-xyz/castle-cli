@@ -1,7 +1,7 @@
 import yaml from 'yaml';
 import _ from 'lodash';
 
-import BehaviorConfig from '../assets/behaviors.json' with { type: 'json' };
+import { getCastleMetadata } from './castle-core-node.js';
 import * as Rules from './rules.js';
 import { ActorBlueprint, YamlString } from './blueprints.js';
 
@@ -9,15 +9,25 @@ function formatDisplayName(name) {
   return name.replace(/\s/g, '');
 }
 
-export const BEHAVIOR_ID_TO_DISPLAY_NAME = {};
-const BEHAVIOR_ID_TO_NAME = {};
+export let BEHAVIOR_ID_TO_DISPLAY_NAME: Record<string, string> = {};
+let BEHAVIOR_ID_TO_NAME: Record<string, string> = {};
+export let BEHAVIOR_DISPLAY_NAME_TO_ID: Record<string, string> = {};
 
-for (const key in BehaviorConfig) {
-  let behavior = BehaviorConfig[key];
-  BEHAVIOR_ID_TO_DISPLAY_NAME[behavior.behaviorId] = formatDisplayName(behavior.displayName);
-  BEHAVIOR_ID_TO_NAME[behavior.behaviorId] = behavior.name;
+let initialized = false;
+let BehaviorConfig: any = {};
+
+export async function initBehaviors() {
+  if (initialized) return;
+  initialized = true;
+  const { behaviors } = await getCastleMetadata();
+  BehaviorConfig = behaviors;
+  for (const key in BehaviorConfig) {
+    let behavior = BehaviorConfig[key];
+    BEHAVIOR_ID_TO_DISPLAY_NAME[behavior.behaviorId] = formatDisplayName(behavior.displayName);
+    BEHAVIOR_ID_TO_NAME[behavior.behaviorId] = behavior.name;
+  }
+  BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 }
-export const BEHAVIOR_DISPLAY_NAME_TO_ID = _.invert(BEHAVIOR_ID_TO_DISPLAY_NAME);
 
 export const enum BehaviorKey {
   // There are around 27+ behavior keys, and likely more to come.

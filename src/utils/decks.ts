@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import * as Utils from './utils.js';
+import { applyComponentChanges } from './castle-core-node.js';
 
 export const DEFAULT_ACTOR = {
   bp: {
@@ -560,10 +561,16 @@ export async function newSceneDataForCardAsync({
             });
           }
 
-          let actorBlueprint = Utils.mergeSkipArray(
+          let mergedBlueprint = Utils.mergeSkipArray(
             _.cloneDeep(library[entryId].actorBlueprint),
             localBlueprintData
           );
+          // Apply through WASM to trigger handleSetProperty side effects on all components
+          const normalizedComponents = await applyComponentChanges(
+            mergedBlueprint.components ?? {},
+            localBlueprintData.components ?? {}
+          );
+          let actorBlueprint = { ...mergedBlueprint, components: normalizedComponents };
 
           if (!Utils.isEqualUnordered(actorBlueprint, library[entryId].actorBlueprint)) {
             modifiedLibrary = true;

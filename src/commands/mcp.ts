@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as API from '../utils/api.js';
+import { initMetadata } from '../utils/init.js';
 import * as Blueprints from '../utils/blueprints.js';
 import { BlueprintEntryType } from '../utils/blueprints.js';
 import { getCurrentDeck, getCurrentDeckCards } from '../utils/decks.js';
@@ -162,6 +163,7 @@ export default class MCP extends BaseCommand<typeof MCP> {
   static hidden = true;
 
   public async run(): Promise<void> {
+    await initMetadata();
     const transport = new StdioServerTransport();
     await server.connect(transport);
   }
