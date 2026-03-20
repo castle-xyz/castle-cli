@@ -9,8 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
-import * as Utils from './utils.js';
-import { applySnapshot, getSnapshotExternalValues, getCastleMetadata } from './castle-core-node.js';
+import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
 
 export const DEFAULT_ACTOR = {
   bp: {
@@ -43,15 +42,6 @@ function getCastleDir(deckDir: string) {
   return result;
 }
 
-export function getCacheDir(deckDir: string) {
-  let result = path.join(deckDir, '.castle', '.cache');
-
-  if (!fs.existsSync(result)) {
-    fs.mkdirSync(result, { recursive: true });
-  }
-
-  return result;
-}
 
 export function getBlueprintsDir(cardDir: string) {
   // blueprints can be moved anywhere, this is just the default
@@ -92,6 +82,33 @@ function stripBlueprintComponents(components: any): void {
   }
 }
 
+// Extract engine-computed draw/physics data from blueprint components into companion .draw.json format.
+function extractDrawData(components: any): Record<string, any> | null {
+  const drawData: Record<string, any> = {};
+
+  if (components.Drawing2) {
+    const d2: any = {};
+    if (components.Drawing2.drawData !== undefined) d2.drawData = components.Drawing2.drawData;
+    if (components.Drawing2.physicsBodyData !== undefined) d2.physicsBodyData = components.Drawing2.physicsBodyData;
+    if (components.Drawing2.hash !== undefined) d2.hash = components.Drawing2.hash;
+    if (Object.keys(d2).length > 0) drawData.Drawing2 = d2;
+  }
+
+  if (components.Body) {
+    const body: any = {};
+    if (components.Body.fixtures !== undefined) body.fixtures = components.Body.fixtures;
+    if (components.Body.editorBounds !== undefined) body.editorBounds = components.Body.editorBounds;
+    if (Object.keys(body).length > 0) drawData.Body = body;
+  }
+
+  // Preserve complex data that WASM strips from applySnapshot
+  if (Array.isArray(components.LocalVariables?.localVariables) && components.LocalVariables.localVariables.length > 0) {
+    drawData.LocalVariables = { localVariables: components.LocalVariables.localVariables };
+  }
+
+  return Object.keys(drawData).length > 0 ? drawData : null;
+}
+
 /**
  * Get the deck ID of the current deck.
  */
@@ -122,13 +139,12 @@ export function getCurrentDeckCards(deckDir: string = '.'): string[] {
 export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { deckDir: string; cardId: string; sceneDataUrl: string }) {
   const response = await Axios.get(sceneDataUrl);
   const sceneData = response.data;
-  const cacheDir = getCacheDir(deckDir);
-  const cacheFilePath = path.join(cacheDir, `${cardId}.json`);
-
-  fs.writeFileSync(cacheFilePath, JSON.stringify(sceneData, null, 2));
-  fs.writeFileSync(path.join(cacheDir, `${cardId}.version`), sceneDataUrl);
 
   let castleDir = getCastleDir(deckDir);
+
+  // Track last synced version in .castle/ (no longer in .castle/.cache/)
+  fs.writeFileSync(path.join(castleDir, `${cardId}.version`), sceneDataUrl);
+
   let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
   let cardVersions: Record<string, string> = {};
 
@@ -408,28 +424,20 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
 
   const blueprintsDir = getBlueprintsDir(cardDir);
 
-  // Convert the whole snapshot internal→external in one WASM call
-  const externalSnapshot = await getSnapshotExternalValues(sceneData.snapshot);
-
-  // Restore Rules.rules from original sceneData (WASM only processes Prop values)
-  // and strip engine-computed/per-instance fields from library blueprints
-  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
-    const origEntry = library[entryId];
-    const components = entry.actorBlueprint?.components ?? {};
-
-    stripBlueprintComponents(components);
-    // Restore Rules.rules (WASM strips non-Prop complex data)
-    if (origEntry?.actorBlueprint?.components?.Rules?.rules !== undefined) {
-      if (!components.Rules) components.Rules = {};
-      components.Rules.rules = origEntry.actorBlueprint.components.Rules.rules;
-    }
-  }
-
-  // Write blueprint YAMLs
-  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+  // Write blueprint YAMLs + companion .draw.json files (work with internal library directly)
+  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
     if (entry.entryType !== 'actorBlueprint') continue;
     const title = entry.title;
-    const components = entry.actorBlueprint?.components ?? {};
+    const origComponents = entry.actorBlueprint?.components ?? {};
+
+    // Deep copy and apply YAML conventions
+    const components = JSON.parse(JSON.stringify(origComponents));
+    stripBlueprintComponents(components);
+    // Apply ×10 for Body scale fields (YAML format uses 0–10 scale)
+    if (components.Body) {
+      if (components.Body.widthScale !== undefined) components.Body.widthScale *= 10;
+      if (components.Body.heightScale !== undefined) components.Body.heightScale *= 10;
+    }
 
     const blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
     const scriptFilename = path.relative(
@@ -448,6 +456,12 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
       components: Behaviors.serializeComponents({ components, writeScriptFile }),
     };
     fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
+
+    // Write companion .draw.json with engine-computed drawing/physics data
+    const drawData = extractDrawData(origComponents);
+    if (drawData) {
+      fs.writeFileSync(blueprintFilename.replace(/\.yaml$/, '.draw.json'), JSON.stringify(drawData, null, 2));
+    }
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
@@ -509,26 +523,20 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
   const blueprintsDir = getBlueprintsDir(cardDir);
 
-  // Convert the whole snapshot internal→external in one WASM call
-  const externalSnapshot = await getSnapshotExternalValues(sceneData.snapshot);
-
-  // Restore Rules.rules from original sceneData and strip engine-computed/per-instance fields
-  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
-    const origEntry = library[entryId];
-    const components = entry.actorBlueprint?.components ?? {};
-
-    stripBlueprintComponents(components);
-    if (origEntry?.actorBlueprint?.components?.Rules?.rules !== undefined) {
-      if (!components.Rules) components.Rules = {};
-      components.Rules.rules = origEntry.actorBlueprint.components.Rules.rules;
-    }
-  }
-
-  // Write blueprint YAMLs (preserving existing filenames if available)
-  for (const [entryId, entry] of Object.entries(externalSnapshot.library) as [string, any][]) {
+  // Write blueprint YAMLs + companion .draw.json files (work with internal library directly)
+  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
     if (entry.entryType !== 'actorBlueprint') continue;
     const title = entry.title;
-    const components = entry.actorBlueprint?.components ?? {};
+    const origComponents = entry.actorBlueprint?.components ?? {};
+
+    // Deep copy and apply YAML conventions
+    const components = JSON.parse(JSON.stringify(origComponents));
+    stripBlueprintComponents(components);
+    // Apply ×10 for Body scale fields (YAML format uses 0–10 scale)
+    if (components.Body) {
+      if (components.Body.widthScale !== undefined) components.Body.widthScale *= 10;
+      if (components.Body.heightScale !== undefined) components.Body.heightScale *= 10;
+    }
 
     let blueprintFilename: string;
     let localComponents: any = null;
@@ -563,6 +571,12 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
       components: Behaviors.serializeComponents({ components, writeScriptFile }),
     };
     fs.writeFileSync(blueprintFilename, yaml.stringify(blueprintData));
+
+    // Write companion .draw.json with engine-computed drawing/physics data
+    const drawData = extractDrawData(origComponents);
+    if (drawData) {
+      fs.writeFileSync(blueprintFilename.replace(/\.yaml$/, '.draw.json'), JSON.stringify(drawData, null, 2));
+    }
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
@@ -600,35 +614,49 @@ export async function newSceneDataForCardAsync({
   cardDir: string;
   deckDir: string;
 }) {
-  const cacheDir = getCacheDir(deckDir);
-  const sceneData = JSON.parse(fs.readFileSync(path.join(cacheDir, `${cardId}.json`), 'utf8'));
+  const bpDir = path.join(cardDir, 'blueprints');
 
-  const library = sceneData.snapshot.library;
-  const entryIds = Object.keys(library);
-  const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
-
-  // 1. Build local library from blueprint YAMLs (external format, display→internal names)
+  // 1. Build local library from blueprint YAMLs + companion .draw.json files
   const localLibrary: any = {};
-  for (const entryId of entryIds) {
-    const entry = library[entryId];
-    if (entry.entryType !== 'actorBlueprint') continue;
-    if (!entryIdToBlueprintFilename[entryId]) continue;
+  const drawDataByEntryId: Record<string, any> = {};
 
-    const blueprintFilename = path.join(cardDir, entryIdToBlueprintFilename[entryId]);
-    const localBlueprintData = yaml.parse(fs.readFileSync(blueprintFilename, 'utf8'));
-    if (!localBlueprintData) continue;
+  if (fs.existsSync(bpDir)) {
+    const yamlFiles = fs.readdirSync(bpDir).filter(f => f.endsWith('.yaml'));
+    for (const yamlFile of yamlFiles) {
+      const slug = yamlFile.replace('.yaml', '');
+      let bpData: any;
+      try {
+        bpData = yaml.parse(fs.readFileSync(path.join(bpDir, yamlFile), 'utf-8'));
+      } catch { continue; }
+      if (!bpData?.entryId) continue;
 
-    const localComponents = Behaviors.deserializeComponents({
-      components: localBlueprintData.components ?? {},
-      readFile: (relativePath) =>
-        fs.readFileSync(path.join(path.dirname(blueprintFilename), relativePath), 'utf8'),
-    });
+      const entryId = bpData.entryId;
+      const localComponents = Behaviors.deserializeComponents({
+        components: bpData.components ?? {},
+        readFile: (relativePath) =>
+          fs.readFileSync(path.join(bpDir, relativePath), 'utf-8'),
+      });
 
-    localLibrary[entryId] = {
-      entryType: 'actorBlueprint',
-      title: localBlueprintData.title,
-      actorBlueprint: { components: localComponents },
-    };
+      localLibrary[entryId] = {
+        entryType: 'actorBlueprint',
+        title: bpData.title,
+        actorBlueprint: { components: localComponents },
+      };
+
+      // Read companion .draw.json if it exists
+      const drawJsonPath = path.join(bpDir, `${slug}.draw.json`);
+      if (fs.existsSync(drawJsonPath)) {
+        try {
+          const drawData = JSON.parse(fs.readFileSync(drawJsonPath, 'utf-8'));
+          drawDataByEntryId[entryId] = drawData;
+          // Inject localVariables into localLibrary so WASM can round-trip it
+          if (drawData.LocalVariables?.localVariables) {
+            if (!localComponents.LocalVariables) localComponents.LocalVariables = {};
+            localComponents.LocalVariables.localVariables = drawData.LocalVariables.localVariables;
+          }
+        } catch {}
+      }
+    }
   }
 
   // 2. Build local actors from actors.yaml (flat format: title, degrees, ×10 widthScale)
@@ -638,7 +666,7 @@ export async function newSceneDataForCardAsync({
 
   // Build title→entryId map for looking up parentEntryId by title
   const titleToEntryId: Record<string, string> = {};
-  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
+  for (const [entryId, entry] of Object.entries(localLibrary) as [string, any][]) {
     if (entry.title) titleToEntryId[entry.title] = entryId;
   }
 
@@ -649,9 +677,9 @@ export async function newSceneDataForCardAsync({
       for (const [key, data] of Object.entries(actorsObj) as [string, any][]) {
         const actorId = key.startsWith('a') ? key.slice(1) : key;
 
-        // Support both new flat format (title) and legacy nested format (entryId + components)
+        // Support both title and entryId lookups
         const parentEntryId = data.entryId || (data.title && titleToEntryId[data.title]);
-        if (!parentEntryId || !library[parentEntryId]) continue;
+        if (!parentEntryId || !localLibrary[parentEntryId]) continue;
 
         // Flat format: { title, x, y, angle (degrees), widthScale ×10, initialFrame }
         const body: any = {
@@ -686,83 +714,65 @@ export async function newSceneDataForCardAsync({
   try {
     processedSnapshot = await applySnapshot(localSnapshot);
   } catch (e: any) {
-    console.warn(`[serve] applySnapshot failed (${e.message}) — serving cached scene data as-is`);
-    return { sceneData, modified: false };
+    console.warn(`[serve] applySnapshot failed (${e.message}) — returning unprocessed scene data`);
+    return { sceneData: { snapshot: { library: localLibrary, actors: localActors } }, modified: false };
   }
 
-  // 4. Merge processed library with cache to restore engine-computed fields and local Rules.rules
-  let modifiedLibrary = false;
-  for (const entryId of Object.keys(processedSnapshot.library)) {
-    const cached = library[entryId]?.actorBlueprint;
-    if (!cached) continue;
+  // 4. Merge draw/physics data and restore WASM-stripped complex data
+  const processedLibrary = processedSnapshot.library ?? {};
+  for (const entryId of Object.keys(processedLibrary)) {
+    const bp = processedLibrary[entryId].actorBlueprint;
+    if (!bp) continue;
+    if (!bp.components) bp.components = {};
 
-    const localBP = localLibrary[entryId]?.actorBlueprint ?? {};
-    const processed = processedSnapshot.library[entryId].actorBlueprint;
-
-    // Strip engine-computed Body fields from `processed` so the cached values (e.g. fixtures,
-    // editorBounds) are not overwritten with empty/default values from the WASM output.
-    if (processed?.components?.Body) {
-      for (const field of BODY_COMPUTED_FIELDS) {
-        delete processed.components.Body[field];
+    // Merge draw/physics data from companion .draw.json files
+    const drawData = drawDataByEntryId[entryId];
+    if (drawData) {
+      if (drawData.Drawing2) {
+        if (!bp.components.Drawing2) bp.components.Drawing2 = {};
+        Object.assign(bp.components.Drawing2, drawData.Drawing2);
+      }
+      if (drawData.Body) {
+        if (!bp.components.Body) bp.components.Body = {};
+        Object.assign(bp.components.Body, drawData.Body);
       }
     }
-    // Strip engine-computed Drawing2 fields from `processed` (same reason).
-    if (processed?.components?.Drawing2) {
-      delete processed.components.Drawing2.hash;
-      delete processed.components.Drawing2.drawData;
-      delete processed.components.Drawing2.physicsBodyData;
-      delete processed.components.Drawing2.currentFrame;
+
+    // Restore complex data stripped by applySnapshot from local blueprint definitions
+    const localBPComponents = localLibrary[entryId]?.actorBlueprint?.components ?? {};
+
+    // Rules.rules — applySnapshot strips all rule data
+    const localRules = localBPComponents.Rules;
+    if (localRules?.rules !== undefined) {
+      if (!bp.components.Rules) bp.components.Rules = {};
+      bp.components.Rules.rules = localRules.rules;
     }
 
-    // Three-way merge:
-    // - cached: has Drawing2.hash/drawData, server Rules.rules (complex data)
-    // - localBP: has local Rules.rules (from blueprint file, takes priority over cached)
-    // - processed: has WASM-converted Prop values (widthScale÷10, etc.)
-    // Use mergeWith to replace arrays (not deep-merge) so local Rules.rules wins
-    const merged = _.mergeWith(
-      _.cloneDeep(cached),
-      localBP,
-      processed,
-      (dst: any, src: any) => {
-        if (Array.isArray(src)) return _.cloneDeep(src);
+    // LocalVariables.localVariables — applySnapshot strips them
+    const localLV = localBPComponents.LocalVariables;
+    if (localLV?.localVariables !== undefined) {
+      if (!bp.components.LocalVariables) bp.components.LocalVariables = {};
+      bp.components.LocalVariables.localVariables = localLV.localVariables;
+    }
+
+    // disabled:true on any behavior — applySnapshot strips the disabled flag;
+    // disabled:true means the behavior is intentionally inactive and must be preserved
+    for (const [compName, localComp] of Object.entries(localBPComponents) as [string, any][]) {
+      if (localComp?.disabled === true) {
+        if (!bp.components[compName]) bp.components[compName] = {};
+        bp.components[compName].disabled = true;
       }
-    );
-
-    if (!Utils.isEqualUnordered(merged, cached)) {
-      modifiedLibrary = true;
-    }
-
-    library[entryId] = {
-      ...library[entryId],
-      title: localLibrary[entryId]?.title ?? library[entryId].title,
-      actorBlueprint: merged,
-    };
-
-    if (localLibrary[entryId]?.title && localLibrary[entryId].title !== library[entryId].title) {
-      modifiedLibrary = true;
     }
   }
 
-  if (modifiedLibrary) {
-    sceneData.snapshot.library = library;
-  }
-
-  // 5. Apply processed actors from actors.yaml (if file exists)
-  let modifiedLayout = false;
-  if (actorsFileExists) {
-    const oldActors = sceneData.snapshot.actors;
-    sceneData.snapshot.actors = processedSnapshot.actors;
-    if (!Utils.isEqualUnordered(processedSnapshot.actors, oldActors)) {
-      modifiedLayout = true;
-    }
-  }
-
-  const modified = modifiedLibrary || modifiedLayout;
-
-  return {
-    sceneData,
-    modified,
+  const sceneData = {
+    snapshot: {
+      library: processedLibrary,
+      actors: actorsFileExists ? (processedSnapshot.actors ?? []) : [],
+    },
   };
+
+  return { sceneData, modified: true };
 }
 
 async function pushCardAsync({ cardId, cardDir, deckDir }: { cardId: string; cardDir: string; deckDir: string }) {
@@ -855,7 +865,6 @@ export async function syncCardVersionsAsync({ deckDir, force = false }: { deckDi
   } catch (e) {}
 
   let cardIds = Object.keys(cardVersions);
-  let cacheDir = getCacheDir(deckDir);
 
   for (let cardId of cardIds) {
     const sceneDataUrl = cardVersions[cardId];
@@ -865,12 +874,13 @@ export async function syncCardVersionsAsync({ deckDir, force = false }: { deckDi
 
     let cachedSceneDataUrl = '';
     try {
-      cachedSceneDataUrl = fs.readFileSync(path.join(cacheDir, `${cardId}.version`), 'utf8').trim();
+      cachedSceneDataUrl = fs.readFileSync(path.join(castleDir, `${cardId}.version`), 'utf8').trim();
     } catch (e) {}
 
     if (cachedSceneDataUrl != sceneDataUrl || force) {
       console.log(`Syncing card ${cardId}...`);
-      await syncSceneDataAsync({ deckDir, cardId, sceneDataUrl });
+      const cardDir = path.join(deckDir, `card-${cardId}`);
+      await pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir });
     }
   }
 }

@@ -73,17 +73,11 @@ describe('serve command', () => {
 
     // Set up deck structure
     fs.writeFileSync(path.join(deckDir, 'deck.yaml'), yaml.stringify({ deckId: 'deck-abc' }));
-    fs.mkdirSync(path.join(deckDir, '.castle', '.cache'), { recursive: true });
+    fs.mkdirSync(path.join(deckDir, '.castle'), { recursive: true });
     fs.mkdirSync(path.join(deckDir, 'card-card-xyz', 'blueprints'), { recursive: true });
     fs.writeFileSync(
       path.join(deckDir, 'card-card-xyz', 'card.yaml'),
       yaml.stringify({ cardId: 'card-xyz' })
-    );
-
-    // Write cache
-    fs.writeFileSync(
-      path.join(deckDir, '.castle', '.cache', 'card-xyz.json'),
-      JSON.stringify(MOCK_SCENE_DATA, null, 2)
     );
 
     // Write actors.yaml in flat format (prompt.md format: title, degrees, ×10 widthScale)
@@ -111,13 +105,21 @@ describe('serve command', () => {
       })
     );
 
-    // Write cardversions
+    // Write companion .draw.json with drawing data
+    fs.writeFileSync(
+      path.join(deckDir, 'card-card-xyz', 'blueprints', 'Player.draw.json'),
+      JSON.stringify({
+        Drawing2: { drawData: { framesBounds: [{ minX: 0, maxX: 100, minY: 0, maxY: 100 }] } },
+      })
+    );
+
+    // Write cardversions and version tracking file (new location: .castle/ not .castle/.cache/)
     fs.writeFileSync(
       path.join(deckDir, '.castle', 'cardversions.json'),
       JSON.stringify({ 'card-xyz': 'https://example.com/card-xyz.json' })
     );
     fs.writeFileSync(
-      path.join(deckDir, '.castle', '.cache', 'card-xyz.version'),
+      path.join(deckDir, '.castle', 'card-xyz.version'),
       'https://example.com/card-xyz.json'
     );
 

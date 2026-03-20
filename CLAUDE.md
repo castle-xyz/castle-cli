@@ -81,6 +81,12 @@ The mobile app sends a `StateMessage` (full serialized game state) over WebSocke
 
 The compiled C++ game engine is downloaded from `https://cdn.castle.xyz/player/{playerId}/node/` and cached in `~/.castle/cache/node/{playerId}/`. It is loaded by `castle-core-node.ts` and exposes behavior/rules metadata and value-conversion functions. The player ID is fetched from `https://castle.xyz/api/player-id` and cached locally.
 
+Set `CASTLE_LOCAL_NODE` to use a local build of the WASM module instead of downloading from CDN:
+- `CASTLE_LOCAL_NODE=1` — loads from `./node-dev/` relative to the current working directory
+- `CASTLE_LOCAL_NODE=/path/to/dir` — loads from the specified directory
+
+The directory must contain `castle-core-node.js` and `castle-core-node.wasm`.
+
 ### Adding New Decks to Round-Trip Tests
 
 `test/clone-serve-round-trip.test.ts` automatically picks up any JSON file in `test/fixtures/decks/`. To add a new deck:

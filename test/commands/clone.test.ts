@@ -141,12 +141,22 @@ describe('clone command', () => {
     expect(yamlFiles.length).toBeGreaterThan(0);
   });
 
-  it('creates .castle/.cache directory', async () => {
+  it('creates .castle directory and writes .draw.json companion files', async () => {
     const deckDir = path.join(tmpDir, 'test-deck');
     await clone('deck-abc', { directory: deckDir });
 
-    const cacheDir = path.join(deckDir, '.castle', '.cache');
-    expect(fs.existsSync(cacheDir)).toBe(true);
+    const castleDir = path.join(deckDir, '.castle');
+    expect(fs.existsSync(castleDir)).toBe(true);
+
+    // Blueprint draw companion file should exist
+    const bpDir = path.join(deckDir, 'card-card-xyz', 'blueprints');
+    const drawFiles = fs.readdirSync(bpDir).filter(f => f.endsWith('.draw.json'));
+    expect(drawFiles.length).toBeGreaterThan(0);
+
+    // The draw.json should contain Drawing2 data
+    const drawData = JSON.parse(fs.readFileSync(path.join(bpDir, drawFiles[0]), 'utf-8'));
+    expect(drawData.Drawing2).toBeDefined();
+    expect(drawData.Drawing2.drawData).toBeDefined();
   });
 
   it('preserves Tags.tagsString in blueprint YAML', async () => {

@@ -232,6 +232,7 @@ function nestResponses(responses: any[], index = 0) {
       let nextResponse = nestResponses(responses, index + 1);
 
       if (nextResponse) {
+        if (!response.params) response.params = {};
         response.params.nextResponse = nextResponse;
       }
     }
@@ -245,10 +246,9 @@ function nestResponses(responses: any[], index = 0) {
 function deserializeBaseRulerInner(rule: any) {
   let result: any = {
     name: rule.name,
-    params: {},
   };
 
-  if (rule.params) {
+  if (rule.params !== undefined) {
     result.params = rule.params;
   }
 

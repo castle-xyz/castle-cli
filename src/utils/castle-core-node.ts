@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const CASTLE_CDN = 'https://cdn.castle.xyz';
 
 let M: any = null;
+let modulePromise: Promise<any> | null = null;
 let metadataCache: { behaviors: any; rules: any } | null = null;
 
 async function ensureCachedNodeFiles(playerId: string): Promise<void> {
@@ -23,22 +24,30 @@ async function ensureCachedNodeFiles(playerId: string): Promise<void> {
 
 async function getModule(): Promise<any> {
   if (M) return M;
-  let nodeDir: string;
-  const localNode = process.env.CASTLE_LOCAL_NODE;
-  if (localNode) {
-    nodeDir = localNode === '1' ? path.resolve(process.cwd(), '../castle-client-3/node-test') : localNode;
-    console.log(`[castle-core] using local node WASM from ${nodeDir}`);
-  } else {
-    const playerId = await fetchPlayerId(false);
-    if (!playerId) throw new Error('Cannot load castle-core: no player ID (no network and no cache)');
-    await ensureCachedNodeFiles(playerId);
-    nodeDir = path.join(getCacheDir(), 'node', playerId);
+  if (!modulePromise) {
+    modulePromise = (async () => {
+      let nodeDir: string;
+      const localNode = process.env.CASTLE_LOCAL_NODE;
+      if (localNode) {
+        nodeDir = localNode === '1' ? path.resolve(process.cwd(), 'node-dev') : localNode;
+        console.log(`[castle-core] using local node WASM from ${nodeDir}`);
+      } else {
+        const playerId = await fetchPlayerId(false);
+        if (!playerId) throw new Error('Cannot load castle-core: no player ID (no network and no cache)');
+        await ensureCachedNodeFiles(playerId);
+        nodeDir = path.join(getCacheDir(), 'node', playerId);
+      }
+      const CastleNode = require(path.join(nodeDir, 'castle-core-node.js'));
+      const wasmBinary = fs.readFileSync(path.join(nodeDir, 'castle-core-node.wasm'));
+      M = await CastleNode({ wasmBinary });
+      M.ccall('castle_node_init', 'number', [], []);
+      return M;
+    })().catch(e => {
+      modulePromise = null; // allow retry on next call
+      throw e;
+    });
   }
-  const CastleNode = require(path.join(nodeDir, 'castle-core-node.js'));
-  const wasmBinary = fs.readFileSync(path.join(nodeDir, 'castle-core-node.wasm'));
-  M = await CastleNode({ wasmBinary });
-  M.ccall('castle_node_init', 'number', [], []);
-  return M;
+  return modulePromise;
 }
 
 export async function getCastleMetadata(): Promise<{ behaviors: any; rules: any }> {

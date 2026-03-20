@@ -109,5 +109,16 @@ export interface StateInternalMessage {
   prompt: string;
 }
 
-export type AppToCliMessage = StateMessage | StateInternalMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
+// Incremental diff message: only changed blueprints/actors vs last sent full state
+export interface StateInternalDiffMessage {
+  type: 'state_internal_diff';
+  deckId: string;
+  cardId: string;
+  cliSessionId: string;
+  blueprintChanges?: Record<string, any>;  // entryId → entry | { removed: true }
+  actorChanges?: Record<string, any>;      // 'a{id}' → actor | { removed: true }
+  variables?: VariableData[];              // full list (always included, small)
+}
+
+export type AppToCliMessage = StateMessage | StateInternalMessage | StateInternalDiffMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
 export type CliToAppMessage = EditMessage | PingMessage | RequestScreenshotMessage | StopAndPlayMessage;

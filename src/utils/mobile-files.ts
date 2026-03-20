@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import yaml from 'yaml';
-import { StateMessage, StateInternalMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
+import { StateMessage, StateInternalMessage, StateInternalDiffMessage, BlueprintData, ActorData, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
 
@@ -96,11 +96,35 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
     writtenSlugs.add(slug);
     blueprintIdMap[slug] = entryId;
 
-    // Write YAML (components without script code)
+    // Extract draw/physics data (if present) before writing YAML — stored in companion .draw.json
+    const bpComponents = { ...bp.components };
+    const drawFileData: any = {};
+    if (bpComponents.Drawing2) {
+      const d2: any = { ...bpComponents.Drawing2 };
+      const d2extract: any = {};
+      if (d2.drawData !== undefined) { d2extract.drawData = d2.drawData; delete d2.drawData; }
+      if (d2.physicsBodyData !== undefined) { d2extract.physicsBodyData = d2.physicsBodyData; delete d2.physicsBodyData; }
+      if (d2.hash !== undefined) { d2extract.hash = d2.hash; delete d2.hash; }
+      if (Object.keys(d2extract).length > 0) drawFileData.Drawing2 = d2extract;
+      bpComponents.Drawing2 = d2;
+    }
+    if (bpComponents.Body) {
+      const body: any = { ...bpComponents.Body };
+      const bodyExtract: any = {};
+      if (body.fixtures !== undefined) { bodyExtract.fixtures = body.fixtures; delete body.fixtures; }
+      if (body.editorBounds !== undefined) { bodyExtract.editorBounds = body.editorBounds; delete body.editorBounds; }
+      if (Object.keys(bodyExtract).length > 0) drawFileData.Body = bodyExtract;
+      bpComponents.Body = body;
+    }
+    if (Object.keys(drawFileData).length > 0) {
+      fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
+    }
+
+    // Write YAML (components without draw data or script code)
     const bpData: any = {
       title: bp.title,
       entryId: bp.entryId,
-      components: bp.components,
+      components: bpComponents,
     };
 
     // Reference the lua file if there's script code
@@ -126,8 +150,10 @@ export function writeState(cardDir: string, state: StateMessage): MetaData {
   // Clean up blueprint files that no longer exist
   const existingBpFiles = fs.existsSync(bpDir) ? fs.readdirSync(bpDir) : [];
   for (const file of existingBpFiles) {
-    const slug = file.replace(/\.(yaml|lua)$/, '');
-    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua'))) {
+    const slug = file.endsWith('.draw.json')
+      ? file.slice(0, -'.draw.json'.length)
+      : file.replace(/\.(yaml|lua)$/, '');
+    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua') || file.endsWith('.draw.json'))) {
       fs.unlinkSync(path.join(bpDir, file));
     }
   }
@@ -468,7 +494,26 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     // Use display-format components from WASM conversion; fall back to internal
     const rawComponents = { ...(externalLibrary[entryId]?.actorBlueprint?.components ?? entryTyped.actorBlueprint?.components ?? {}) };
 
-    // Strip engine-only Drawing2 fields (preserved in cache, not needed in YAML)
+    // Extract engine-computed drawing/physics data before stripping — stored in companion .draw.json
+    const drawFileData: any = {};
+    if (rawComponents.Drawing2) {
+      const d2extract: any = {};
+      if (rawComponents.Drawing2.drawData !== undefined) d2extract.drawData = rawComponents.Drawing2.drawData;
+      if (rawComponents.Drawing2.physicsBodyData !== undefined) d2extract.physicsBodyData = rawComponents.Drawing2.physicsBodyData;
+      if (rawComponents.Drawing2.hash !== undefined) d2extract.hash = rawComponents.Drawing2.hash;
+      if (Object.keys(d2extract).length > 0) drawFileData.Drawing2 = d2extract;
+    }
+    if (rawComponents.Body) {
+      const bodyExtract: any = {};
+      if (rawComponents.Body.fixtures !== undefined) bodyExtract.fixtures = rawComponents.Body.fixtures;
+      if (rawComponents.Body.editorBounds !== undefined) bodyExtract.editorBounds = rawComponents.Body.editorBounds;
+      if (Object.keys(bodyExtract).length > 0) drawFileData.Body = bodyExtract;
+    }
+    if (Object.keys(drawFileData).length > 0) {
+      fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
+    }
+
+    // Strip engine-only Drawing2 fields (not needed in YAML; stored in .draw.json above)
     if (rawComponents.Drawing2) {
       const d2 = { ...rawComponents.Drawing2 };
       delete d2.drawData;
@@ -516,11 +561,13 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     }
   }
 
-  // Clean up blueprint files that no longer exist
+  // Clean up blueprint files that no longer exist (including .draw.json companions)
   const existingBpFiles = fs.existsSync(bpDir) ? fs.readdirSync(bpDir) : [];
   for (const file of existingBpFiles) {
-    const slug = file.replace(/\.(yaml|lua)$/, '');
-    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua'))) {
+    const slug = file.endsWith('.draw.json')
+      ? file.slice(0, -'.draw.json'.length)
+      : file.replace(/\.(yaml|lua)$/, '');
+    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua') || file.endsWith('.draw.json'))) {
       fs.unlinkSync(path.join(bpDir, file));
     }
   }
@@ -588,6 +635,29 @@ Changes are synced to the mobile app automatically.`;
   writeMeta(cardDir, meta);
 
   return meta;
+}
+
+// Merge a StateInternalDiffMessage into a full StateInternalMessage.
+export function applyStateDiff(
+  base: StateInternalMessage,
+  diff: StateInternalDiffMessage
+): StateInternalMessage {
+  const blueprints = { ...base.blueprints };
+  for (const [id, change] of Object.entries(diff.blueprintChanges ?? {})) {
+    if ((change as any).removed) delete blueprints[id];
+    else blueprints[id] = change;
+  }
+  const actors = { ...base.actors };
+  for (const [key, change] of Object.entries(diff.actorChanges ?? {})) {
+    if ((change as any).removed) delete actors[key];
+    else actors[key] = change;
+  }
+  return {
+    ...base,
+    blueprints,
+    actors,
+    variables: diff.variables ?? base.variables,
+  };
 }
 
 // Convert StateInternalMessage → scene data JSON (for web player cache).

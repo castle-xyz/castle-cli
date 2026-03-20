@@ -2,8 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import yaml from 'yaml';
 
-const GITIGNORE_CONTENT = `.castle/.cache
-.castle/logs.txt
+const GITIGNORE_CONTENT = `.castle/logs.txt
 .castle/commands.json
 .castle/screenshots/
 **/.castle/meta.json
@@ -40,9 +39,6 @@ export function initializeDeckDir(deckDir: string, deckId: string): void {
   if (!fs.existsSync(commandsPath)) {
     fs.writeFileSync(commandsPath, '');
   }
-
-  const cachePath = path.join(castleDir, '.cache');
-  if (!fs.existsSync(cachePath)) fs.mkdirSync(cachePath);
 
   const screenshotsPath = path.join(castleDir, 'screenshots');
   if (!fs.existsSync(screenshotsPath)) fs.mkdirSync(screenshotsPath);

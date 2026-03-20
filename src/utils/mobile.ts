@@ -5,17 +5,18 @@ import yaml from 'yaml';
 import {
   StateMessage,
   StateInternalMessage,
+  StateInternalDiffMessage,
   EditMessage,
   LogsMessage,
   ScreenshotMessage,
   CLIScreenshotMessage,
   AppToCliMessage,
 } from './mobile-protocol.js';
-import { writeState, writeStateInternal, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
+import { writeState, writeStateInternal, applyStateDiff, canWriteToDir, detectChanges, FileChanges, mobileStateToSceneData, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
-import { getCacheDir, generateSceneContext, writeDeckAgentFilesAsync } from './decks.js';
+import { generateSceneContext, writeDeckAgentFilesAsync } from './decks.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const CASTLE_DIR = '.castle';
@@ -58,6 +59,9 @@ export class CLIMobileConnection {
   // The last actors dict received from mobile, per cardDir. Used to compute
   // which keys were *newly added* by the user's edit vs already present in mobile.
   private lastMobileActors: Map<string, Record<string, any>> = new Map();
+
+  // The last full StateInternalMessage received per cardId. Used to apply incremental diffs.
+  private lastInternalStates: Map<string, StateInternalMessage> = new Map();
 
   // Tracks actor edits we sent that mobile may not have processed yet.
   // addedKeys: keys the user newly added — these need re-apply if mobile races us with stale state.
@@ -227,6 +231,8 @@ export class CLIMobileConnection {
       this._handleState(msg as StateMessage).catch((e) => this.logger.cli(`[mobile] error handling state: ${e}`));
     } else if (msg.type === 'state_internal') {
       this._handleStateInternal(msg as StateInternalMessage).catch((e) => this.logger.cli(`[mobile] error handling state_internal: ${e}`));
+    } else if (msg.type === 'state_internal_diff') {
+      this._handleStateInternalDiff(msg as StateInternalDiffMessage).catch((e) => this.logger.cli(`[mobile] error handling state_internal_diff: ${e}`));
     } else if (msg.type === 'logs') {
       this._handleLogs(msg as LogsMessage);
     } else if (msg.type === 'screenshot') {
@@ -314,12 +320,8 @@ export class CLIMobileConnection {
       this.lastMobileActors.set(cardDir, { ...state.actors } as Record<string, any>);
       this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
 
-      // Write scene data cache for web player
-      const sceneData = mobileStateToSceneData(state);
-      const cacheDir = getCacheDir(deckDir);
-      fs.writeFileSync(path.join(cacheDir, `${cardId}.json`), JSON.stringify(sceneData, null, 2));
-
       // Write SCENE.md (per-card blueprints + actors) and deck-level AGENTS.md/CLAUDE.md
+      const sceneData = mobileStateToSceneData(state);
       const sceneContext = await generateSceneContext(sceneData);
       if (sceneContext) {
         fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
@@ -414,13 +416,11 @@ export class CLIMobileConnection {
 
     try {
       const meta = await writeStateInternal(cardDir, state);
+      this.lastInternalStates.set(cardId, state);
       this.lastMobileActors.set(cardDir, { ...(meta.lastActors ?? {}) });
       this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
 
       const sceneData = mobileInternalStateToSceneData(state);
-      const cacheDir = getCacheDir(deckDir);
-      fs.writeFileSync(path.join(cacheDir, `${cardId}.json`), JSON.stringify(sceneData, null, 2));
-
       const sceneContext = await generateSceneContext(sceneData);
       if (sceneContext) {
         fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
@@ -460,6 +460,73 @@ export class CLIMobileConnection {
     }
 
     this._startCommandsPoll();
+  }
+
+  private async _handleStateInternalDiff(diff: StateInternalDiffMessage) {
+    const cardId = diff.cardId;
+
+    let deckDir: string;
+    if (this.expectedDeckId !== null) {
+      if (diff.deckId !== this.expectedDeckId) {
+        this.logger.cli(`⚠  Mobile has deck ${diff.deckId} open, but this directory serves deck ${this.expectedDeckId}.\n   Switch to the correct deck on mobile to enable sync.`);
+        return;
+      }
+      deckDir = this.deckDir;
+    } else {
+      if (this.lockedDeckId === null || diff.deckId !== this.lockedDeckId) {
+        this._sendToApp({ type: 'requestState' });
+        return;
+      }
+      deckDir = this.activeDeckDir!;
+    }
+
+    const cardDir = path.join(deckDir, `card-${cardId}`);
+
+    // Validate session
+    const lastSessionId = this.lastCliSessionIds.get(cardId);
+    if (!lastSessionId || diff.cliSessionId !== lastSessionId) {
+      this._sendToApp({ type: 'requestState' });
+      return;
+    }
+
+    // Look up base state for this card
+    const last = this.lastInternalStates.get(cardId);
+    if (!last) {
+      this._sendToApp({ type: 'requestState' });
+      return;
+    }
+
+    // Merge diff into full state
+    const merged = applyStateDiff(last, diff);
+
+    const bpChanges = Object.keys(diff.blueprintChanges ?? {}).length;
+    const actorChanges = Object.keys(diff.actorChanges ?? {}).length;
+    this.logger.cli(`received state_internal_diff for card ${cardId}: ${bpChanges} bp changes, ${actorChanges} actor changes`);
+
+    const prePendingChanges = detectChanges(cardDir);
+
+    try {
+      const meta = await writeStateInternal(cardDir, merged);
+      this.lastInternalStates.set(cardId, merged);
+      this.lastMobileActors.set(cardDir, { ...(meta.lastActors ?? {}) });
+      this.logger.cli(`wrote state_internal_diff for card ${cardId}`);
+
+      const sceneData = mobileInternalStateToSceneData(merged);
+      const sceneContext = await generateSceneContext(sceneData);
+      if (sceneContext) {
+        fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
+      }
+      await writeDeckAgentFilesAsync(deckDir);
+
+      if (this.onStateWritten) {
+        this.onStateWritten(cardId, deckDir);
+      }
+    } finally {
+      if (prePendingChanges?.hasChanges) {
+        this._reapplyPreWriteChanges(prePendingChanges, cardDir);
+      }
+      this._reapplyPendingActors(cardDir);
+    }
   }
 
   private _sendChanges(changes: FileChanges, cardDir: string) {

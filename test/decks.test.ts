@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import yaml from 'yaml';
-import { writeActorsAndVariablesAsync, newSceneDataForCardAsync, getCacheDir } from '../src/utils/decks.js';
+import { writeActorsAndVariablesAsync, newSceneDataForCardAsync } from '../src/utils/decks.js';
 import { initMetadata } from '../src/utils/init.js';
 import * as Behaviors from '../src/utils/behaviors.js';
 
@@ -161,11 +161,6 @@ describe('newSceneDataForCardAsync', () => {
     cardDir = path.join(deckDir, 'card-456');
     fs.mkdirSync(cardDir, { recursive: true });
 
-    // Create cache
-    const cacheDir = getCacheDir(deckDir);
-    const sceneData = makeSceneData();
-    fs.writeFileSync(path.join(cacheDir, '456.json'), JSON.stringify(sceneData, null, 2));
-
     // Create blueprint file in external format (widthScale ×10)
     fs.mkdirSync(path.join(cardDir, 'blueprints'));
     const bpData = {
@@ -179,6 +174,15 @@ describe('newSceneDataForCardAsync', () => {
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Player.yaml'),
       yaml.stringify(bpData)
+    );
+
+    // Write companion .draw.json with drawing data
+    const drawData = {
+      Drawing2: { drawData: { framesBounds: [{ minX: 0, maxX: 100, minY: 0, maxY: 100 }] } },
+    };
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Player.draw.json'),
+      JSON.stringify(drawData, null, 2)
     );
 
     // Create actors.yaml in flat format (prompt.md format: title, degrees, ×10 widthScale)
@@ -254,36 +258,14 @@ describe('newSceneDataForCardAsync round-trip', () => {
     fs.rmSync(deckDir, { recursive: true, force: true });
   });
 
-  function writeCacheAndActors(sceneData: any) {
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
+  function writeActors() {
     // Write actors.yaml in flat format (prompt.md format: title, degrees, ×10 widthScale)
     const actorsObj = { a1: { title: 'Test', x: 0, y: 0, widthScale: 3.0, heightScale: 3.0 } };
     fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsObj));
   }
 
-  it('preserves Drawing2.hash from cached scene when blueprint omits it', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: {
-              components: {
-                Body: { widthScale: 0.3, heightScale: 0.3 },
-                Drawing2: { initialFrame: 1, hash: 'original-hash-xyz', drawData: 'big-data-blob' },
-              },
-            },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
-      },
-    };
-    writeCacheAndActors(sceneData);
-
-    // Blueprint YAML has no hash/drawData — simulates what a user-edited blueprint looks like
-    // Values in external format (widthScale ×10)
+  it('preserves Drawing2.hash from draw.json companion file when blueprint omits it', async () => {
+    // Write blueprint YAML — no hash/drawData (simulates what a user-edited blueprint looks like)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
       yaml.stringify({
@@ -296,33 +278,23 @@ describe('newSceneDataForCardAsync round-trip', () => {
       })
     );
 
+    // Write companion .draw.json with hash and drawData
+    fs.writeFileSync(
+      path.join(cardDir, 'blueprints', 'Test.draw.json'),
+      JSON.stringify({ Drawing2: { hash: 'original-hash-xyz', drawData: 'big-data-blob' } })
+    );
+
+    writeActors();
+
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const components = result.sceneData.snapshot.library['e1'].actorBlueprint.components;
 
-    // hash and drawData must be preserved from the cached scene data
+    // hash and drawData must be preserved from the .draw.json companion file
     expect(components.Drawing2.hash).toBe('original-hash-xyz');
     expect(components.Drawing2.drawData).toBe('big-data-blob');
   });
 
   it('round-trips Body.widthScale: blueprint stores external format (×10), serve converts back', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: {
-              components: {
-                Body: { widthScale: 0.3, heightScale: 0.2 },
-              },
-            },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.2 } } } }],
-      },
-    };
-    writeCacheAndActors(sceneData);
-
     // Blueprint YAML stores values in external format (×10)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -334,6 +306,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         },
       })
     );
+    writeActors();
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const body = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Body;
@@ -344,24 +317,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
   });
 
   it('preserves Body.visible as true when blueprint sets it to true', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: {
-              components: {
-                Body: { widthScale: 0.3, heightScale: 0.3, visible: true },
-              },
-            },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
-      },
-    };
-    writeCacheAndActors(sceneData);
-
     // Blueprint YAML has visible: true (correct bool)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -373,6 +328,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         },
       })
     );
+    writeActors();
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const body = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Body;
@@ -390,25 +346,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
       },
     };
 
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: {
-              components: {
-                Body: { widthScale: 0.3, heightScale: 0.3 },
-                Rules: { rules: [] }, // server rules (empty — local file overrides)
-              },
-            },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
-      },
-    };
-    writeCacheAndActors(sceneData);
-
     // Blueprint YAML with inline rules (new format)
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -421,6 +358,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         },
       })
     );
+    writeActors();
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
     const rulesComp = result.sceneData.snapshot.library['e1'].actorBlueprint.components.Rules;
@@ -433,21 +371,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
   });
 
   it('round-trips angle: stores degrees in actors.yaml, applySnapshot converts to radians', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: { components: { Body: { widthScale: 0.3, heightScale: 0.3 } } },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, angle: 0.785, widthScale: 0.3 } } } }],
-      },
-    };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
-
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
       yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
@@ -467,24 +390,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
   });
 
   it('preserves Tags.tagsString from blueprint YAML through newSceneDataForCardAsync', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Test',
-            actorBlueprint: {
-              components: {
-                Body: { widthScale: 0.3, heightScale: 0.3 },
-                Tags: { tagsString: 'manager', disabled: false },
-              },
-            },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3, heightScale: 0.3 } } } }],
-      },
-    };
-    writeCacheAndActors(sceneData);
+    writeActors();
 
     // Blueprint YAML has Tags with tagsString (as written by clone)
     fs.writeFileSync(
@@ -519,8 +425,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Drawing2: { initialFrame: 3 } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -556,8 +460,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Drawing2: { initialFrame: 1 } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -585,8 +487,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { fontSizeScale: 2.5 } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -619,8 +519,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { fontSizeScale: 1 } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -648,8 +546,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { content: 'Custom text' } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -682,8 +578,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Text: { content: 'Same text' } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -711,8 +605,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Link: { targetDeckId: 'customDeck' } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -745,8 +637,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
         actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 }, Link: { targetDeckId: 'sameDeck' } } } }],
       },
     };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
@@ -762,21 +652,6 @@ describe('newSceneDataForCardAsync round-trip', () => {
   });
 
   it('reads actor by title from actors.yaml — title→entryId lookup', async () => {
-    const sceneData = {
-      snapshot: {
-        library: {
-          e1: {
-            entryType: 'actorBlueprint',
-            title: 'Bullet',
-            actorBlueprint: { components: { Body: { widthScale: 0.3 } } },
-          },
-        },
-        actors: [{ actorId: '1', parentEntryId: 'e1', bp: { components: { Body: { x: 0, y: 0, widthScale: 0.3 } } } }],
-      },
-    };
-    const cacheDir = getCacheDir(deckDir);
-    fs.writeFileSync(path.join(cacheDir, 'rt.json'), JSON.stringify(sceneData));
-
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Bullet.yaml'),
       yaml.stringify({ title: 'Bullet', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
