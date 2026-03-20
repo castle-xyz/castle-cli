@@ -97,9 +97,12 @@ function replaceBehaviorIdWithName(component: any) {
 
 function replaceBehaviorNameWithId(component: any) {
   if (component.behaviorName) {
-    let behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[component.behaviorName];
-    component.behaviorId = parseInt(behaviorId);
-    delete component.behaviorName;
+    const normalizedName = component.behaviorName.replace(/\s/g, '');
+    const behaviorId = Behaviors.BEHAVIOR_DISPLAY_NAME_TO_ID[normalizedName];
+    if (behaviorId !== undefined) {
+      component.behaviorId = parseInt(behaviorId);
+      delete component.behaviorName;
+    }
   }
 
   return component;
@@ -284,7 +287,9 @@ function deserializeRuleInner(rule: any) {
           let type = paramSpec.type;
 
           if (type == 'response') {
-            let responses = params[key].map((response: any) => deserializeRuleInner(response));
+            const rawParam = params[key];
+            const responsesArray = Array.isArray(rawParam) ? rawParam : (rawParam ? [rawParam] : []);
+            let responses = responsesArray.map((response: any) => deserializeRuleInner(response));
             let response = nestResponses(responses);
             params[key] = response;
           }

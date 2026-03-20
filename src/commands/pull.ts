@@ -26,7 +26,9 @@ export async function pull(options: { directory?: string } = {}) {
       if (cardData.cardId) {
         cardIdToDirectory[cardData.cardId] = path.dirname(cardFile);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[pull] failed to parse ${cardFile}:`, e);
+    }
   }
 
   for (let card of deck.cards) {

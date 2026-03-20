@@ -29,6 +29,22 @@ const DECK_IDS = [
   '1J_AMd_oX',
   'FWpL3FAIQ',
   'XijCjhwKi',
+  'hJAjFJJRoxjN',
+  // @pirate
+  '4wPooZTiuU-r',
+  'BZwhTln7MU',
+  'XBtz4pJ5IX',
+  'voqIgsAKnI',
+  'HXOzHd4nC',
+  't6zro4RpR',
+  'WRzgVsm_r',
+  'dK7rO4Wpn',
+  'tyg1BQ1tQ',
+  'xFg_-wWKq',
+  'JrRdVJFps',
+  'pe9Vu1IiQ',
+  'oyVfNUkIC',
+  'KqlIzW6uQ',
 ];
 
 const FIXTURES_DIR = path.join(__dirname, '..', 'test', 'fixtures', 'decks');
@@ -41,6 +57,12 @@ async function main() {
   }
 
   for (const deckId of DECK_IDS) {
+    const fixturePath = path.join(FIXTURES_DIR, `${deckId}.json`);
+    if (fs.existsSync(fixturePath)) {
+      console.log(`Skipping deck ${deckId} (already downloaded)`);
+      continue;
+    }
+
     console.log(`Fetching deck ${deckId}...`);
 
     let deck: any;
@@ -81,7 +103,6 @@ async function main() {
       cards,
     };
 
-    const fixturePath = path.join(FIXTURES_DIR, `${deckId}.json`);
     fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2));
     console.log(`  Saved ${fixturePath}`);
   }

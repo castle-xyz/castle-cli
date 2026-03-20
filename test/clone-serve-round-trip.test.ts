@@ -53,6 +53,12 @@ const DRAWING2_SKIP = new Set(['currentFrame', 'hash', 'drawData', 'physicsBodyD
 // and are not the focus of the round-trip correctness we're verifying here.
 const TEXT_SKIP = new Set(['color']);
 
+// Styles color fields have the same ~0.01 per-channel WASM color-space precision loss.
+const STYLES_SKIP = new Set(['backgroundColor', 'borderColor', 'dropShadowColor']);
+
+// Shared.uuid is engine-assigned on each applySnapshot call and is not stored in YAML.
+const SHARED_SKIP = new Set(['uuid']);
+
 /**
  * Round all numbers in a value to `places` decimal places (handles WASM float noise).
  */
@@ -94,6 +100,15 @@ function normalizeForComparison(externalSnapshot: any): any {
     // Text.color has ~2/255 channel drift through the WASM color pipeline
     if (components.Text) {
       for (const field of TEXT_SKIP) delete components.Text[field];
+    }
+    // Styles color fields have the same ~0.01 per-channel drift
+    if (components.Styles) {
+      for (const field of STYLES_SKIP) delete components.Styles[field];
+    }
+    // Shared.uuid is engine-assigned on each applySnapshot call
+    if (components.Shared) {
+      for (const field of SHARED_SKIP) delete components.Shared[field];
+      if (Object.keys(components.Shared).length === 0) delete components.Shared;
     }
   }
 

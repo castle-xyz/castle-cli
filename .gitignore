@@ -3,3 +3,4 @@ dist/
 deck-*/
 test/screenshots/
 .castle/
+node-dev/

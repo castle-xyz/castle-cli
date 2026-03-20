@@ -101,9 +101,49 @@ The `.castle/` directory inside a deck holds runtime state (logs, command queue,
 
 ## Development
 
+### Prerequisites
+
+- Node.js ≥ 20
+- npm
+
+### Setup
+
 ```bash
-npm run build       # Compile TypeScript → dist/
-npm run dev         # Run directly with tsx (no build needed)
-npm run test        # Run tests with vitest
-npm run test:watch  # Vitest watch mode
+git clone <repo>
+cd castle-cli
+npm install
+```
+
+### Running Locally
+
+`npm run dev` runs `src/index.ts` directly via `tsx` — no build step needed. Pass CLI subcommands after `--`:
+
+```bash
+npm run dev -- serve           # run serve command
+npm run dev -- clone <deckId>  # run clone command
+npm run dev -- --help          # show help
+```
+
+### Testing
+
+```bash
+npm run test        # single vitest run (unit tests)
+npm run test:watch  # vitest in watch mode for TDD
+npm run test:chess  # Playwright integration test
+```
+
+`npm run test:chess` spawns `castle serve` locally, launches a headless Chromium browser, and verifies the chess deck renders and responds to interaction correctly. Screenshots are saved to `test/screenshots/`.
+
+### Building
+
+```bash
+npm run build  # compile TypeScript via tsup → dist/
+```
+
+Copies `src/assets/AGENTS.md` to `dist/assets/`. Output is ESM-only; binary entry point is `bin/castle.js`.
+
+### Publishing
+
+```bash
+npm publish  # runs npm run build first via prepublishOnly hook
 ```

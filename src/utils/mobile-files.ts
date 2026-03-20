@@ -41,7 +41,8 @@ function readMeta(dir: string): MetaData | null {
   if (!fs.existsSync(metaPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-  } catch {
+  } catch (e) {
+    console.warn('[files] failed to parse meta.json:', e);
     return null;
   }
 }
@@ -387,7 +388,9 @@ export function updateMetaHashes(cardDir: string): void {
     meta.hashes[ACTORS_FILE] = contentHash(actorsContent);
     try {
       meta.lastActors = (yaml.parse(actorsContent) as Record<string, any>) ?? {};
-    } catch {}
+    } catch (e) {
+      console.warn('[files] failed to parse actors.yaml in updateMetaHashes:', e);
+    }
   }
 
   const variablesPath = path.join(cardDir, VARIABLES_FILE);

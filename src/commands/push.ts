@@ -28,7 +28,9 @@ export async function push(options: { directory?: string } = {}) {
       if (cardData.cardId) {
         cardIdToDirectory[cardData.cardId] = path.dirname(cardFile);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[push] failed to parse ${cardFile}:`, e);
+    }
   }
 
   let cardIds: string[] = [];

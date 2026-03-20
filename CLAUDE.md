@@ -80,3 +80,12 @@ The mobile app sends a `StateMessage` (full serialized game state) over WebSocke
 ### WASM Module
 
 The compiled C++ game engine is downloaded from `https://cdn.castle.xyz/player/{playerId}/node/` and cached in `~/.castle/cache/node/{playerId}/`. It is loaded by `castle-core-node.ts` and exposes behavior/rules metadata and value-conversion functions. The player ID is fetched from `https://castle.xyz/api/player-id` and cached locally.
+
+### Adding New Decks to Round-Trip Tests
+
+`test/clone-serve-round-trip.test.ts` automatically picks up any JSON file in `test/fixtures/decks/`. To add a new deck:
+
+1. Add the deck ID to the `DECK_IDS` array in `scripts/generate-deck-fixtures.ts`
+2. Run `npx tsx scripts/generate-deck-fixtures.ts` (requires auth token — must be logged in)
+3. The fixture file `test/fixtures/decks/{deckId}.json` will be created; already-downloaded decks are skipped
+4. Commit the fixture file — the test will automatically include the new deck

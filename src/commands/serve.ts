@@ -21,7 +21,7 @@ const CASTLE_WWW = 'https://castle.xyz';
 // On file change, reload the page (simpler than re-calling createDeckFromJSON).
 const HTML = `
 <html>
-  <head></head>
+  <head><link rel="icon" href="/favicon.ico"></head>
 
   <body style="background-color: #000; display: flex; flex-direction: row; justify-content: center;">
 
@@ -223,12 +223,11 @@ export async function serve(
     if (debug) console.log('[serve] No deck.yaml found — running in mobile-first mode');
   }
 
-  let port: any = null;
+  let port: number | null = null;
 
   if (options.port) {
-    try {
-      port = parseInt(options.port);
-    } catch (e) {
+    port = parseInt(options.port, 10);
+    if (isNaN(port) || port < 0 || port > 65535) {
       console.error(`Invalid port: ${options.port}`);
       return;
     }
@@ -321,6 +320,11 @@ export async function serve(
 
     app.get('/', (req, res) => {
       res.send(HTML);
+    });
+
+    app.get('/favicon.ico', (req, res) => {
+      const faviconPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/favicon.ico');
+      res.sendFile(faviconPath);
     });
 
     app.get('/version', (req, res) => {

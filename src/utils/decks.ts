@@ -682,7 +682,13 @@ export async function newSceneDataForCardAsync({
 
   // 3. Single WASM call — converts external values → internal for the whole snapshot
   const localSnapshot = { library: localLibrary, actors: localActors };
-  const processedSnapshot = await applySnapshot(localSnapshot);
+  let processedSnapshot: any;
+  try {
+    processedSnapshot = await applySnapshot(localSnapshot);
+  } catch (e: any) {
+    console.warn(`[serve] applySnapshot failed (${e.message}) — serving cached scene data as-is`);
+    return { sceneData, modified: false };
+  }
 
   // 4. Merge processed library with cache to restore engine-computed fields and local Rules.rules
   let modifiedLibrary = false;
@@ -752,10 +758,6 @@ export async function newSceneDataForCardAsync({
   }
 
   const modified = modifiedLibrary || modifiedLayout;
-
-  if (modified) {
-    await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
-  }
 
   return {
     sceneData,
