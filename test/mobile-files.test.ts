@@ -22,7 +22,7 @@ function writeTestState(cardDir: string) {
   fs.mkdirSync(path.join(cardDir, '.castle'), { recursive: true });
 
   const slug = titleToSlug('Player');
-  const bpData = { title: 'Player', entryId: 'entry-001', components: { Body: { widthScale: 0.5, heightScale: 0.5 } } };
+  const bpData = { title: 'Player', entryId: 'entry-001', components: { Layout: { widthScale: 0.5, heightScale: 0.5 } } };
   fs.writeFileSync(path.join(bpDir, `${slug}.yaml`), yaml.stringify(bpData, { lineWidth: 120 }));
 
   const actors = { a100: { title: 'Player', x: 10, y: 20 } };
@@ -168,7 +168,7 @@ describe('writeStateInternal', () => {
     const yamlPath = path.join(bpDir, 'Test.yaml');
     expect(fs.existsSync(yamlPath)).toBe(true);
     const bpData = yaml.parse(fs.readFileSync(yamlPath, 'utf-8'));
-    expect(bpData.components?.Drawing2?.drawData).toBeUndefined();
+    expect(bpData.components?.Drawing?.drawData).toBeUndefined();
 
     // Companion .draw.json must exist with drawing data
     const drawPath = path.join(bpDir, 'Test.draw.json');

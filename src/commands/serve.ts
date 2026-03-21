@@ -13,20 +13,38 @@ import { initMetadata } from '../utils/init.js';
 import { CLIMobileConnection } from '../utils/mobile.js';
 import * as config from '../utils/config.js';
 import { getCacheDir, readCache, writeCache, fetchPlayerId } from '../utils/cache.js';
+import * as api from '../utils/api.js';
 
 const CASTLE_CDN = 'https://cdn.castle.xyz';
 const CASTLE_WWW = 'https://castle.xyz';
 
 // Full player approach: load castle-core.js directly so we can inject real variables.
 // On file change, reload the page (simpler than re-calling createDeckFromJSON).
-const HTML = `
+function getHTML(meInfo: any) {
+  return `
 <html>
   <head><link rel="icon" href="/favicon.ico"></head>
 
-  <body style="background-color: #000; display: flex; flex-direction: row; justify-content: center;">
+  <body style="background-color: #000; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px;">
 
-    <canvas id="canvas" tabindex="0" width="400" height="560" style="margin-top: 20px; outline: none;"></canvas>
-    <div id="message" style="position: absolute; color: white; bottom: 20px; left: 20px;"></div>
+    <div id="player-container" style="display: flex; flex-direction: column; width: 450px;">
+      <div style="position: relative; border-radius: 4% / calc(4% * (5 / 7)); overflow: hidden; width: 450px; height: 630px;">
+        <canvas id="canvas" tabindex="0" width="450" height="630" style="outline: none; display: block;"></canvas>
+        <div id="message" style="position: absolute; color: white; bottom: 20px; left: 20px;"></div>
+      </div>
+      ${meInfo && !meInfo.isAnonymous ? `
+      <div style="height: 44px; display: flex; flex-direction: row; align-items: center; color: #fff; padding: 8px; font-size: 13px; font-family: sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+        <div style="position: relative;">
+          <img src="${meInfo.photo?.url ?? ''}" style="width: 26px; height: 26px; border-radius: 100%;" />
+          ${meInfo.photoFrame ? `<img src="${meInfo.photoFrame.frameUrl}" style="position: absolute; top: -6.5px; left: -6.5px; width: 39px; height: 39px;" />` : ''}
+        </div>
+        <div style="flex-grow: 1; margin-left: 8px;">
+          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: -0.2px;">You are previewing</div>
+          <div><a href="https://castle.xyz/${meInfo.username}" style="font-weight: bold; color: #fff; text-decoration: none;">${meInfo.username}</a>'s deck on Castle</div>
+        </div>
+      </div>
+      ` : ''}
+    </div>
 
     <script charset="utf-8">
       var hasSetCurrentVersion = false;
@@ -123,17 +141,18 @@ const HTML = `
         var useThread = typeof Atomics !== 'undefined' && typeof SharedArrayBuffer !== 'undefined';
         var variant = useThread ? 'main' : 'nothread';
 
-        // Provide a pre-initialized WebGL context so Emscripten uses the HTML5
-        // WebGL API instead of trying to create an EGL/OpenGL context (which fails).
         window.Module = {
           canvas: canvas,
-          preinitializedWebGLContext: canvas.getContext('webgl'),
           locateFile: function(filePath, scriptDirectory) {
             // Keep all files on same origin so workers can load them.
             return '/player/' + variant + '/' + filePath;
           },
           mainScriptUrlOrBlob: '/player/' + variant + '/castle-core.js',
         };
+
+        // Use WebGL1 instead of WebGL2 to prevent Safari rendering issues.
+        // https://github.com/emscripten-core/emscripten/issues/16104
+        window.Module.preinitializedWebGLContext = canvas.getContext('webgl');
 
         var script = document.createElement('script');
         script.src = '/player/' + variant + '/castle-core.js';
@@ -146,6 +165,7 @@ const HTML = `
     </script>
   </body>
 </html>`;
+}
 
 // Fetch coreViews JSON from production castle.xyz.
 // coreViews is required by the C++ engine for UI overlays (feed, passes, inventory, etc.).
@@ -179,8 +199,8 @@ export async function serve(
 
   await initMetadata();
 
-  // Fetch player ID and coreViews at startup in parallel (graceful offline fallback).
-  const [playerId, coreViewsJson] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug)]);
+  // Fetch player ID, coreViews, and me info at startup in parallel (graceful offline fallback).
+  const [playerId, coreViewsJson, meInfo] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug), api.me()]);
 
   // Sync card versions from server — skip gracefully when offline.
   try {
@@ -327,7 +347,7 @@ export async function serve(
     }
 
     app.get('/', (req, res) => {
-      res.send(HTML);
+      res.send(getHTML(meInfo));
     });
 
     app.get('/favicon.ico', (req, res) => {
@@ -462,6 +482,7 @@ export async function serve(
     // Keyboard shortcuts — only in interactive terminals.
     if (process.stdin.isTTY) {
       console.log('  o  open in browser  ·  r  reload  ·  q  quit');
+      console.log();
       readline.emitKeypressEvents(process.stdin);
       process.stdin.setRawMode(true);
       process.stdin.resume();

@@ -456,15 +456,6 @@ export class CLIMobileConnection {
     const description = `cli: updated ${parts.join(', ')}`;
     this.logger.cli(`sending edit: ${description}`);
 
-    // changes.changedActors is already a sparse diff (added/changed/removed) from detectChanges.
-    // Log the diff for debugging.
-    if (changes.changedActors) {
-      const lastMobile = this.lastMobileActors.get(cardDir) ?? {};
-      const addedKeys = Object.keys(changes.changedActors).filter(k => !(changes.changedActors![k] as any).removeActor && !(k in lastMobile));
-      const removedKeys = Object.keys(changes.changedActors).filter(k => (changes.changedActors![k] as any).removeActor);
-      const changedKeys = Object.keys(changes.changedActors).filter(k => !(changes.changedActors![k] as any).removeActor && k in lastMobile);
-    }
-
     const edit: EditMessage = {
       type: 'edit',
       description,

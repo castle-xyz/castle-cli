@@ -9,6 +9,13 @@ const USER_FIELDS = `
   userId
   username
   token
+  isAnonymous
+  photo {
+    url
+  }
+  photoFrame {
+    frameUrl
+  }
 `;
 
 async function API(query: string, variables: Record<string, any> = {}) {

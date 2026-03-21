@@ -2,7 +2,6 @@ import _ from 'lodash';
 import { getCastleMetadata } from './castle-core-node.js';
 import * as Behaviors from './behaviors.js';
 
-const TRIGGERS: Record<string, any> = {};
 const RULES: Record<string, any> = {}; // responses and conditions
 
 let initialized = false;
@@ -11,7 +10,6 @@ export async function initRules() {
   if (initialized) return;
   initialized = true;
   const { rules } = await getCastleMetadata();
-  parseRules(rules.triggers, TRIGGERS);
   parseRules(rules.responses, RULES);
   parseRules(rules.conditions, RULES);
 }
@@ -52,20 +50,12 @@ function parseRules(rules: any[], behaviors: Record<string, any>) {
           type,
           attribs: param.attribs,
         };
-
-        rule.paramSpecs = paramSpecs;
       }
+
+      rule.paramSpecs = paramSpecs;
     }
 
     behaviors[behaviorId][name] = rule;
-  }
-}
-
-export function getTrigger(behaviorId: any, name: any) {
-  try {
-    return TRIGGERS[behaviorId][name];
-  } catch (e) {
-    console.warn(`Trigger not found: ${behaviorId}, ${name}`);
   }
 }
 

@@ -102,7 +102,7 @@ deck-{deckId}/                   # Deck root
     card.yaml                    # Card metadata
     SCENE.md                     # Generated scene context (read-only)
     actors.yaml                  # All actor instances in the scene
-    variables.yaml               # Deck variables
+    variables.yaml               # Variable definitions
     .castle/
       meta.json                  # Internal metadata (do not edit)
     blueprints/
@@ -113,16 +113,14 @@ deck-{deckId}/                   # Deck root
 
 ### Blueprints
 
-Each blueprint is a `.yaml` file in `blueprints/`. The filename is a slugified version of the blueprint title (e.g., "Player Ship" → `player-ship.yaml`).
+Each blueprint is a `.yaml` file in `blueprints/`. The filename preserves the title's casing with non-alphanumeric characters replaced by underscores (e.g., "Player Ship" → `Player_Ship.yaml`).
 
 Blueprint YAML structure:
 ```yaml
 title: Player Ship
 entryId: <uuid>          # Do not change — used to match this file to the in-app blueprint
 components:
-  Layout:                # Position, size, rotation defaults
-    x: 0
-    y: 0
+  Layout:                # Size and visibility defaults (position is set per-actor in actors.yaml)
     widthScale: 10       # Note: scale is 10x (1.0 in engine = 10 here)
     heightScale: 10
   Rules:
@@ -151,11 +149,11 @@ Edits are **sparse/incremental**. You only need to include the behaviors and pro
 - Behaviors you don't mention in your edit remain unchanged.
 - Properties within a behavior that you don't mention remain unchanged.
 
-Example — to just change the speed on an existing Dynamic Motion behavior:
+Example — to just change the velocity on an existing Dynamic Motion behavior:
 ```yaml
 components:
   Dynamic Motion:
-    speed: 8
+    vx: 8
 ```
 Everything else about the blueprint (Layout, Rules, other behaviors, etc.) stays the same.
 
@@ -208,7 +206,7 @@ components:
     widthScale: 3
     heightScale: 3
   Dynamic Motion:
-    speed: 10
+    vy: -10
   Solid:
     disabled: false
 ```
@@ -267,7 +265,13 @@ aNew1:
 
 Like actors, `variables.yaml` uses **full-list semantics**: the file represents the complete desired set of variables.
 
-**Adding a variable:** Add a new entry with a `name`, `initialValue`, and `lifetime` (usually `deck`). You can use any placeholder for `variableId` — a real one will be generated.
+**Adding a variable:** Add a new entry with a `name`, `initialValue`, and `lifetime`. You can use any placeholder for `variableId` — a real one will be generated.
+
+Valid `lifetime` values:
+- `deck` — persists for the lifetime of the deck session (most common)
+- `card` — resets when the card restarts
+- `play` — resets each game session (play-through)
+- `user` — persists per player across sessions
 
 **Removing a variable:** Delete the entry from the list. Any variable missing from the file will be removed from the deck.
 
@@ -318,7 +322,7 @@ components:
     rules:
       rule-0:
         trigger:
-          name: variable change
+          name: variable changes
           behaviorName: Rules
           params:
             variableName: score
@@ -410,10 +414,10 @@ components:
           behaviorName: Rules
           params: {}
         responses:
-          - name: repeat
+          - name: infinite repeat
             behaviorName: Rules
             params:
-              count: -1
+              intervalType: time
               interval: 2
               responses:
                 - name: create
@@ -427,7 +431,7 @@ components:
 
 ### Important notes
 
-- Positive Y is downward. Angles are in degrees.
+- Positive Y is downward. Angles in YAML files (`actors.yaml`, `actors.yaml` overrides) are in **degrees**. In Lua scripts, angles use **radians** (`self.rotation` is in radians — multiply degrees by `math.pi/180` to convert).
 - Scale values are 10x: a `widthScale` of 10 means 1.0 in the engine.
 - The default camera view extends from -5 to 5 on X and -7 to 7 on Y.
 - Gravity strength is scaled by 10 (1 unit = 10 units/s²).
@@ -435,6 +439,6 @@ components:
 - Use `entryTitle` (not `entryId`) when referencing blueprints in create responses.
 - Use `behaviorName` (not `behaviorId`) for trigger and response behavior references.
 - Changes are detected automatically when you save files. The CLI sends them to the app.
-- **Scripts do not hot-reload.** After editing any file, you must run `stopAndPlay` for the user to see the change. Always do this after edits — don't skip it — unless the user says not to restart the card/deck when you make edits.
+- **The mobile client does not hot-reload.** After editing any file, you must run `stopAndPlay` for the mobile user to see the change. (The web player hot-reloads automatically.) Always do this after edits — don't skip it — unless the user says not to restart the card/deck when you make edits.
 - After the app applies changes, it sends updated state back and the files are rewritten with the latest data (including any generated IDs).
 - The `.castle/meta.json` file tracks content hashes to detect changes. Do not edit it.

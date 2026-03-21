@@ -2,11 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-export function getConfigDir() {
+function getConfigDir() {
   return path.join(os.homedir(), '.castle');
 }
 
-export function readConfigFile(filename: string): any {
+function readConfigFile(filename: string): any {
   const configDir = getConfigDir();
   const configFilePath = path.join(configDir, filename);
 
@@ -22,7 +22,7 @@ export function readConfigFile(filename: string): any {
   return null;
 }
 
-export function writeConfigFile(filename: string, data: any) {
+function writeConfigFile(filename: string, data: any) {
   const configDir = getConfigDir();
   const configFilePath = path.join(configDir, filename);
 

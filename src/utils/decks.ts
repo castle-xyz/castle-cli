@@ -5,28 +5,10 @@ import Axios from 'axios';
 import { glob } from 'glob';
 import yaml from 'yaml';
 import _ from 'lodash';
-import { v4 as uuidv4 } from 'uuid';
 
 import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
-
-export const DEFAULT_ACTOR = {
-  bp: {
-    components: {
-      Body: {
-        x: 0,
-        y: 0,
-        angle: 0,
-        widthScale: 0.17497,
-        heightScale: 0.17497,
-      },
-      Drawing2: {
-        initialFrame: 1,
-      },
-    },
-  },
-};
 
 function contentHash(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
@@ -294,7 +276,7 @@ export async function generateStaticContext(): Promise<string> {
     const props: string[] = [];
     for (const [propName, spec] of Object.entries(behavior.propertySpecs ?? {}) as [string, any][]) {
       if (!spec.attribs?.rulesGet && !spec.attribs?.rulesSet) continue;
-      const label = spec.attribs?.label || spec.attribs?.scriptName || propName;
+      const label = spec.attribs?.scriptName || propName;
       let desc = spec.type ?? '';
       if (spec.attribs?.min != null) desc += `, min: ${spec.attribs.min}`;
       if (spec.attribs?.max != null) desc += `, max: ${spec.attribs.max}`;
@@ -368,7 +350,7 @@ export async function generateSceneContext(sceneData: any): Promise<string> {
     if (!entry) continue;
     const body = actor.bp?.components?.Body ?? {};
     const angleDeg = body.angle != null ? Math.round(body.angle * (180 / Math.PI) * 10) / 10 : 0;
-    actorLines.push(`  ${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`);
+    actorLines.push(`  a${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`);
   }
 
   const parts: string[] = [];
@@ -465,6 +447,15 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
   }
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
+
+  // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
+  const cardYamlPath = path.join(cardDir, 'card.yaml');
+  let cardData: any = { cardId };
+  try { cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8')); } catch {}
+  if (sceneData.snapshot.sceneProperties) cardData.sceneProperties = sceneData.snapshot.sceneProperties;
+  if (sceneData.snapshot.actorBlueprintInherit !== undefined) cardData.actorBlueprintInherit = sceneData.snapshot.actorBlueprintInherit;
+  if (sceneData.snapshot.linkTargetDeckIds !== undefined) cardData.linkTargetDeckIds = sceneData.snapshot.linkTargetDeckIds;
+  fs.writeFileSync(cardYamlPath, yaml.stringify(cardData, { lineWidth: 120 }));
 
   await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
@@ -581,6 +572,15 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
 
+  // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
+  const cardYamlPath = path.join(cardDir, 'card.yaml');
+  let cardData: any = { cardId };
+  try { cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8')); } catch {}
+  if (sceneData.snapshot.sceneProperties) cardData.sceneProperties = sceneData.snapshot.sceneProperties;
+  if (sceneData.snapshot.actorBlueprintInherit !== undefined) cardData.actorBlueprintInherit = sceneData.snapshot.actorBlueprintInherit;
+  if (sceneData.snapshot.linkTargetDeckIds !== undefined) cardData.linkTargetDeckIds = sceneData.snapshot.linkTargetDeckIds;
+  fs.writeFileSync(cardYamlPath, yaml.stringify(cardData, { lineWidth: 120 }));
+
   await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
 
@@ -616,6 +616,20 @@ export async function newSceneDataForCardAsync({
 }) {
   const bpDir = path.join(cardDir, 'blueprints');
 
+  // Read sceneProperties, actorBlueprintInherit, and linkTargetDeckIds from card.yaml (saved during clone/pull).
+  let sceneProperties: any = undefined;
+  let actorBlueprintInherit: boolean | undefined = undefined;
+  let linkTargetDeckIds: any[] | undefined = undefined;
+  const cardYamlPath = path.join(cardDir, 'card.yaml');
+  if (fs.existsSync(cardYamlPath)) {
+    try {
+      const cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8'));
+      sceneProperties = cardData.sceneProperties;
+      actorBlueprintInherit = cardData.actorBlueprintInherit;
+      linkTargetDeckIds = cardData.linkTargetDeckIds;
+    } catch {}
+  }
+
   // 1. Build local library from blueprint YAMLs + companion .draw.json files
   const localLibrary: any = {};
   const drawDataByEntryId: Record<string, any> = {};
@@ -638,6 +652,7 @@ export async function newSceneDataForCardAsync({
       });
 
       localLibrary[entryId] = {
+        entryId,
         entryType: 'actorBlueprint',
         title: bpData.title,
         actorBlueprint: { components: localComponents },
@@ -765,14 +780,15 @@ export async function newSceneDataForCardAsync({
     }
   }
 
-  const sceneData = {
-    snapshot: {
-      library: processedLibrary,
-      actors: actorsFileExists ? (processedSnapshot.actors ?? []) : [],
-    },
+  const snapshot: any = {
+    library: processedLibrary,
+    actors: actorsFileExists ? (processedSnapshot.actors ?? []) : [],
   };
+  if (sceneProperties !== undefined) snapshot.sceneProperties = sceneProperties;
+  if (actorBlueprintInherit !== undefined) snapshot.actorBlueprintInherit = actorBlueprintInherit;
+  if (linkTargetDeckIds !== undefined) snapshot.linkTargetDeckIds = linkTargetDeckIds;
 
-  return { sceneData, modified: true };
+  return { sceneData: { snapshot }, modified: true };
 }
 
 async function pushCardAsync({ cardId, cardDir, deckDir }: { cardId: string; cardDir: string; deckDir: string }) {

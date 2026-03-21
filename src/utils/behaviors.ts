@@ -1,4 +1,3 @@
-import yaml from 'yaml';
 import _ from 'lodash';
 
 import { getCastleMetadata } from './castle-core-node.js';
@@ -33,22 +32,9 @@ export const enum BehaviorKey {
   Script = 'Script',
 }
 
-// Body and Drawing2 use internal names — pass through without display name mapping
-const COMPONENTS_NO_RENAME = ['Body', 'Drawing2'];
-
 export function serializeComponents({ components, writeScriptFile }: { components: any; writeScriptFile: (code: string) => string }) {
   let result: Record<string, any> = {};
   for (const key in components) {
-    // Body and Drawing2 pass through without display name lookup
-    if (COMPONENTS_NO_RENAME.includes(key)) {
-      let comp = { ...components[key] };
-      if (!comp.disabled) {
-        delete comp.disabled;
-      }
-      result[key] = comp;
-      continue;
-    }
-
     let behavior = BehaviorConfig[key];
 
     if (behavior) {
@@ -65,12 +51,6 @@ export function serializeComponents({ components, writeScriptFile }: { component
 export function deserializeComponents({ components, readFile }: { components: any; readFile: (path: string) => string }) {
   let result: Record<string, any> = {};
   for (const key in components) {
-    // Body and Drawing2 pass through directly
-    if (COMPONENTS_NO_RENAME.includes(key)) {
-      result[key] = { ...components[key] };
-      continue;
-    }
-
     let behaviorId = BEHAVIOR_DISPLAY_NAME_TO_ID[key];
     if (!behaviorId) {
       continue;
@@ -127,23 +107,6 @@ function serializeComponent({ behavior, component, writeScriptFile }: { behavior
   }
 
   return serializeComponentInternals({ behavior, component });
-}
-
-export function serializeRulesComponent({ component }: { component: any }) {
-  let rules: any = [];
-
-  if (component.rules) {
-    for (let rule of component.rules) {
-      rules.push(Rules.serializeRule(rule));
-    }
-  }
-
-  return yaml.stringify(rules);
-}
-
-export function serializeScriptComponent({ component }: { component: any }) {
-  let code = component.code || '';
-  return code;
 }
 
 export function serializeComponentInternals({ behavior, component }: { behavior: any; component: any }): Record<string, any> {

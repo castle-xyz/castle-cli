@@ -5,7 +5,6 @@ import * as path from 'path';
 import yaml from 'yaml';
 import { writeActorsAndVariablesAsync, newSceneDataForCardAsync } from '../src/utils/decks.js';
 import { initMetadata } from '../src/utils/init.js';
-import * as Behaviors from '../src/utils/behaviors.js';
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'castle-test-decks-'));
@@ -167,8 +166,8 @@ describe('newSceneDataForCardAsync', () => {
       title: 'Player',
       entryId: 'entry-001',
       components: {
-        Body: { widthScale: 5.0, heightScale: 5.0 }, // external format (×10)
-        Drawing2: { initialFrame: 1 },
+        Layout: { widthScale: 5.0, heightScale: 5.0 }, // external format (×10)
+        Drawing: { initialFrame: 1 },
       },
     };
     fs.writeFileSync(
@@ -272,8 +271,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 3.0 }, // external format (×10)
-          Drawing2: { initialFrame: 1 },
+          Layout: { widthScale: 3.0, heightScale: 3.0 }, // external format (×10)
+          Drawing: { initialFrame: 1 },
         },
       })
     );
@@ -302,7 +301,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 2.0 }, // external format (×10)
+          Layout: { widthScale: 3.0, heightScale: 2.0 }, // external format (×10)
         },
       })
     );
@@ -324,7 +323,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 3.0, visible: true },
+          Layout: { widthScale: 3.0, heightScale: 3.0, visible: true },
         },
       })
     );
@@ -353,7 +352,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 3.0 },
+          Layout: { widthScale: 3.0, heightScale: 3.0 },
           Rules: { rules: inlineRules },
         },
       })
@@ -373,7 +372,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
   it('round-trips angle: stores degrees in actors.yaml, applySnapshot converts to radians', async () => {
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 } } })
     );
 
     // actors.yaml stores angle in degrees (~44.97°)
@@ -399,7 +398,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
         title: 'Test',
         entryId: 'e1',
         components: {
-          Body: { widthScale: 3.0, heightScale: 3.0 },
+          Layout: { widthScale: 3.0, heightScale: 3.0 },
           Tags: { tagsString: 'manager' },
         },
       })
@@ -428,7 +427,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Drawing2: { initialFrame: 1 } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Drawing: { initialFrame: 1 } } })
     );
 
     // Write actors.yaml using the write path
@@ -463,7 +462,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -490,7 +489,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Hello' } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Text: { content: 'Hello' } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -522,7 +521,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -549,7 +548,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Default text' } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Text: { content: 'Default text' } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -581,7 +580,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Text: { content: 'Same text' } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Text: { content: 'Same text' } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -608,7 +607,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Link: { targetDeckId: 'defaultDeck' } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Link: { targetDeckId: 'defaultDeck' } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -640,7 +639,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
 
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Test.yaml'),
-      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Body: { widthScale: 3.0 }, Link: { targetDeckId: 'sameDeck' } } })
+      yaml.stringify({ title: 'Test', entryId: 'e1', components: { Layout: { widthScale: 3.0 }, Link: { targetDeckId: 'sameDeck' } } })
     );
 
     await (await import('../src/utils/decks.js')).writeActorsAndVariablesAsync({
@@ -654,7 +653,7 @@ describe('newSceneDataForCardAsync round-trip', () => {
   it('reads actor by title from actors.yaml — title→entryId lookup', async () => {
     fs.writeFileSync(
       path.join(cardDir, 'blueprints', 'Bullet.yaml'),
-      yaml.stringify({ title: 'Bullet', entryId: 'e1', components: { Body: { widthScale: 3.0 } } })
+      yaml.stringify({ title: 'Bullet', entryId: 'e1', components: { Layout: { widthScale: 3.0 } } })
     );
 
     // Actor referenced by title (not entryId)

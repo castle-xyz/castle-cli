@@ -48,7 +48,7 @@ export interface ScreenshotMessage {
 export interface CLIScreenshotMessage {
   type: 'cliScreenshot';
   data: string; // base64 PNG
-  suffix: string;
+  suffix?: string;
 }
 
 // Message sent by mobile with raw EDITOR_LIBRARY/EDITOR_ACTORS (internal format)
