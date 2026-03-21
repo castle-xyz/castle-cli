@@ -452,6 +452,7 @@ export class CLIMobileConnection {
     if (changedBlueprintCount > 0) parts.push(`${changedBlueprintCount} blueprint(s)`);
     if (changes.changedActors) parts.push('actors');
     if (changes.changedVariables) parts.push('variables');
+    if (changes.changedSceneProperties !== undefined) parts.push('scene properties');
 
     const description = `cli: updated ${parts.join(', ')}`;
     this.logger.cli(`sending edit: ${description}`);
@@ -470,6 +471,9 @@ export class CLIMobileConnection {
     }
     if (changes.changedVariables) {
       edit.variables = changes.changedVariables;
+    }
+    if (changes.changedSceneProperties !== undefined) {
+      edit.sceneProperties = changes.changedSceneProperties;
     }
 
     this._sendToApp(edit);

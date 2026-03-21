@@ -23,24 +23,27 @@ const CASTLE_WWW = 'https://castle.xyz';
 function getHTML(meInfo: any) {
   return `
 <html>
-  <head><link rel="icon" href="/favicon.ico"></head>
+  <head>
+    <link rel="icon" href="/favicon.ico">
+    <style>html, body { margin: 0; padding: 0; }</style>
+  </head>
 
-  <body style="background-color: #000; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px;">
+  <body style="background-color: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
 
-    <div id="player-container" style="display: flex; flex-direction: column; width: 450px;">
-      <div style="position: relative; border-radius: 4% / calc(4% * (5 / 7)); overflow: hidden; width: 450px; height: 630px;">
-        <canvas id="canvas" tabindex="0" width="450" height="630" style="outline: none; display: block;"></canvas>
+    <div id="player-container" style="display: flex; flex-direction: column; visibility: hidden;">
+      <div id="player-frame" style="position: relative; border-radius: 4% / calc(4% * (5 / 7)); overflow: hidden;">
+        <canvas id="canvas" tabindex="0" width="450" height="630" style="width: 100%; height: 100%; display: block; border-radius: inherit; overflow: hidden; outline: none;"></canvas>
         <div id="message" style="position: absolute; color: white; bottom: 20px; left: 20px;"></div>
       </div>
       ${meInfo && !meInfo.isAnonymous ? `
-      <div style="height: 44px; display: flex; flex-direction: row; align-items: center; color: #fff; padding: 8px; font-size: 13px; font-family: sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+      <div id="user-info" style="height: 44px; display: flex; flex-direction: row; align-items: center; color: #fff; padding: 8px; font-size: 13px; font-family: sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
         <div style="position: relative;">
           <img src="${meInfo.photo?.url ?? ''}" style="width: 26px; height: 26px; border-radius: 100%;" />
           ${meInfo.photoFrame ? `<img src="${meInfo.photoFrame.frameUrl}" style="position: absolute; top: -6.5px; left: -6.5px; width: 39px; height: 39px;" />` : ''}
         </div>
         <div style="flex-grow: 1; margin-left: 8px;">
           <div style="font-size: 10px; text-transform: uppercase; letter-spacing: -0.2px;">You are previewing</div>
-          <div><a href="https://castle.xyz/${meInfo.username}" style="font-weight: bold; color: #fff; text-decoration: none;">${meInfo.username}</a>'s deck on Castle</div>
+          <div><a href="https://castle.xyz/${meInfo.username}" style="font-weight: bold; color: #fff; text-decoration: none;">@${meInfo.username}</a>'s deck on Castle</div>
         </div>
       </div>
       ` : ''}
@@ -159,6 +162,35 @@ function getHTML(meInfo: any) {
         document.head.appendChild(script);
         canvas.focus();
       }
+
+      var MAX_CARD_WIDTH = 450;
+      var MAX_CARD_HEIGHT = 630;
+      var PADDING = 20;
+
+      function resizeCard() {
+        var userInfo = document.getElementById('user-info');
+        var userInfoHeight = userInfo ? userInfo.offsetHeight : 0;
+        var availableWidth = window.innerWidth - PADDING * 2;
+        var availableHeight = window.innerHeight - userInfoHeight - PADDING * 2;
+        var cardWidth, cardHeight;
+        if (availableWidth >= MAX_CARD_WIDTH && availableHeight >= MAX_CARD_HEIGHT) {
+          cardWidth = MAX_CARD_WIDTH;
+          cardHeight = MAX_CARD_HEIGHT;
+        } else if (availableWidth / availableHeight < 5 / 7) {
+          cardWidth = availableWidth;
+          cardHeight = cardWidth * (7 / 5);
+        } else {
+          cardHeight = availableHeight;
+          cardWidth = cardHeight * (5 / 7);
+        }
+        var frame = document.getElementById('player-frame');
+        frame.style.width = cardWidth + 'px';
+        frame.style.height = cardHeight + 'px';
+        document.getElementById('player-container').style.visibility = 'visible';
+      }
+
+      resizeCard();
+      window.addEventListener('resize', resizeCard);
 
       loadDeck();
       setTimeout(checkForUpdate, 100);

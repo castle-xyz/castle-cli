@@ -21,6 +21,7 @@ export class FileWatcher {
       path.join(this.cardDir, 'blueprints'),
       path.join(this.cardDir, 'actors.yaml'),
       path.join(this.cardDir, 'variables.yaml'),
+      path.join(this.cardDir, 'card.yaml'),
     ];
 
     this.watcher = chokidar.watch(watchPaths, {

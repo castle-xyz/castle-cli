@@ -11,6 +11,7 @@ import {
 } from '../src/utils/mobile-files.js';
 import type { StateInternalMessage } from '../src/utils/mobile-protocol.js';
 import { initMetadata } from '../src/utils/init.js';
+import { newSceneDataForCardAsync } from '../src/utils/decks.js';
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'castle-test-'));
@@ -119,6 +120,21 @@ describe('detectChanges', () => {
     expect(changes!.hasChanges).toBe(true);
     expect(changes!.changedVariables).toBeDefined();
   });
+
+  it('detects changed sceneProperties in card.yaml', () => {
+    writeTestState(tmpDir);
+
+    // Write a card.yaml with sceneProperties
+    const cardYamlPath = path.join(tmpDir, 'card.yaml');
+    fs.writeFileSync(cardYamlPath, yaml.stringify({
+      cardId: 'card-456',
+      sceneProperties: { backgroundColor: { r: 1, g: 0, b: 0, a: 1 } },
+    }, { lineWidth: 120 }));
+
+    const changes = detectChanges(tmpDir);
+    expect(changes!.hasChanges).toBe(true);
+    expect(changes!.changedSceneProperties).toEqual({ backgroundColor: { r: 1, g: 0, b: 0, a: 1 } });
+  });
 });
 
 describe('writeStateInternal', () => {
@@ -223,6 +239,61 @@ describe('writeStateInternal', () => {
 
     expect(fs.existsSync(path.join(bpDir, 'Alpha.draw.json'))).toBe(true);
     expect(fs.existsSync(path.join(bpDir, 'Beta.draw.json'))).toBe(false);
+  });
+
+  it('writes sceneProperties to card.yaml', async () => {
+    const state: StateInternalMessage = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {},
+      actors: {},
+      variables: [],
+      sceneProperties: { backgroundColor: { r: 1, g: 0, b: 0, a: 1 }, clock: { tempo: 120 } },
+      actorBlueprintInherit: true,
+      linkTargetDeckIds: ['deck-abc'],
+    };
+
+    await writeStateInternal(tmpDir, state);
+
+    const cardYamlPath = path.join(tmpDir, 'card.yaml');
+    expect(fs.existsSync(cardYamlPath)).toBe(true);
+    const cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf-8'));
+    expect(cardData.sceneProperties).toEqual({ backgroundColor: { r: 1, g: 0, b: 0, a: 1 }, clock: { tempo: 120 } });
+    expect(cardData.actorBlueprintInherit).toBe(true);
+    expect(cardData.linkTargetDeckIds).toEqual(['deck-abc']);
+  });
+
+  it('sceneProperties round-trips through newSceneDataForCardAsync', async () => {
+    // Create a minimal deck.yaml so newSceneDataForCardAsync can find deckId
+    const deckDir = path.join(tmpDir, '..');
+    fs.writeFileSync(path.join(tmpDir, 'deck.yaml'), yaml.stringify({ deckId: 'deck-1' }));
+
+    const state: StateInternalMessage = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {},
+      actors: {},
+      variables: [],
+      sceneProperties: { backgroundColor: { r: 0, g: 0, b: 1, a: 1 }, clock: { tempo: 90 } },
+      actorBlueprintInherit: true,
+      linkTargetDeckIds: ['deck-xyz'],
+    };
+
+    await writeStateInternal(tmpDir, state);
+
+    const { sceneData } = await newSceneDataForCardAsync({
+      cardId: 'card-1',
+      cardDir: tmpDir,
+      deckDir: tmpDir,
+    });
+
+    expect(sceneData.snapshot.sceneProperties).toEqual({ backgroundColor: { r: 0, g: 0, b: 1, a: 1 }, clock: { tempo: 90 } });
+    expect(sceneData.snapshot.actorBlueprintInherit).toBe(true);
+    expect(sceneData.snapshot.linkTargetDeckIds).toEqual(['deck-xyz']);
   });
 });
 

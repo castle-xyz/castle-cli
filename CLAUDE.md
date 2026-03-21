@@ -38,7 +38,7 @@ deck-{deckId}/
 │   ├── commands.json         # JSONL command interface (CLI polls this)
 │   └── screenshots/          # Captured screenshots
 └── card-{cardId}/            # One subdirectory per card
-    ├── card.yaml             # Card metadata
+    ├── card.yaml             # Card metadata (cardId, sceneProperties, actorBlueprintInherit, linkTargetDeckIds)
     ├── SCENE.md              # Generated scene context for agents
     ├── variables.yaml        # Variable definitions
     ├── actors.yaml           # Actor instances (positions, state)
@@ -80,9 +80,8 @@ The engine uses internal values (e.g. `Body.widthScale = 0.5`, 0–1 scale) whil
 
 ### Mobile Sync Protocol
 
-The mobile app sends state over WebSocket via three message types:
-- `StateMessage` — full state in external (editor) format (legacy)
-- `StateInternalMessage` — full state in raw internal format (requires WASM conversion via `getSnapshotExternalValues`)
+The mobile app sends state over WebSocket via two message types:
+- `StateInternalMessage` — full state in raw internal format (requires WASM conversion via `getSnapshotExternalValues`). Optional fields: `sceneProperties`, `actorBlueprintInherit`, `linkTargetDeckIds` — written to `card.yaml` on receive.
 - `StateInternalDiffMessage` — incremental diff with only changed entries; deletions use `{ removed: true }`
 
 The CLI writes received state to YAML files on disk. A file watcher detects local changes → sends `EditMessage` back to the mobile app. Files are the single source of truth; WebSocket is the transport layer.

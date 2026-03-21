@@ -5,10 +5,12 @@ import yaml from 'yaml';
 import { StateInternalMessage, StateInternalDiffMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
+import { writeCardYamlFields, extractDrawData } from './decks.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
 const ACTORS_FILE = 'actors.yaml';
 const VARIABLES_FILE = 'variables.yaml';
+const CARD_YAML_FILE = 'card.yaml';
 const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
 
@@ -68,6 +70,7 @@ export interface FileChanges {
   changedBlueprints: Record<string, BlueprintChange>;
   changedActors: Record<string, any> | null;
   changedVariables: Record<string, any> | null;
+  changedSceneProperties?: any;
   hasChanges: boolean;
 }
 
@@ -229,6 +232,21 @@ export function detectChanges(cardDir: string): FileChanges | null {
     }
   }
 
+  // Check card.yaml (sceneProperties)
+  const cardYamlPath = path.join(cardDir, CARD_YAML_FILE);
+  if (fs.existsSync(cardYamlPath)) {
+    const content = fs.readFileSync(cardYamlPath, 'utf-8');
+    if (meta.hashes[CARD_YAML_FILE] !== contentHash(content)) {
+      try {
+        const cardData = yaml.parse(content) as any;
+        result.changedSceneProperties = cardData?.sceneProperties;
+        result.hasChanges = true;
+      } catch (e: any) {
+        console.error(`[files] failed to parse card.yaml: ${e.reason || e.message}`);
+      }
+    }
+  }
+
   return result;
 }
 
@@ -262,6 +280,11 @@ export function updateMetaHashes(cardDir: string): void {
   const variablesPath = path.join(cardDir, VARIABLES_FILE);
   if (fs.existsSync(variablesPath)) {
     meta.hashes[VARIABLES_FILE] = contentHash(fs.readFileSync(variablesPath, 'utf-8'));
+  }
+
+  const cardYamlPath = path.join(cardDir, CARD_YAML_FILE);
+  if (fs.existsSync(cardYamlPath)) {
+    meta.hashes[CARD_YAML_FILE] = contentHash(fs.readFileSync(cardYamlPath, 'utf-8'));
   }
 
   writeMeta(cardDir, meta);
@@ -332,22 +355,17 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     // Use display-format components from WASM conversion; fall back to internal
     const rawComponents = { ...(externalLibrary[entryId]?.actorBlueprint?.components ?? entryTyped.actorBlueprint?.components ?? {}) };
 
-    // Extract engine-computed drawing/physics data before stripping — stored in companion .draw.json
-    const drawFileData: any = {};
-    if (rawComponents.Drawing2) {
-      const d2extract: any = {};
-      if (rawComponents.Drawing2.drawData !== undefined) d2extract.drawData = rawComponents.Drawing2.drawData;
-      if (rawComponents.Drawing2.physicsBodyData !== undefined) d2extract.physicsBodyData = rawComponents.Drawing2.physicsBodyData;
-      if (rawComponents.Drawing2.hash !== undefined) d2extract.hash = rawComponents.Drawing2.hash;
-      if (Object.keys(d2extract).length > 0) drawFileData.Drawing2 = d2extract;
-    }
-    if (rawComponents.Body) {
-      const bodyExtract: any = {};
-      if (rawComponents.Body.fixtures !== undefined) bodyExtract.fixtures = rawComponents.Body.fixtures;
-      if (rawComponents.Body.editorBounds !== undefined) bodyExtract.editorBounds = rawComponents.Body.editorBounds;
-      if (Object.keys(bodyExtract).length > 0) drawFileData.Body = bodyExtract;
-    }
-    if (Object.keys(drawFileData).length > 0) {
+    // Extract engine-computed/complex data into companion .draw.json using the original
+    // mobile state (before WASM conversion, which strips LocalVariables and other fields).
+    const originalComponents = entryTyped.actorBlueprint?.components ?? {};
+    const drawFileData = extractDrawData({
+      ...originalComponents,
+      // Drawing2/Body physics come from WASM-converted rawComponents (same values, but
+      // rawComponents is authoritative for those blobs)
+      ...(rawComponents.Drawing2 !== undefined ? { Drawing2: rawComponents.Drawing2 } : {}),
+      ...(rawComponents.Body !== undefined ? { Body: rawComponents.Body } : {}),
+    });
+    if (drawFileData) {
       fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
     }
 
@@ -448,6 +466,17 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
   fs.writeFileSync(path.join(cardDir, VARIABLES_FILE), variablesContent);
   hashes[VARIABLES_FILE] = contentHash(variablesContent);
 
+  // Write sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml
+  writeCardYamlFields(cardDir, {
+    cardId: state.cardId,
+    sceneProperties: state.sceneProperties,
+    actorBlueprintInherit: state.actorBlueprintInherit,
+    linkTargetDeckIds: state.linkTargetDeckIds,
+  });
+  // Hash card.yaml so detectChanges treats this write as baseline (no spurious echo)
+  const cardYamlContent = fs.readFileSync(path.join(cardDir, CARD_YAML_FILE), 'utf-8');
+  hashes[CARD_YAML_FILE] = contentHash(cardYamlContent);
+
   const meta: MetaData = {
     deckId: state.deckId,
     cardId: state.cardId,
@@ -511,11 +540,11 @@ export function mobileInternalStateToSceneData(state: StateInternalMessage): any
     });
   }
 
-  return {
-    snapshot: {
-      library,
-      actors,
-    },
-  };
+  const snapshot: any = { library, actors };
+  if (state.sceneProperties) snapshot.sceneProperties = state.sceneProperties;
+  if (state.actorBlueprintInherit !== undefined) snapshot.actorBlueprintInherit = state.actorBlueprintInherit;
+  if (state.linkTargetDeckIds !== undefined) snapshot.linkTargetDeckIds = state.linkTargetDeckIds;
+
+  return { snapshot };
 }
 

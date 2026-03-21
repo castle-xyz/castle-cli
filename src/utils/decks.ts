@@ -25,6 +25,19 @@ function getCastleDir(deckDir: string) {
 }
 
 
+export function writeCardYamlFields(
+  cardDir: string,
+  fields: { cardId?: string; sceneProperties?: any; actorBlueprintInherit?: boolean; linkTargetDeckIds?: any[] }
+): void {
+  const cardYamlPath = path.join(cardDir, 'card.yaml');
+  let cardData: any = fields.cardId ? { cardId: fields.cardId } : {};
+  try { cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8')); } catch {}
+  if (fields.sceneProperties !== undefined) cardData.sceneProperties = fields.sceneProperties;
+  if (fields.actorBlueprintInherit !== undefined) cardData.actorBlueprintInherit = fields.actorBlueprintInherit;
+  if (fields.linkTargetDeckIds !== undefined) cardData.linkTargetDeckIds = fields.linkTargetDeckIds;
+  fs.writeFileSync(cardYamlPath, yaml.stringify(cardData, { lineWidth: 120 }));
+}
+
 export function getBlueprintsDir(cardDir: string) {
   // blueprints can be moved anywhere, this is just the default
   const blueprintsDir = path.join(cardDir, 'blueprints');
@@ -65,7 +78,7 @@ function stripBlueprintComponents(components: any): void {
 }
 
 // Extract engine-computed draw/physics data from blueprint components into companion .draw.json format.
-function extractDrawData(components: any): Record<string, any> | null {
+export function extractDrawData(components: any): Record<string, any> | null {
   const drawData: Record<string, any> = {};
 
   if (components.Drawing2) {
@@ -449,13 +462,11 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
 
   // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
-  const cardYamlPath = path.join(cardDir, 'card.yaml');
-  let cardData: any = { cardId };
-  try { cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8')); } catch {}
-  if (sceneData.snapshot.sceneProperties) cardData.sceneProperties = sceneData.snapshot.sceneProperties;
-  if (sceneData.snapshot.actorBlueprintInherit !== undefined) cardData.actorBlueprintInherit = sceneData.snapshot.actorBlueprintInherit;
-  if (sceneData.snapshot.linkTargetDeckIds !== undefined) cardData.linkTargetDeckIds = sceneData.snapshot.linkTargetDeckIds;
-  fs.writeFileSync(cardYamlPath, yaml.stringify(cardData, { lineWidth: 120 }));
+  writeCardYamlFields(cardDir, {
+    sceneProperties: sceneData.snapshot.sceneProperties,
+    actorBlueprintInherit: sceneData.snapshot.actorBlueprintInherit,
+    linkTargetDeckIds: sceneData.snapshot.linkTargetDeckIds,
+  });
 
   await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
@@ -573,13 +584,11 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
 
   // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
-  const cardYamlPath = path.join(cardDir, 'card.yaml');
-  let cardData: any = { cardId };
-  try { cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf8')); } catch {}
-  if (sceneData.snapshot.sceneProperties) cardData.sceneProperties = sceneData.snapshot.sceneProperties;
-  if (sceneData.snapshot.actorBlueprintInherit !== undefined) cardData.actorBlueprintInherit = sceneData.snapshot.actorBlueprintInherit;
-  if (sceneData.snapshot.linkTargetDeckIds !== undefined) cardData.linkTargetDeckIds = sceneData.snapshot.linkTargetDeckIds;
-  fs.writeFileSync(cardYamlPath, yaml.stringify(cardData, { lineWidth: 120 }));
+  writeCardYamlFields(cardDir, {
+    sceneProperties: sceneData.snapshot.sceneProperties,
+    actorBlueprintInherit: sceneData.snapshot.actorBlueprintInherit,
+    linkTargetDeckIds: sceneData.snapshot.linkTargetDeckIds,
+  });
 
   await writeAgentFilesAsync({ deckDir, cardDir, sceneData });
 }
@@ -780,13 +789,41 @@ export async function newSceneDataForCardAsync({
     }
   }
 
+  // Strip actor bp.components to only per-actor overrides (x, y, angle, widthScale,
+  // heightScale, initialFrame, Text, Link). applySnapshot inflates actors with all engine
+  // defaults — the mobile client (castle-client-3 Scene::writeActor) never includes those.
+  const processedActors: any[] = [];
+  for (const actor of processedSnapshot.actors ?? []) {
+    const comps = actor.bp?.components ?? {};
+    const stripped: any = {};
+
+    const body = comps.Body;
+    if (body) {
+      const b: any = {};
+      if (body.x !== undefined) b.x = body.x;
+      if (body.y !== undefined) b.y = body.y;
+      if (body.angle !== undefined) b.angle = body.angle;
+      if (body.widthScale !== undefined) b.widthScale = body.widthScale;
+      if (body.heightScale !== undefined) b.heightScale = body.heightScale;
+      if (Object.keys(b).length > 0) stripped.Body = b;
+    }
+
+    const d2 = comps.Drawing2;
+    if (d2?.initialFrame !== undefined) stripped.Drawing2 = { initialFrame: d2.initialFrame };
+
+    if (comps.Text && Object.keys(comps.Text).length > 0) stripped.Text = comps.Text;
+    if (comps.Link && Object.keys(comps.Link).length > 0) stripped.Link = comps.Link;
+
+    processedActors.push({ ...actor, bp: { components: stripped } });
+  }
+
   const snapshot: any = {
     library: processedLibrary,
-    actors: actorsFileExists ? (processedSnapshot.actors ?? []) : [],
+    actors: actorsFileExists ? processedActors : [],
   };
   if (sceneProperties !== undefined) snapshot.sceneProperties = sceneProperties;
   if (actorBlueprintInherit !== undefined) snapshot.actorBlueprintInherit = actorBlueprintInherit;
-  if (linkTargetDeckIds !== undefined) snapshot.linkTargetDeckIds = linkTargetDeckIds;
+  snapshot.linkTargetDeckIds = linkTargetDeckIds ?? [];
 
   return { sceneData: { snapshot }, modified: true };
 }

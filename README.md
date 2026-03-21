@@ -88,16 +88,24 @@ Show the current CLI version.
 
 ```
 deck-{deckId}/
+├── deck.yaml                 # Deck metadata
+├── AGENTS.md                 # Agent instructions (generated)
+├── .castle/                  # Deck-level runtime state (git-ignored)
+│   ├── logs.txt              # CLI and deck logs
+│   ├── commands.json         # JSONL command interface
+│   └── screenshots/          # Captured screenshots
 └── card-{cardId}/
-    ├── card.yaml          # Card metadata
-    ├── scene-data.json    # Full serialized card state
-    ├── variables.yaml     # Variable definitions
-    ├── actors.yaml        # Actor instances
-    ├── blueprints/        # One YAML file per blueprint
-    └── scripts/           # Optional Lua scripts
+    ├── card.yaml             # Card metadata and scene properties
+    ├── SCENE.md              # Generated scene context for agents
+    ├── variables.yaml        # Variable definitions
+    ├── actors.yaml           # Actor instances
+    ├── .castle/
+    │   └── meta.json         # Content hashes (do not edit)
+    └── blueprints/
+        ├── {name}.yaml       # Blueprint definition
+        ├── {name}.lua        # Optional Lua script
+        └── {name}.draw.json  # Engine-computed drawing/physics data
 ```
-
-The `.castle/` directory inside a deck holds runtime state (logs, command queue, screenshots) and is git-ignored.
 
 ## Development
 

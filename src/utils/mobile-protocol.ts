@@ -14,6 +14,7 @@ export interface EditMessage {
   blueprints?: Record<string, any>;
   actors?: Record<string, any>;
   variables?: Record<string, any>;
+  sceneProperties?: any;
 }
 
 export interface EditResultMessage {
@@ -63,6 +64,9 @@ export interface StateInternalMessage {
   blueprints: Record<string, any>;  // raw EDITOR_LIBRARY entries
   actors: Record<string, any>;      // raw EDITOR_ACTORS entries
   variables: VariableData[];
+  sceneProperties?: any;
+  actorBlueprintInherit?: boolean;
+  linkTargetDeckIds?: any[];
 }
 
 // Incremental diff message: only changed blueprints/actors vs last sent full state

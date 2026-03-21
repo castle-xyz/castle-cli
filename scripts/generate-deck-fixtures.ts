@@ -45,6 +45,7 @@ const DECK_IDS = [
   'pe9Vu1IiQ',
   'oyVfNUkIC',
   'KqlIzW6uQ',
+  'scwoHXj9153b',
 ];
 
 const FIXTURES_DIR = path.join(__dirname, '..', 'test', 'fixtures', 'decks');

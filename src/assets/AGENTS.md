@@ -74,6 +74,38 @@ The CLI writes back a `response` field on each line once processed. Commands typ
 
 ---
 
+## Testing
+
+Two approaches for seeing game output:
+
+**Web browser (fastest — use this by default):**
+- `castle serve` starts a web player at `http://localhost:4321/` with automatic hot-reload.
+- File changes → browser reloads within ~1 second. No device needed.
+- Use Playwright to automate: launch headlessly, wait for render, screenshot.
+
+```typescript
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch({ headless: false, args: ['--enable-webgl', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 500, height: 650 } });
+page.on('console', msg => console.log(msg.text()));
+page.on('pageerror', e => console.error(e.message));
+await page.goto('http://localhost:4321/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+await page.waitForTimeout(10000);  // wait for game to render; adjust as needed
+await page.screenshot({ path: 'test/screenshots/game.png' });
+await browser.close();
+```
+
+**Mobile app (use for touch, physics feel, or final validation):**
+- Requires the Castle mobile app open and connected (state syncs via WebSocket).
+- After every edit run `stopAndPlay` (see Commands section above), then use `screenshot` command or `castle.cliScreenshot("label")` in Lua.
+- Screenshots saved to `.castle/screenshots/latest.png`.
+
+**Which to use:**
+- Default to the web browser approach — it is faster and requires no device.
+- Switch to mobile only when testing touch interactions, physics feel, or doing final validation on a real device.
+
+---
+
 ## Scripting vs. Rules
 
 Prefer Lua scripts for game logic. Scripts are easier to read, edit, and debug as files. Use rules only when you need access to engine APIs that aren't available in scripts yet (e.g. create actor, show leaderboard, play sound). When in doubt, use a script.
