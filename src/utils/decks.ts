@@ -48,33 +48,48 @@ export function getBlueprintsDir(cardDir: string) {
   return blueprintsDir;
 }
 
-// Body fields that are engine-computed and must not be written to blueprint YAMLs.
-// handleWriteComponent includes these, but handleSetProperty applies them in ways that
-// can corrupt physics bodies (e.g. fixtures override the drawing-computed physics body,
-// breaking tap detection). User-editable Body props are widthScale/heightScale/visible/
-// relativeToCamera/paddingTop/Right/Bottom/Left; x/y/angle are per-actor and live in
-// actors.yaml instead.
-// Note: layerName IS here — it is engine-computed from relativeToCamera (set to "camera"
-// or "main" in body.cpp), not a user-editable field.
-const BODY_COMPUTED_FIELDS = [
-  'x', 'y', 'angle',
-  'width', 'height',
-  'fixtures',
-  'editorBounds',
-  'relativeToCameraFix',
-  'layerName',
-];
+// Per-actor Body fields that are NOT written to blueprint YAML — they go in actors.yaml
+// instead. Must match castle-client Scene::writeActor (see CLAUDE.md per-actor spec).
+// Referenced in both blueprint stripping and the actor stripping in newSceneDataForCardAsync.
+export const BODY_PER_ACTOR_FIELDS = new Set(['x', 'y', 'angle']);
 
-function stripBlueprintComponents(components: any): void {
-  if (components.Drawing2) {
-    delete components.Drawing2.hash;
-    delete components.Drawing2.drawData;
-    delete components.Drawing2.physicsBodyData;
-    delete components.Drawing2.currentFrame;
-  }
-  if (components.Body) {
-    for (const field of BODY_COMPUTED_FIELDS) {
-      delete components.Body[field];
+// Behaviors whose handleWriteComponent output is entirely engine-computed and should be
+// stripped from blueprint YAML (stored in .draw.json instead). Other behaviors' handleWriteComponent
+// output (e.g. Rules.rules, LocalVariables.localVariables) is user data and must stay in the
+// blueprint YAML.
+//   Drawing2: hash, drawData, physicsBodyData → large computed blobs, stored in .draw.json
+//   Script: errors (runtime compile results), behaviorProps (debug-only) → both engine state
+const STRIP_NON_PROP_COMPONENTS = new Set(['Drawing2', 'Script']);
+
+// Strip engine-computed and per-actor fields from blueprint components before writing to YAML.
+// Uses WASM behavior metadata (getBehaviors) to determine which fields to strip:
+//   - STRIP_NON_PROP_COMPONENTS fields not in propertySpecs → handleWriteComponent output (hash, drawData, etc.)
+//     These are large computed blobs stored in .draw.json instead.
+//   - Fields where rulesGet=false && rulesSet=false && !userEditable → computed/internal
+//     (e.g. Body.width, height, fixtures, editorBounds, layerName, relativeToCameraFix)
+//   - Body fields in BODY_PER_ACTOR_FIELDS → exclusively per-actor (go in actors.yaml)
+// 'disabled' is always preserved.
+function stripBlueprintComponents(components: any, behaviors: any): void {
+  for (const compName of Object.keys(components)) {
+    const comp = components[compName];
+    if (!comp || typeof comp !== 'object') continue;
+    const specs = behaviors[compName]?.propertySpecs ?? {};
+    for (const field of Object.keys(comp)) {
+      if (field === 'disabled') continue;
+      const attribs = specs[field]?.attribs;
+      if (!attribs) {
+        // Not in propertySpecs → handleWriteComponent output.
+        if (STRIP_NON_PROP_COMPONENTS.has(compName)) {
+          delete comp[field];
+        }
+      } else if (!attribs.rulesGet && !attribs.rulesSet && !attribs.userEditable) {
+        // Both rule flags false and not a client-compat exception → computed/internal
+        // (e.g. Body.width, height, fixtures, editorBounds, layerName, relativeToCameraFix)
+        delete comp[field];
+      } else if (compName === 'Body' && BODY_PER_ACTOR_FIELDS.has(field)) {
+        // Exclusively per-actor — goes in actors.yaml, not blueprint YAML
+        delete comp[field];
+      }
     }
   }
 }
@@ -411,6 +426,7 @@ async function writeAgentFilesAsync({ deckDir, cardDir, sceneData }: { deckDir: 
 export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: { cardId: string; sceneDataUrl: string; cardDir: string; deckDir: string }) {
   const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
+  const { behaviors } = await getCastleMetadata();
 
   // Get deckId for meta.json
   let deckId = '';
@@ -429,7 +445,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
 
     // Deep copy and apply YAML conventions
     const components = JSON.parse(JSON.stringify(origComponents));
-    stripBlueprintComponents(components);
+    stripBlueprintComponents(components, behaviors);
     // Apply ×10 for Body scale fields (YAML format uses 0–10 scale)
     if (components.Body) {
       if (components.Body.widthScale !== undefined) components.Body.widthScale *= 10;
@@ -516,6 +532,7 @@ export async function readDeckFromDirectoryAsync({ dir, log }: { dir?: string; l
 export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: { cardId: string; sceneDataUrl: string; cardDir: string; deckDir: string }) {
   const sceneData = await syncSceneDataAsync({ cardId, sceneDataUrl, deckDir });
   const library = sceneData.snapshot.library;
+  const { behaviors } = await getCastleMetadata();
 
   // Get deckId for meta.json
   let deckId = '';
@@ -535,7 +552,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
 
     // Deep copy and apply YAML conventions
     const components = JSON.parse(JSON.stringify(origComponents));
-    stripBlueprintComponents(components);
+    stripBlueprintComponents(components, behaviors);
     // Apply ×10 for Body scale fields (YAML format uses 0–10 scale)
     if (components.Body) {
       if (components.Body.widthScale !== undefined) components.Body.widthScale *= 10;
@@ -793,7 +810,8 @@ export async function newSceneDataForCardAsync({
 
   // Strip actor bp.components to only per-actor overrides (x, y, angle, widthScale,
   // heightScale, initialFrame, Text, Link). applySnapshot inflates actors with all engine
-  // defaults — the mobile client (castle-client-3 Scene::writeActor) never includes those.
+  // defaults — the mobile client (castle-client Scene::writeActor) never includes those.
+  // Note: x/y/angle are also listed in BODY_PER_ACTOR_FIELDS (used by stripBlueprintComponents).
   const processedActors: any[] = [];
   for (const actor of processedSnapshot.actors ?? []) {
     const comps = actor.bp?.components ?? {};
