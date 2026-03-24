@@ -7,6 +7,7 @@ import yaml from 'yaml';
 import _ from 'lodash';
 
 import * as API from './api.js';
+import * as config from './config.js';
 import * as Behaviors from './behaviors.js';
 import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
 
@@ -440,10 +441,14 @@ export async function generateSceneContext(sceneData: any): Promise<string> {
   return parts.join('\n\n');
 }
 
-function loadCliDocs(): string | null {
+function loadCliDocs(isAdmin: boolean): string | null {
   try {
     const assetPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/AGENTS.md');
-    return fs.readFileSync(assetPath, 'utf8');
+    let content = fs.readFileSync(assetPath, 'utf8');
+    if (!isAdmin) {
+      content = content.replace(/<!-- ADMIN_ONLY_START -->[\s\S]*?<!-- ADMIN_ONLY_END -->\n?/g, '');
+    }
+    return content;
   } catch {
     return null;
   }
@@ -451,7 +456,8 @@ function loadCliDocs(): string | null {
 
 // Write AGENTS.md and CLAUDE.md at deck level: static context + CLI docs.
 export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
-  const cliDocs = loadCliDocs();
+  const isAdmin = config.getIsAdmin();
+  const cliDocs = loadCliDocs(isAdmin);
   if (!cliDocs) return;
   const staticContext = await generateStaticContext();
   const content = staticContext ? staticContext + '\n\n' + cliDocs : cliDocs;

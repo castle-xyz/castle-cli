@@ -12,11 +12,14 @@ vi.mock('node-watch', () => ({
 vi.mock('../../src/utils/api.js', () => ({
   deck: vi.fn(),
   me: vi.fn(),
+  fetchAndCacheAdminStatus: vi.fn(),
 }));
 
 vi.mock('../../src/utils/config.js', () => ({
   getToken: vi.fn().mockReturnValue(null), // No token — disable mobile
   setToken: vi.fn(),
+  getIsAdmin: vi.fn().mockReturnValue(false),
+  setIsAdmin: vi.fn(),
 }));
 
 vi.mock('axios');

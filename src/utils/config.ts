@@ -43,3 +43,14 @@ export function setToken(token: string | null) {
   config.token = token;
   writeConfigFile('config.json', config);
 }
+
+export function getIsAdmin(): boolean {
+  const config = readConfigFile('config.json');
+  return config?.isAdmin === true;
+}
+
+export function setIsAdmin(isAdmin: boolean) {
+  const config = readConfigFile('config.json') || {};
+  config.isAdmin = isAdmin;
+  writeConfigFile('config.json', config);
+}

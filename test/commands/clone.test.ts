@@ -8,6 +8,7 @@ import yaml from 'yaml';
 vi.mock('../../src/utils/api.js', () => ({
   deck: vi.fn(),
   resolveDeepLink: vi.fn(),
+  fetchAndCacheAdminStatus: vi.fn(),
 }));
 
 vi.mock('axios');

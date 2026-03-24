@@ -9,6 +9,7 @@ import { initializeDeckDir, initializeCardDir } from '../utils/workspace.js';
 
 export async function clone(deckArg: string, options: { directory?: string; replace?: boolean; drawPreviews?: boolean } = {}) {
   await initMetadata();
+  await API.fetchAndCacheAdminStatus();
 
   let deckId = deckArg;
 

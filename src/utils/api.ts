@@ -1,6 +1,7 @@
 import Axios from 'axios';
 import * as config from './config.js';
 
+
 const DEBUG = false;
 
 const API_HOST = DEBUG ? 'http://localhost:1380/graphql' : 'https://api.castle.xyz/graphql';
@@ -193,4 +194,15 @@ export const resolveDeepLink = async (url: string) => {
   handleAPIError(response);
 
   return response.data.resolveDeepLink;
+};
+
+export const fetchAndCacheAdminStatus = async (): Promise<void> => {
+  try {
+    let response = await API(`query { me { castleUserGroups { isAdmin } } }`);
+    handleAPIError(response);
+    const isAdmin = response.data?.me?.castleUserGroups?.isAdmin === true;
+    config.setIsAdmin(isAdmin);
+  } catch {
+    // Network error or not logged in — leave existing cached value unchanged
+  }
 };

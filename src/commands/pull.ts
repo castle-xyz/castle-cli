@@ -3,12 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import yaml from 'yaml';
 
+import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
 import { initializeCardDir } from '../utils/workspace.js';
 
 export async function pull(options: { directory?: string } = {}) {
   await initMetadata();
+  await API.fetchAndCacheAdminStatus();
 
   const directory = options.directory || '.';
 

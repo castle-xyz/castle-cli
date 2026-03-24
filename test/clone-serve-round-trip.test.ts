@@ -20,6 +20,7 @@ import * as url from 'url';
 vi.mock('../src/utils/api.js', () => ({
   deck: vi.fn(),
   resolveDeepLink: vi.fn(),
+  fetchAndCacheAdminStatus: vi.fn(),
 }));
 
 vi.mock('axios');

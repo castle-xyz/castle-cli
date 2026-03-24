@@ -68,6 +68,9 @@ export class CLIMobileConnection {
   // Deletions are fire-and-forget; only additions are enforced to avoid fighting game-managed actors.
   private pendingActors: Map<string, { addedActors: Record<string, any>; addedKeys: string[] }> = new Map();
 
+  // Tracks cardIds we've received state_internal for (for first-sync log).
+  private seenCards: Set<string> = new Set();
+
   // Serialization queue: ensures only one state handler runs at a time to prevent races.
   private _stateQueue: Promise<void> = Promise.resolve();
   private _msgSeq: number = 0;
@@ -121,7 +124,7 @@ export class CLIMobileConnection {
     this.ws.on('open', () => {
       this.connected = true;
       this.logger.cli('connected to tunnel');
-      if (this.debug) console.log('[mobile] connected to tunnel');
+      console.log('[mobile] connected');
 
       // Enable the cli tunnel feature
       this._send({ type: 'cli_tunnel_start_listening' });
@@ -161,7 +164,7 @@ export class CLIMobileConnection {
       this.connected = false;
       this._stopPing();
       this.logger.cli('disconnected from tunnel');
-      if (this.debug) console.log('[mobile] disconnected from tunnel');
+      console.log('[mobile] disconnected');
       this._scheduleReconnect();
     });
 
@@ -211,6 +214,7 @@ export class CLIMobileConnection {
   private _scheduleReconnect() {
     if (!this.shouldReconnect) return;
     if (this.reconnectTimer) return;
+    console.log('[mobile] reconnecting...');
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this._connect();
@@ -311,6 +315,10 @@ export class CLIMobileConnection {
 
     const actorKeys = Object.keys(state.actors);
     this.logger.cli(`received state_internal for card ${cardId}: ${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors`);
+    if (!this.seenCards.has(cardId)) {
+      this.seenCards.add(cardId);
+      console.log(`[mobile] card ${cardId}: synced (${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors)`);
+    }
 
     initializeCardDir(cardDir, cardId);
 
@@ -459,6 +467,7 @@ export class CLIMobileConnection {
 
     const description = `cli: updated ${parts.join(', ')}`;
     this.logger.cli(`sending edit: ${description}`);
+    console.log(`[mobile] sending edit: updated ${parts.join(', ')}`);
 
     const edit: EditMessage = {
       type: 'edit',
@@ -784,6 +793,7 @@ export class CLIMobileConnection {
 
     const screenshotPath = `.castle/screenshots/${numberedName}`;
     this.logger.cli(`screenshot: saved ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
+    console.log(`[mobile] screenshot saved: ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
     return { doneAt: new Date().toISOString(), file: screenshotPath };
   }
 

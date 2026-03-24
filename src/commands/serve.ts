@@ -232,7 +232,7 @@ export async function serve(
   await initMetadata();
 
   // Fetch player ID, coreViews, and me info at startup in parallel (graceful offline fallback).
-  const [playerId, coreViewsJson, meInfo] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug), api.me()]);
+  const [playerId, coreViewsJson, meInfo] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug), api.me(), api.fetchAndCacheAdminStatus()]);
 
   // Sync card versions from server — skip gracefully when offline.
   try {
