@@ -41,7 +41,6 @@ const BODY_SKIP = new Set([
   'x', 'y', 'angle',
   'width', 'height',
   'relativeToCameraFix',
-  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'layerName',
   // Engine-internal fields not preserved through the YAML → applySnapshot round-trip:
   'bodyType', 'bullet', 'massData',

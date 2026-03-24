@@ -26,9 +26,6 @@ const DECK_IDS = [
   'muLTlZhzj',
   'S_JJjMxpt',
   'co9NPFpbS',
-  '1J_AMd_oX',
-  'FWpL3FAIQ',
-  'XijCjhwKi',
   'hJAjFJJRoxjN',
   // @pirate
   '4wPooZTiuU-r',

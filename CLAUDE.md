@@ -132,6 +132,19 @@ Watch `.castle/logs.txt` in the deck dir for CLI-side events. Mock-mobile logs t
 2. Multiple `UPDATE_SCENE` events after `toolEditScene` push the debounce timer past the suppression window — that's why `sendStateInternalDebounced` extends `_suppressDiffUntil` on each call while suppression is active.
 3. Check for stale JS bundles on device — React Native fast refresh can partially apply changes. If the new log format appears in `_applyEdit` but not in `sendStateInternalDiff`, the bundle is stale and needs a full reload.
 
+### Per-Actor Field Spec (castle-client Scene::writeActor)
+
+`Scene::writeActor` in `castle-client/core/src/scene.cpp` defines exactly which fields may be overridden per actor (when `params.inheritedProperties` is false, which is the normal actor-instance case). **Only these fields are allowed as per-actor overrides** — everything else must be set at the blueprint level:
+
+| Component | Fields |
+|-----------|--------|
+| `Body` | `x`, `y` (always); `angle`, `widthScale`, `heightScale` (layout mode only) |
+| `Drawing2` | `initialFrame` |
+| `Text` | `content` (only when different from blueprint), `fontSizeScale` |
+| `Link` | `targetDeckId` (only when different from blueprint) |
+
+**Do not add per-actor overrides for any other components** (e.g. `Rules`, `Tags`, `Solid`, `Friction`). Rules in particular must be set at the blueprint level only.
+
 ### Adding New Decks to Round-Trip Tests
 
 `test/clone-serve-round-trip.test.ts` automatically picks up any JSON file in `test/fixtures/decks/`. To add a new deck:

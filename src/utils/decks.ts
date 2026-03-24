@@ -52,14 +52,16 @@ export function getBlueprintsDir(cardDir: string) {
 // handleWriteComponent includes these, but handleSetProperty applies them in ways that
 // can corrupt physics bodies (e.g. fixtures override the drawing-computed physics body,
 // breaking tap detection). User-editable Body props are widthScale/heightScale/visible/
-// relativeToCamera; x/y/angle are per-actor and live in actors.yaml instead.
+// relativeToCamera/paddingTop/Right/Bottom/Left; x/y/angle are per-actor and live in
+// actors.yaml instead.
+// Note: layerName IS here — it is engine-computed from relativeToCamera (set to "camera"
+// or "main" in body.cpp), not a user-editable field.
 const BODY_COMPUTED_FIELDS = [
   'x', 'y', 'angle',
   'width', 'height',
   'fixtures',
   'editorBounds',
   'relativeToCameraFix',
-  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'layerName',
 ];
 
