@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import yaml from 'yaml';
 
 import * as API from '../utils/api.js';
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
 import { initializeDeckDir, initializeCardDir } from '../utils/workspace.js';
 
-export async function clone(deckArg: string, options: { directory?: string; replace?: boolean } = {}) {
+export async function clone(deckArg: string, options: { directory?: string; replace?: boolean; drawPreviews?: boolean } = {}) {
   await initMetadata();
 
   let deckId = deckArg;
@@ -64,6 +65,13 @@ export async function clone(deckArg: string, options: { directory?: string; repl
   fs.mkdirSync(deckDirectory);
 
   initializeDeckDir(deckDirectory, deck.deckId);
+
+  if (options.drawPreviews === false) {
+    const deckYamlPath = path.join(deckDirectory, 'deck.yaml');
+    const deckConfig = yaml.parse(fs.readFileSync(deckYamlPath, 'utf8'));
+    deckConfig.drawPreviews = false;
+    fs.writeFileSync(deckYamlPath, yaml.stringify(deckConfig));
+  }
 
   for (let card of deck.cards) {
     console.log(`Cloning card ${card.cardId}...`);

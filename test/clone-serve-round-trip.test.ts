@@ -322,7 +322,7 @@ for (const fixtureFile of fixtureFiles) {
 
       it(`card ${cardId} — full snapshot round-trip after clone → serve`, async () => {
         const deckDir = path.join(tmpDir, 'deck');
-        await clone(deckId, { directory: deckDir });
+        await clone(deckId, { directory: deckDir, drawPreviews: false });
 
         const cardDir = path.join(deckDir, `card-${cardId}`);
         const { sceneData: served } = await newSceneDataForCardAsync({ cardId, cardDir, deckDir });

@@ -225,7 +225,7 @@ async function fetchCoreViews(debug: boolean): Promise<string> {
 
 export async function serve(
   directory: string = '.',
-  options: { port?: string; card?: string; open?: boolean; debug?: boolean } = {}
+  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean } = {}
 ) {
   const debug = !!options.debug;
 
@@ -254,6 +254,15 @@ export async function serve(
     try {
       const deckConfig = yaml.parse(fs.readFileSync(deckYamlPath, 'utf8'));
       deckId = deckConfig.deckId || undefined;
+      if (options.drawPreviews === false) {
+        if (deckConfig.drawPreviews !== false) {
+          deckConfig.drawPreviews = false;
+          fs.writeFileSync(deckYamlPath, yaml.stringify(deckConfig));
+        }
+      } else if (deckConfig.drawPreviews === undefined) {
+        deckConfig.drawPreviews = true;
+        fs.writeFileSync(deckYamlPath, yaml.stringify(deckConfig));
+      }
     } catch (e) {}
   }
 

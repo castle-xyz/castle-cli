@@ -31,6 +31,7 @@ Clone a deck from the server into a local directory.
 |--------|-------------|
 | `-d, --directory <directory>` | Directory to clone into |
 | `--replace` | Replace the directory if it already exists |
+| `--no-draw-previews` | Disable draw preview PNG generation (stores `drawPreviews: false` in `deck.yaml`) |
 
 ### `castle serve [directory]`
 Start the local web player and mobile bridge. Defaults to current directory.
@@ -50,6 +51,7 @@ Keyboard shortcuts while running: `o` open in browser · `r` reload · `q` quit
 | `-c, --card <cardId>` | Initial card to load |
 | `--open` | Automatically open browser |
 | `--debug` | Show verbose connection and file-change logs |
+| `--no-draw-previews` | Disable draw preview PNG generation (stores `drawPreviews: false` in `deck.yaml`) |
 
 ### `castle pull`
 Pull latest changes from the server into the current deck directory.
@@ -73,6 +75,20 @@ Log out from your Castle account.
 
 ### `castle whoami`
 Display the currently logged-in user.
+
+### `castle draw-preview <draw-json>`
+Render a blueprint's `.draw.json` file to a PNG image.
+
+```bash
+castle draw-preview blueprints/player.draw.json           # → blueprints/player.preview.png
+castle draw-preview blueprints/player.draw.json -o out.png
+```
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <path>` | Output PNG path (default: replaces `.draw.json` with `.preview.png`) |
+| `-f, --frame <n>` | Zero-based frame index (default: 0) |
+| `-s, --size <n>` | Output image size in pixels (default: 256) |
 
 ### `castle version`
 Show the current CLI version.
@@ -102,9 +118,10 @@ deck-{deckId}/
     ├── .castle/
     │   └── meta.json         # Content hashes (do not edit)
     └── blueprints/
-        ├── {name}.yaml       # Blueprint definition
-        ├── {name}.lua        # Optional Lua script
-        └── {name}.draw.json  # Engine-computed drawing/physics data
+        ├── {name}.yaml         # Blueprint definition
+        ├── {name}.lua          # Optional Lua script
+        ├── {name}.draw.json    # Engine-computed drawing/physics data
+        └── {name}.preview.png  # Auto-generated PNG preview of the drawing
 ```
 
 ## Development

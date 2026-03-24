@@ -11,6 +11,7 @@ import { serve } from './commands/serve.js';
 import { login } from './commands/login.js';
 import { logout } from './commands/logout.js';
 import { whoami } from './commands/whoami.js';
+import { drawPreview } from './commands/draw-preview.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +36,7 @@ program
   .description('Clone a deck from the server')
   .option('-d, --directory <directory>', 'Directory to clone into')
   .option('--replace', 'Replace the directory if it already exists')
+  .option('--no-draw-previews', 'Disable draw preview PNG generation (stored in deck.yaml)')
   .action(async (deckId, options) => {
     await clone(deckId, options);
   });
@@ -62,6 +64,7 @@ program
   .option('-c, --card <cardId>', 'Initial card to serve')
   .option('--open', 'Automatically open browser')
   .option('--debug', 'Show verbose connection and file-change logs')
+  .option('--no-draw-previews', 'Disable draw preview PNG generation (stored in deck.yaml)')
   .action(async (directory, options) => {
     await serve(directory || '.', options);
   });
@@ -92,6 +95,16 @@ program
   .description('Show the current CLI version')
   .action(() => {
     console.log(packageVersion);
+  });
+
+program
+  .command('draw-preview <draw-json>')
+  .description('Render a blueprint drawing to a PNG preview')
+  .option('-o, --output <path>', 'Output PNG path (default: replaces .draw.json with .preview.png)')
+  .option('-f, --frame <n>', 'Zero-based frame index (default: 0)')
+  .option('-s, --size <n>', 'Output image size in pixels (default: 256)')
+  .action(async (drawJson, options) => {
+    await drawPreview(drawJson, options);
   });
 
 program.parse();

@@ -14,7 +14,7 @@ export function initializeDeckDir(deckDir: string, deckId: string): void {
 
   const deckYamlPath = path.join(deckDir, 'deck.yaml');
   if (!fs.existsSync(deckYamlPath)) {
-    fs.writeFileSync(deckYamlPath, yaml.stringify({ deckId }));
+    fs.writeFileSync(deckYamlPath, yaml.stringify({ deckId, drawPreviews: true }));
   }
 
   const gitignorePath = path.join(deckDir, '.gitignore');

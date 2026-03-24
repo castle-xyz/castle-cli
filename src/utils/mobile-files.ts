@@ -5,7 +5,7 @@ import yaml from 'yaml';
 import { StateInternalMessage, StateInternalDiffMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
-import { writeCardYamlFields, extractDrawData } from './decks.js';
+import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled } from './decks.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
 const ACTORS_FILE = 'actors.yaml';
@@ -38,6 +38,7 @@ interface MetaData {
   hashes: FileHashes;
   blueprintIdMap: Record<string, string>; // slug -> entryId
   lastActors?: Record<string, any>; // actors dict last written to disk (disk format, for diff computation)
+  drawPreviewHashes?: Record<string, string>; // slug → Drawing2.hash, for stale-preview detection
 }
 
 function readMeta(dir: string): MetaData | null {
@@ -335,8 +336,12 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     externalLibrary = internalLibrary;
   }
 
+  const drawPreviewsEnabled = isDrawPreviewsEnabled(path.dirname(cardDir));
+  const drawPreviewHashes: Record<string, string> = readMeta(cardDir)?.drawPreviewHashes ?? {};
+
   // Write blueprint files
   const writtenSlugs = new Set<string>();
+  const previewPromises: Promise<void>[] = [];
   for (const [entryId, entry] of Object.entries(state.blueprints)) {
     const entryTyped = entry as any;
     if (entryTyped.entryType !== 'actorBlueprint') continue;
@@ -367,6 +372,9 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     });
     if (drawFileData) {
       fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
+      if (drawPreviewsEnabled) {
+        previewPromises.push(maybeRegenerateDrawPreviewAsync(bpDir, slug, drawFileData.Drawing2, drawPreviewHashes));
+      }
     }
 
     // Strip engine-only Drawing2 fields (not needed in YAML; stored in .draw.json above)
@@ -428,6 +436,8 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     }
   }
 
+  await Promise.all(previewPromises);
+
   // Write actors.yaml — convert internal format (widthScale 0–1, radians) to disk format (×10, degrees)
   const actorsForDisk: Record<string, any> = {};
   for (const [key, actor] of Object.entries(state.actors)) {
@@ -483,6 +493,7 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     hashes,
     blueprintIdMap,
     lastActors: actorsForDisk,
+    drawPreviewHashes,
   };
   writeMeta(cardDir, meta);
 

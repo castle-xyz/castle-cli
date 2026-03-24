@@ -45,9 +45,10 @@ deck-{deckId}/
     ├── .castle/
     │   └── meta.json         # Content hashes for change detection
     └── blueprints/           # Blueprint files
-        ├── {name}.yaml       # Blueprint definition (components as YAML)
-        ├── {name}.lua        # Optional Lua script for blueprint
-        └── {name}.draw.json  # Optional extracted drawing/physics data
+        ├── {name}.yaml         # Blueprint definition (components as YAML)
+        ├── {name}.lua          # Optional Lua script for blueprint
+        ├── {name}.draw.json    # Optional extracted drawing/physics data
+        └── {name}.preview.png  # Auto-generated 256×256 PNG preview of the drawing
 ```
 
 Note: `scene-data.json` is NOT a disk file — it is generated on-the-fly by the `/scene-data` HTTP endpoint.
@@ -66,6 +67,7 @@ Note: `scene-data.json` is NOT a disk file — it is generated on-the-fly by the
 | `src/utils/castle-core-node.ts` | WASM module wrapper (downloads from CDN, caches in `~/.castle/cache/node/`) |
 | `src/utils/api.ts` | GraphQL client for `api.castle.xyz` |
 | `src/utils/config.ts` | Auth token persistence in `~/.castle/config.json` |
+| `src/commands/draw-preview.ts` | `castle draw-preview` command — renders a `.draw.json` to a PNG |
 
 ### Serve Command
 
@@ -99,6 +101,30 @@ Set `CASTLE_LOCAL_NODE` to use a local build of the WASM module instead of downl
 - `CASTLE_LOCAL_NODE=/path/to/dir` — loads from the specified directory
 
 The directory must contain `castle-core-node.js` and `castle-core-node.wasm`.
+
+Two module instances are kept alive simultaneously:
+- **M** (main) — loaded without GL, used for `applySnapshot`, `getCastleMetadata`, `getSnapshotExternalValues`
+- **R** (render) — loaded with a headless-gl canvas (`gl` npm package) and initialized for GL rendering via `castle_node_init_rendering`; used only for `renderDrawDataPng`
+
+Both instances call `ensureBrowserGlobals()` on load to stub `screen`, `document`, `window`, etc. that SDL's Emscripten bindings reference even without a real window.
+
+### Draw Previews
+
+`{name}.preview.png` files are auto-generated alongside each `.draw.json` whenever a card is cloned, pulled, or served. The Drawing2 hash is tracked in `.castle/meta.json` (`drawPreviewHashes`) to avoid redundant re-renders.
+
+Set `drawPreviews: false` in `deck.yaml` to disable preview generation project-wide (useful for CI):
+```yaml
+deckId: abc123
+drawPreviews: false
+```
+
+Or pass `--no-draw-previews` to `clone` or `serve` to write this setting on first run.
+
+The `castle draw-preview` command renders a single `.draw.json` on demand:
+```bash
+castle draw-preview blueprints/foo.draw.json          # → blueprints/foo.preview.png
+castle draw-preview blueprints/foo.draw.json -o out.png -s 512
+```
 
 ### Mobile Actor Key Sync
 

@@ -10,6 +10,53 @@ import * as API from './api.js';
 import * as Behaviors from './behaviors.js';
 import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
 
+// Read drawPreviews flag from deck.yaml. Returns true (previews enabled) unless explicitly false.
+export function isDrawPreviewsEnabled(deckDir: string): boolean {
+  try {
+    const config = yaml.parse(fs.readFileSync(path.join(deckDir, 'deck.yaml'), 'utf8'));
+    return config?.drawPreviews !== false;
+  } catch {
+    return true;
+  }
+}
+
+// Regenerate {slug}.preview.png if drawPreviewHashes[slug] doesn't match the current Drawing2.hash.
+// Mutates drawPreviewHashes in-place on success (safe: JS is single-threaded).
+// Silently skips on any error so the serve flow is never blocked.
+export async function maybeRegenerateDrawPreviewAsync(
+  bpDir: string,
+  slug: string,
+  drawing2: any,
+  drawPreviewHashes: Record<string, string>,
+): Promise<void> {
+  const hash: string | undefined = drawing2?.hash;
+  if (!hash || !drawing2?.drawData) return;
+  if (drawPreviewHashes[slug] === hash) return;
+
+  try {
+    const { renderDrawDataPng } = await import('./castle-core-node.js');
+    const base64Png = await renderDrawDataPng(drawing2, 0, 256);
+    fs.writeFileSync(path.join(bpDir, `${slug}.preview.png`), Buffer.from(base64Png, 'base64'));
+    drawPreviewHashes[slug] = hash;
+  } catch (e: any) {
+    console.warn(`[draw-preview] Failed to generate preview for ${slug}: ${e?.message ?? e}`);
+  }
+}
+
+// Patch drawPreviewHashes into meta.json, creating the file if it doesn't exist yet.
+function patchDrawPreviewHashesInMeta(cardDir: string, drawPreviewHashes: Record<string, string>): void {
+  if (Object.keys(drawPreviewHashes).length === 0) return;
+  try {
+    const metaPath = path.join(cardDir, '.castle', 'meta.json');
+    let meta: any = {};
+    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
+    meta.drawPreviewHashes = drawPreviewHashes;
+    const castleDir = path.join(cardDir, '.castle');
+    if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+  } catch {}
+}
+
 function contentHash(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
 }
@@ -436,6 +483,10 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
   } catch (e) {}
 
   const blueprintsDir = getBlueprintsDir(cardDir);
+  const drawPreviewsEnabled = isDrawPreviewsEnabled(deckDir);
+
+  const drawPreviewHashes: Record<string, string> = {};
+  const previewPromises: Promise<void>[] = [];
 
   // Write blueprint YAMLs + companion .draw.json files (work with internal library directly)
   for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
@@ -474,10 +525,18 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
     const drawData = extractDrawData(origComponents);
     if (drawData) {
       fs.writeFileSync(blueprintFilename.replace(/\.yaml$/, '.draw.json'), JSON.stringify(drawData, null, 2));
+      if (drawPreviewsEnabled) {
+        previewPromises.push(
+          maybeRegenerateDrawPreviewAsync(blueprintsDir, path.basename(blueprintFilename, '.yaml'), drawData.Drawing2, drawPreviewHashes)
+        );
+      }
     }
   }
 
+  await Promise.all(previewPromises);
+
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
+  patchDrawPreviewHashesInMeta(cardDir, drawPreviewHashes);
 
   // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
   writeCardYamlFields(cardDir, {
@@ -543,6 +602,10 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
 
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
   const blueprintsDir = getBlueprintsDir(cardDir);
+  const drawPreviewsEnabled = isDrawPreviewsEnabled(deckDir);
+
+  const drawPreviewHashes: Record<string, string> = {};
+  const previewPromises: Promise<void>[] = [];
 
   // Write blueprint YAMLs + companion .draw.json files (work with internal library directly)
   for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
@@ -597,10 +660,18 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
     const drawData = extractDrawData(origComponents);
     if (drawData) {
       fs.writeFileSync(blueprintFilename.replace(/\.yaml$/, '.draw.json'), JSON.stringify(drawData, null, 2));
+      if (drawPreviewsEnabled) {
+        previewPromises.push(
+          maybeRegenerateDrawPreviewAsync(blueprintsDir, path.basename(blueprintFilename, '.yaml'), drawData.Drawing2, drawPreviewHashes)
+        );
+      }
     }
   }
 
+  await Promise.all(previewPromises);
+
   await writeActorsAndVariablesAsync({ sceneData, cardDir, library, deckId, cardId });
+  patchDrawPreviewHashesInMeta(cardDir, drawPreviewHashes);
 
   // Save sceneProperties, actorBlueprintInherit, and linkTargetDeckIds to card.yaml for use during serve.
   writeCardYamlFields(cardDir, {
@@ -658,9 +729,19 @@ export async function newSceneDataForCardAsync({
     } catch {}
   }
 
+  const drawPreviewsEnabled = isDrawPreviewsEnabled(deckDir);
+
+  // Read existing preview hashes from meta.json so we can skip up-to-date previews.
+  const drawPreviewHashes: Record<string, string> = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(cardDir, '.castle', 'meta.json'), 'utf8'))?.drawPreviewHashes ?? {};
+    } catch { return {}; }
+  })();
+
   // 1. Build local library from blueprint YAMLs + companion .draw.json files
   const localLibrary: any = {};
   const drawDataByEntryId: Record<string, any> = {};
+  const previewPromises: Promise<void>[] = [];
 
   if (fs.existsSync(bpDir)) {
     const yamlFiles = fs.readdirSync(bpDir).filter(f => f.endsWith('.yaml'));
@@ -697,10 +778,17 @@ export async function newSceneDataForCardAsync({
             if (!localComponents.LocalVariables) localComponents.LocalVariables = {};
             localComponents.LocalVariables.localVariables = drawData.LocalVariables.localVariables;
           }
+          // Generate preview PNG if stale (errors are swallowed inside)
+          if (drawPreviewsEnabled) {
+            previewPromises.push(maybeRegenerateDrawPreviewAsync(bpDir, slug, drawData.Drawing2, drawPreviewHashes));
+          }
         } catch {}
       }
     }
   }
+
+  await Promise.all(previewPromises);
+  patchDrawPreviewHashesInMeta(cardDir, drawPreviewHashes);
 
   // 2. Build local actors from actors.yaml (flat format: title, degrees, ×10 widthScale)
   const localActors: any[] = [];
