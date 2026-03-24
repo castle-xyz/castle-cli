@@ -131,6 +131,9 @@ export class CLIMobileConnection {
 
       // Start keepalive pings
       this._startPing();
+
+      // Start commands poll immediately on connect (don't wait for state_internal)
+      this._startCommandsPoll();
     });
 
     this.ws.on('message', (data) => {
