@@ -65,6 +65,8 @@ program
   .option('--open', 'Automatically open browser')
   .option('--debug', 'Show verbose connection and file-change logs')
   .option('--no-draw-previews', 'Disable draw preview PNG generation (stored in deck.yaml)')
+  .option('--cli-primary', 'Use local files as source of truth when mobile state conflicts (no prompt)')
+  .option('--mobile-primary', 'Use mobile state as source of truth when local files conflict (no prompt)')
   .action(async (directory, options) => {
     await serve(directory || '.', options);
   });

@@ -219,7 +219,7 @@ export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { de
 }
 
 function newFilenameForTitle({ title, extension, blueprintsDir }: { title: string; extension: string; blueprintsDir: string }) {
-  let dedupedTitle = title.replace(/[^a-zA-Z0-9]/g, '_');
+  let dedupedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled';
   let filename = path.join(blueprintsDir, `${dedupedTitle}.${extension}`);
 
   if (fs.existsSync(filename)) {

@@ -225,7 +225,7 @@ async function fetchCoreViews(debug: boolean): Promise<string> {
 
 export async function serve(
   directory: string = '.',
-  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean } = {}
+  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean; cliPrimary?: boolean; mobilePrimary?: boolean } = {}
 ) {
   const debug = !!options.debug;
 
@@ -328,6 +328,8 @@ export async function serve(
       token,
       debug,
       expectedDeckId: deckId,
+      cliPrimary: options.cliPrimary,
+      mobilePrimary: options.mobilePrimary,
       onStateWritten: (cardId, actualDeckDir) => {
         deckDirForRoutes = actualDeckDir;
         version++;

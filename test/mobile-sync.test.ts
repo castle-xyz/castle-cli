@@ -21,6 +21,8 @@ import {
   titleToSlug,
   detectChanges,
   updateMetaHashes,
+  detectConflicts,
+  computeDiskVsMobileDelta,
 } from '../src/utils/mobile-files.js';
 
 function makeTempDir() {
@@ -164,6 +166,67 @@ describe('circular edit: delete actor then add it back', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Helpers for conflict detection / delta tests
+// ---------------------------------------------------------------------------
+
+// A minimal StateInternalMessage-shaped object for testing (no WASM needed)
+function makeMobileState(options: {
+  blueprints?: Record<string, { title: string; components?: any }>;
+  actors?: Record<string, { parentEntryId: string; bp?: { components?: { Body?: any } } }>;
+  variables?: any;
+} = {}): any {
+  const blueprints: Record<string, any> = {};
+  for (const [id, bp] of Object.entries(options.blueprints ?? {})) {
+    blueprints[id] = { entryType: 'actorBlueprint', title: bp.title, actorBlueprint: { components: bp.components ?? {} } };
+  }
+  return {
+    type: 'state_internal',
+    deckId: 'deck-1',
+    cardId: 'card-1',
+    cliSessionId: 'session-1',
+    blueprints,
+    actors: options.actors ?? {},
+    variables: options.variables ?? null,
+    sceneProperties: null,
+  };
+}
+
+// Write disk files as if mobile had previously synced them
+function writeDiskState(cardDir: string, options: {
+  blueprints?: Record<string, { entryId: string; title: string; components?: any }>;
+  actors?: Record<string, any>;
+  variables?: any;
+}) {
+  const bpDir = path.join(cardDir, 'blueprints');
+  fs.mkdirSync(bpDir, { recursive: true });
+  fs.mkdirSync(path.join(cardDir, '.castle'), { recursive: true });
+
+  const blueprintIdMap: Record<string, string> = {};
+  for (const [_id, bp] of Object.entries(options.blueprints ?? {})) {
+    const slug = titleToSlug(bp.title);
+    blueprintIdMap[slug] = bp.entryId;
+    fs.writeFileSync(
+      path.join(bpDir, `${slug}.yaml`),
+      yaml.stringify({ title: bp.title, entryId: bp.entryId, components: bp.components ?? {} }, { lineWidth: 120 })
+    );
+  }
+
+  fs.writeFileSync(
+    path.join(cardDir, 'actors.yaml'),
+    yaml.stringify(options.actors ?? {}, { lineWidth: 120 })
+  );
+  fs.writeFileSync(
+    path.join(cardDir, 'variables.yaml'),
+    yaml.stringify(options.variables ?? null, { lineWidth: 120 })
+  );
+  fs.writeFileSync(
+    path.join(cardDir, '.castle', 'meta.json'),
+    JSON.stringify({ deckId: 'deck-1', cardId: 'card-1', hashes: {}, blueprintIdMap })
+  );
+  updateMetaHashes(cardDir);
+}
+
 describe('circular edit: mobile has additional game actors beyond what user edited', () => {
   let tmpDir: string;
 
@@ -202,5 +265,188 @@ describe('circular edit: mobile has additional game actors beyond what user edit
 
     // System is stable — no more changes should be detected
     expect(detectChanges(tmpDir)!.hasChanges).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectConflicts tests
+// ---------------------------------------------------------------------------
+
+describe('detectConflicts', () => {
+  let tmpDir: string;
+  beforeEach(() => { tmpDir = makeTempDir(); });
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  it('returns null when deck has no actors.yaml (empty deck)', () => {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const mobile = makeMobileState({ blueprints: { 'bp-1': { title: 'Player' } }, actors: {} });
+    expect(detectConflicts(tmpDir, mobile)).toBeNull();
+  });
+
+  it('returns hasConflicts=false when disk matches mobile state', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: { a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } } },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: { a1: { title: 'Player', x: 10, y: 20 } },
+    });
+    const result = detectConflicts(tmpDir, mobile);
+    expect(result).not.toBeNull();
+    expect(result!.hasConflicts).toBe(false);
+  });
+
+  it('detects local-only blueprint (on disk but not in mobile)', () => {
+    const mobile = makeMobileState({ blueprints: { 'bp-1': { title: 'Player' } }, actors: {} });
+    writeDiskState(tmpDir, {
+      blueprints: {
+        'bp-1': { entryId: 'bp-1', title: 'Player' },
+        'bp-2': { entryId: 'bp-2', title: 'Enemy' },
+      },
+      actors: {},
+    });
+    const result = detectConflicts(tmpDir, mobile);
+    expect(result!.hasConflicts).toBe(true);
+    expect(result!.localOnlyBlueprintSlugs).toContain('enemy');
+    expect(result!.mobileOnlyBlueprintEntryIds).toHaveLength(0);
+  });
+
+  it('detects mobile-only blueprint (in mobile but not on disk)', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' }, 'bp-2': { title: 'Enemy' } },
+      actors: {},
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: {},
+    });
+    const result = detectConflicts(tmpDir, mobile);
+    expect(result!.hasConflicts).toBe(true);
+    expect(result!.mobileOnlyBlueprintEntryIds).toContain('bp-2');
+    expect(result!.localOnlyBlueprintSlugs).toHaveLength(0);
+  });
+
+  it('detects actor differences', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: { a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } } },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: {
+        a1: { title: 'Player', x: 10, y: 20 },
+        a2: { title: 'Player', x: 50, y: 50 }, // extra actor on disk
+      },
+    });
+    const result = detectConflicts(tmpDir, mobile);
+    expect(result!.hasConflicts).toBe(true);
+    expect(result!.actorsDiffer).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeDiskVsMobileDelta tests
+// ---------------------------------------------------------------------------
+
+describe('computeDiskVsMobileDelta', () => {
+  let tmpDir: string;
+  beforeEach(() => { tmpDir = makeTempDir(); });
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  it('returns no changes when disk matches mobile', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: { a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } } },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: { a1: { title: 'Player', x: 10, y: 20 } },
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(false);
+  });
+
+  it('includes actor addition when disk has actor mobile does not', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: { a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } } },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: {
+        a1: { title: 'Player', x: 10, y: 20 },
+        a2: { title: 'Player', x: 50, y: 50 },
+      },
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(true);
+    expect(delta.changedActors!['a2']).toBeDefined();
+    expect(delta.changedActors!['a2'].removeActor).toBeUndefined();
+  });
+
+  it('includes actor deletion when mobile has actor disk does not', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: {
+        a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } },
+        a2: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 50, y: 50 } } } },
+      },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: { a1: { title: 'Player', x: 10, y: 20 } },
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(true);
+    expect(delta.changedActors!['a2']).toEqual({ removeActor: true });
+  });
+
+  it('includes blueprint removal when mobile has blueprint disk does not', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' }, 'bp-2': { title: 'Enemy' } },
+      actors: {},
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: {},
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(true);
+    expect(delta.changedBlueprints['bp-2']).toEqual({ entryId: 'bp-2', removeBlueprint: true });
+  });
+
+  it('includes blueprint addition when disk has blueprint mobile does not', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: {},
+    });
+    writeDiskState(tmpDir, {
+      blueprints: {
+        'bp-1': { entryId: 'bp-1', title: 'Player' },
+        'bp-2': { entryId: 'bp-2', title: 'Enemy' },
+      },
+      actors: {},
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(true);
+    expect(delta.changedBlueprints['bp-2']).toBeDefined();
+    expect(delta.changedBlueprints['bp-2'].removeBlueprint).toBeUndefined();
+    expect(delta.changedBlueprints['bp-2'].title).toBe('Enemy');
+  });
+
+  it('includes actor update when content differs', () => {
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: { a1: { parentEntryId: 'bp-1', bp: { components: { Body: { x: 10, y: 20 } } } } },
+    });
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: { a1: { title: 'Player', x: 99, y: 99 } }, // different position
+    });
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(true);
+    expect(delta.changedActors!['a1']).toBeDefined();
+    expect(delta.changedActors!['a1'].x).toBe(99);
   });
 });

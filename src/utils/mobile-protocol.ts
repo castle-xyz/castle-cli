@@ -69,16 +69,16 @@ export interface StateInternalMessage {
   linkTargetDeckIds?: any[];
 }
 
-// Incremental diff message: only changed blueprints/actors vs last sent full state
-export interface StateInternalDiffMessage {
-  type: 'state_internal_diff';
-  deckId: string;
-  cardId: string;
-  cliSessionId: string;
-  blueprintChanges?: Record<string, any>;  // entryId → entry | { removed: true }
-  actorChanges?: Record<string, any>;      // 'a{id}' → actor | { removed: true }
-  variables?: VariableData[];              // full list (always included, small)
+export type AppToCliMessage = StateInternalMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
+
+export interface RequestStateMessage {
+  type: 'requestState';
+  knownDrawHashes?: Record<string, string>;  // entryId → Drawing2.hash CLI already has on disk
 }
 
-export type AppToCliMessage = StateInternalMessage | StateInternalDiffMessage | EditResultMessage | PongMessage | LogsMessage | ScreenshotMessage | CLIScreenshotMessage;
-export type CliToAppMessage = EditMessage;
+export interface RequestDrawDataMessage {
+  type: 'requestDrawData';
+  entryIds: string[];  // blueprints whose draw data CLI needs (hash mismatch detected)
+}
+
+export type CliToAppMessage = EditMessage | RequestStateMessage | RequestDrawDataMessage;

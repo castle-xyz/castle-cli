@@ -43,13 +43,13 @@ function writeTestState(cardDir: string) {
 
 describe('titleToSlug', () => {
   it('converts simple titles', () => {
-    expect(titleToSlug('Player Ship')).toBe('Player-Ship');
-    expect(titleToSlug('Enemy')).toBe('Enemy');
+    expect(titleToSlug('Player Ship')).toBe('player_ship');
+    expect(titleToSlug('Enemy')).toBe('enemy');
   });
 
   it('handles special characters', () => {
-    expect(titleToSlug('My Actor!')).toBe('My-Actor');
-    expect(titleToSlug('  Leading Spaces  ')).toBe('Leading-Spaces');
+    expect(titleToSlug('My Actor!')).toBe('my_actor');
+    expect(titleToSlug('  Leading Spaces  ')).toBe('leading_spaces');
   });
 
   it('returns untitled for empty/whitespace', () => {
@@ -294,6 +294,177 @@ describe('writeStateInternal', () => {
     expect(sceneData.snapshot.sceneProperties).toEqual({ backgroundColor: { r: 0, g: 0, b: 1, a: 1 }, clock: { tempo: 90 } });
     expect(sceneData.snapshot.actorBlueprintInherit).toBe(true);
     expect(sceneData.snapshot.linkTargetDeckIds).toEqual(['deck-xyz']);
+  });
+
+  it('preserves existing .draw.json when draw data absent but hash present', async () => {
+    // First write: full state with draw data
+    const stateWithDraw: any = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {
+        'e1': {
+          entryType: 'actorBlueprint',
+          title: 'Sprite',
+          actorBlueprint: {
+            components: {
+              Drawing2: {
+                initialFrame: 1,
+                drawData: { framesBounds: [{ minX: 0, maxX: 50, minY: 0, maxY: 50 }] },
+                physicsBodyData: { shapes: [] },
+                hash: 'hash-xyz',
+              },
+            },
+          },
+        },
+      },
+      actors: {},
+      variables: [],
+    };
+    await writeStateInternal(tmpDir, stateWithDraw);
+
+    const bpDir = path.join(tmpDir, 'blueprints');
+    const drawPath = path.join(bpDir, 'Sprite.draw.json');
+    expect(fs.existsSync(drawPath)).toBe(true);
+    const originalDraw = fs.readFileSync(drawPath, 'utf-8');
+
+    // Second write: same hash, draw data omitted (mobile skipped sending blobs)
+    const stateWithoutDrawData: any = {
+      ...stateWithDraw,
+      blueprints: {
+        'e1': {
+          ...stateWithDraw.blueprints['e1'],
+          actorBlueprint: {
+            components: {
+              Drawing2: {
+                initialFrame: 1,
+                hash: 'hash-xyz',
+                // drawData and physicsBodyData intentionally absent
+              },
+            },
+          },
+        },
+      },
+    };
+    await writeStateInternal(tmpDir, stateWithoutDrawData);
+
+    // .draw.json must be unchanged (preserved)
+    expect(fs.existsSync(drawPath)).toBe(true);
+    expect(fs.readFileSync(drawPath, 'utf-8')).toBe(originalDraw);
+  });
+
+  it('writes new .draw.json when draw hash changes', async () => {
+    // First write
+    const state1: any = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {
+        'e1': {
+          entryType: 'actorBlueprint',
+          title: 'Shape',
+          actorBlueprint: {
+            components: {
+              Drawing2: {
+                drawData: { framesBounds: [{ minX: 0, maxX: 10, minY: 0, maxY: 10 }] },
+                hash: 'hash-v1',
+              },
+            },
+          },
+        },
+      },
+      actors: {},
+      variables: [],
+    };
+    await writeStateInternal(tmpDir, state1);
+
+    const drawPath = path.join(tmpDir, 'blueprints', 'Shape.draw.json');
+    const data1 = JSON.parse(fs.readFileSync(drawPath, 'utf-8'));
+    expect(data1.Drawing2.hash).toBe('hash-v1');
+
+    // Second write: different hash, new draw data included
+    const state2: any = {
+      ...state1,
+      blueprints: {
+        'e1': {
+          ...state1.blueprints['e1'],
+          actorBlueprint: {
+            components: {
+              Drawing2: {
+                drawData: { framesBounds: [{ minX: 0, maxX: 20, minY: 0, maxY: 20 }] },
+                hash: 'hash-v2',
+              },
+            },
+          },
+        },
+      },
+    };
+    await writeStateInternal(tmpDir, state2);
+
+    const data2 = JSON.parse(fs.readFileSync(drawPath, 'utf-8'));
+    expect(data2.Drawing2.hash).toBe('hash-v2');
+    expect(data2.Drawing2.drawData.framesBounds[0].maxX).toBe(20);
+  });
+});
+
+describe('detectChanges — .draw.json detection', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    await initMetadata();
+    tmpDir = makeTempDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('detects .draw.json changes and includes drawing data', async () => {
+    // Write initial state so meta.json and blueprints exist
+    const state: any = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {
+        'e1': {
+          entryType: 'actorBlueprint',
+          title: 'Tile',
+          actorBlueprint: {
+            components: {
+              Drawing2: {
+                drawData: { framesBounds: [{ minX: 0, maxX: 5, minY: 0, maxY: 5 }] },
+                hash: 'hash-initial',
+              },
+            },
+          },
+        },
+      },
+      actors: {},
+      variables: [],
+    };
+    await writeStateInternal(tmpDir, state);
+    updateMetaHashes(tmpDir);
+
+    // Now modify the .draw.json file directly (simulating user editing the draw data)
+    const drawPath = path.join(tmpDir, 'blueprints', 'Tile.draw.json');
+    const updatedDraw = {
+      Drawing2: {
+        drawData: { framesBounds: [{ minX: 0, maxX: 99, minY: 0, maxY: 99 }] },
+        hash: 'hash-updated',
+      },
+    };
+    fs.writeFileSync(drawPath, JSON.stringify(updatedDraw, null, 2));
+
+    const changes = detectChanges(tmpDir);
+    expect(changes).not.toBeNull();
+    expect(changes!.hasChanges).toBe(true);
+    expect(Object.keys(changes!.changedBlueprints)).toContain('e1');
+    const bp = changes!.changedBlueprints['e1'];
+    expect(bp.drawing).toBeDefined();
+    expect(bp.drawing.Drawing2.hash).toBe('hash-updated');
   });
 });
 

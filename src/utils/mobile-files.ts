@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import yaml from 'yaml';
 import { v4 as uuidv4 } from 'uuid';
-import { StateInternalMessage, StateInternalDiffMessage, VariableData } from './mobile-protocol.js';
+import { StateInternalMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
 import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled } from './decks.js';
@@ -16,11 +16,12 @@ const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
 
 
-// Convert a blueprint title to a safe filename slug
+// Convert a blueprint title to a safe filename slug (lowercase, underscores)
 export function titleToSlug(title: string): string {
   return title
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
     || 'untitled';
 }
 
@@ -42,7 +43,7 @@ interface MetaData {
   drawPreviewHashes?: Record<string, string>; // slug → Drawing2.hash, for stale-preview detection
 }
 
-function readMeta(dir: string): MetaData | null {
+export function readMeta(dir: string): MetaData | null {
   const metaPath = path.join(dir, META_FILE);
   if (!fs.existsSync(metaPath)) return null;
   try {
@@ -64,7 +65,7 @@ export interface BlueprintChange {
   script?: Array<{ code: string }>;
   isNew?: boolean;
   forkBlueprintId?: string;
-  drawing?: string;
+  drawing?: any;  // raw draw data object from .draw.json ({ Drawing2: { drawData, physicsBodyData, hash }, Body: {...} })
   removeBlueprint?: boolean;
 }
 
@@ -74,6 +75,14 @@ export interface FileChanges {
   changedVariables: Record<string, any> | null;
   changedSceneProperties?: any;
   hasChanges: boolean;
+}
+
+export interface ConflictSummary {
+  localOnlyBlueprintSlugs: string[];    // blueprints on disk but not in mobile
+  mobileOnlyBlueprintEntryIds: string[]; // blueprints in mobile but not on disk
+  actorsDiffer: boolean;
+  variablesDiffer: boolean;
+  hasConflicts: boolean;
 }
 
 // Read files and detect changes against last known hashes
@@ -152,14 +161,30 @@ export function detectChanges(cardDir: string): FileChanges | null {
         luaChanged = meta.hashes[luaPath] !== contentHash(luaContent);
       }
 
-      if (yamlChanged || luaChanged) {
+      // Check .draw.json file
+      const drawJsonRelPath = path.join(BLUEPRINTS_DIR, `${slug}.draw.json`);
+      const drawJsonFullPath = path.join(cardDir, drawJsonRelPath);
+      let drawChanged = false;
+      let drawFileData: any = null;
+      if (fs.existsSync(drawJsonFullPath)) {
+        const drawContent = fs.readFileSync(drawJsonFullPath, 'utf-8');
+        if (meta.hashes[drawJsonRelPath] !== contentHash(drawContent)) {
+          drawChanged = true;
+          try {
+            drawFileData = JSON.parse(drawContent);
+          } catch (e) {
+            console.error(`[files] failed to parse ${slug}.draw.json:`, e);
+          }
+        }
+      }
+
+      if (yamlChanged || luaChanged || drawChanged) {
         result.hasChanges = true;
 
         const edit: BlueprintChange = { entryId };
 
         if (yamlChanged && bpData) {
           if (bpData.title) edit.title = bpData.title;
-          if (bpData.drawing) edit.drawing = bpData.drawing;
           if (bpData.removeBlueprint) edit.removeBlueprint = true;
 
           if (bpData.components) {
@@ -174,6 +199,10 @@ export function detectChanges(cardDir: string): FileChanges | null {
 
         if (luaChanged && luaContent !== null) {
           edit.script = [{ code: luaContent }];
+        }
+
+        if (drawChanged && drawFileData) {
+          edit.drawing = drawFileData;
         }
 
         result.changedBlueprints[entryId] = edit;
@@ -260,7 +289,7 @@ export function updateMetaHashes(cardDir: string): void {
   const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
   if (fs.existsSync(bpDir)) {
     for (const file of fs.readdirSync(bpDir)) {
-      if (file.endsWith('.yaml') || file.endsWith('.lua')) {
+      if (file.endsWith('.yaml') || file.endsWith('.lua') || file.endsWith('.draw.json')) {
         const relPath = path.join(BLUEPRINTS_DIR, file);
         const content = fs.readFileSync(path.join(cardDir, relPath), 'utf-8');
         meta.hashes[relPath] = contentHash(content);
@@ -318,6 +347,40 @@ export function stabilizeNewBlueprintIds(changes: FileChanges, cardDir: string):
   }
 
   if (metaChanged) writeMeta(cardDir, meta);
+}
+
+// Convert mobile state actors (internal format: angle in radians, widthScale 0–1) to
+// disk format (angle in degrees, widthScale ×10). Used for conflict detection and delta computation.
+export function mobileActorsToDiskFormat(state: StateInternalMessage): Record<string, any> {
+  const actorsForDisk: Record<string, any> = {};
+  for (const [key, actor] of Object.entries(state.actors)) {
+    const actorTyped = actor as any;
+    const body = actorTyped.bp?.components?.Body ?? {};
+    const drawing2 = actorTyped.bp?.components?.Drawing2 ?? {};
+    const text = actorTyped.bp?.components?.Text ?? {};
+    const link = actorTyped.bp?.components?.Link ?? {};
+
+    const parentEntryId = actorTyped.parentEntryId;
+    const entry = state.blueprints[parentEntryId] as any;
+    const title = entry?.title;
+    if (!title) continue;
+
+    const actorEntry: any = { title };
+    actorEntry.x = body.x ?? 0;
+    actorEntry.y = body.y ?? 0;
+    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000;
+    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10;
+    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10;
+    if (drawing2.initialFrame && drawing2.initialFrame !== 1) actorEntry.initialFrame = drawing2.initialFrame;
+    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) actorEntry.fontSizeScale = text.fontSizeScale;
+    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
+    if (text.content !== undefined && text.content !== blueprintContent) actorEntry.content = text.content;
+    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
+    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) actorEntry.targetDeckId = link.targetDeckId;
+
+    actorsForDisk[key] = actorEntry;
+  }
+  return actorsForDisk;
 }
 
 // Body fields that are engine-computed and should not be written to blueprint YAMLs
@@ -380,8 +443,8 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
 
     if (writtenSlugs.has(slug)) {
       let counter = 2;
-      while (writtenSlugs.has(`${slug}-${counter}`)) counter++;
-      slug = `${slug}-${counter}`;
+      while (writtenSlugs.has(`${slug}_${counter}`)) counter++;
+      slug = `${slug}_${counter}`;
     }
     writtenSlugs.add(slug);
     blueprintIdMap[slug] = entryId;
@@ -392,19 +455,32 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     // Extract engine-computed/complex data into companion .draw.json using the original
     // mobile state (before WASM conversion, which strips LocalVariables and other fields).
     const originalComponents = entryTyped.actorBlueprint?.components ?? {};
-    const drawFileData = extractDrawData({
-      ...originalComponents,
-      // Drawing2/Body physics come from WASM-converted rawComponents (same values, but
-      // rawComponents is authoritative for those blobs)
-      ...(rawComponents.Drawing2 !== undefined ? { Drawing2: rawComponents.Drawing2 } : {}),
-      ...(rawComponents.Body !== undefined ? { Body: rawComponents.Body } : {}),
-    });
-    if (drawFileData) {
-      fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
-      if (drawPreviewsEnabled) {
-        previewPromises.push(maybeRegenerateDrawPreviewAsync(bpDir, slug, drawFileData.Drawing2, drawPreviewHashes));
+
+    // If mobile omitted drawData/physicsBodyData (Drawing2.hash present but blobs absent),
+    // it means the hash is unchanged and the existing .draw.json is still valid — preserve it.
+    // Check originalComponents (raw mobile state) not rawComponents (WASM may synthesize drawData).
+    const origDrawing2 = originalComponents.Drawing2;
+    const drawDataOmitted = origDrawing2 !== undefined
+      && origDrawing2.hash !== undefined
+      && origDrawing2.drawData === undefined
+      && origDrawing2.physicsBodyData === undefined;
+
+    if (!drawDataOmitted) {
+      const drawFileData = extractDrawData({
+        ...originalComponents,
+        // Drawing2/Body physics come from WASM-converted rawComponents (same values, but
+        // rawComponents is authoritative for those blobs)
+        ...(rawComponents.Drawing2 !== undefined ? { Drawing2: rawComponents.Drawing2 } : {}),
+        ...(rawComponents.Body !== undefined ? { Body: rawComponents.Body } : {}),
+      });
+      if (drawFileData) {
+        fs.writeFileSync(path.join(bpDir, `${slug}.draw.json`), JSON.stringify(drawFileData, null, 2));
+        if (drawPreviewsEnabled) {
+          previewPromises.push(maybeRegenerateDrawPreviewAsync(bpDir, slug, drawFileData.Drawing2, drawPreviewHashes));
+        }
       }
     }
+    // drawDataOmitted: slug is already in writtenSlugs so the cleanup loop won't delete .draw.json
 
     // Strip engine-only Drawing2 fields (not needed in YAML; stored in .draw.json above)
     if (rawComponents.Drawing2) {
@@ -468,34 +544,7 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
   await Promise.all(previewPromises);
 
   // Write actors.yaml — convert internal format (widthScale 0–1, radians) to disk format (×10, degrees)
-  const actorsForDisk: Record<string, any> = {};
-  for (const [key, actor] of Object.entries(state.actors)) {
-    const actorTyped = actor as any;
-    const body = actorTyped.bp?.components?.Body ?? {};
-    const drawing2 = actorTyped.bp?.components?.Drawing2 ?? {};
-    const text = actorTyped.bp?.components?.Text ?? {};
-    const link = actorTyped.bp?.components?.Link ?? {};
-
-    const parentEntryId = actorTyped.parentEntryId;
-    const entry = state.blueprints[parentEntryId] as any;
-    const title = entry?.title;
-    if (!title) continue;
-
-    const actorEntry: any = { title };
-    actorEntry.x = body.x ?? 0;
-    actorEntry.y = body.y ?? 0;
-    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000;
-    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10;
-    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10;
-    if (drawing2.initialFrame && drawing2.initialFrame !== 1) actorEntry.initialFrame = drawing2.initialFrame;
-    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) actorEntry.fontSizeScale = text.fontSizeScale;
-    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
-    if (text.content !== undefined && text.content !== blueprintContent) actorEntry.content = text.content;
-    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
-    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) actorEntry.targetDeckId = link.targetDeckId;
-
-    actorsForDisk[key] = actorEntry;
-  }
+  const actorsForDisk = mobileActorsToDiskFormat(state);
   const actorsContent = yaml.stringify(actorsForDisk, { lineWidth: 120 });
   fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
   hashes[ACTORS_FILE] = contentHash(actorsContent);
@@ -527,29 +576,6 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
   writeMeta(cardDir, meta);
 
   return meta;
-}
-
-// Merge a StateInternalDiffMessage into a full StateInternalMessage.
-export function applyStateDiff(
-  base: StateInternalMessage,
-  diff: StateInternalDiffMessage
-): StateInternalMessage {
-  const blueprints = { ...base.blueprints };
-  for (const [id, change] of Object.entries(diff.blueprintChanges ?? {})) {
-    if ((change as any).removed) delete blueprints[id];
-    else blueprints[id] = change;
-  }
-  const actors = { ...base.actors };
-  for (const [key, change] of Object.entries(diff.actorChanges ?? {})) {
-    if ((change as any).removed) delete actors[key];
-    else actors[key] = change;
-  }
-  return {
-    ...base,
-    blueprints,
-    actors,
-    variables: diff.variables ?? base.variables,
-  };
 }
 
 // Convert StateInternalMessage → scene data JSON (for web player cache).
@@ -588,3 +614,267 @@ export function mobileInternalStateToSceneData(state: StateInternalMessage): any
   return { snapshot };
 }
 
+// Detect conflicts between existing disk files and incoming mobile state.
+// Returns null if the deck has no files (empty deck — no conflict, use mobile-primary).
+// Returns ConflictSummary with hasConflicts=false if states appear in sync.
+export function detectConflicts(cardDir: string, mobileState: StateInternalMessage): ConflictSummary | null {
+  const actorsPath = path.join(cardDir, ACTORS_FILE);
+  if (!fs.existsSync(actorsPath)) return null; // empty deck
+
+  // Build mobile blueprint slug → entryId map (same slug-dedup logic as writeStateInternal)
+  const mobileBlueprintBySlug = new Map<string, string>();
+  const mobileEntryIds = new Set<string>();
+  const seenMobileSlugs = new Set<string>();
+  for (const [entryId, entry] of Object.entries(mobileState.blueprints)) {
+    const typed = entry as any;
+    if (typed.entryType !== 'actorBlueprint') continue;
+    const title = typed.title ?? 'untitled';
+    let slug = titleToSlug(title);
+    let counter = 2;
+    while (seenMobileSlugs.has(slug)) { slug = `${slug}_${counter}`; counter++; }
+    seenMobileSlugs.add(slug);
+    mobileBlueprintBySlug.set(slug, entryId);
+    mobileEntryIds.add(entryId);
+  }
+
+  // Build disk blueprint slugs and entryId set
+  const diskBlueprintSlugs = new Set<string>();
+  const diskEntryIds = new Set<string>();
+  const diskSlugToEntryId = new Map<string, string>();
+  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
+  if (fs.existsSync(bpDir)) {
+    for (const file of fs.readdirSync(bpDir)) {
+      if (!file.endsWith('.yaml')) continue;
+      const slug = file.replace('.yaml', '');
+      diskBlueprintSlugs.add(slug);
+      try {
+        const bpData = yaml.parse(fs.readFileSync(path.join(bpDir, file), 'utf-8')) as any;
+        if (bpData?.entryId) {
+          diskEntryIds.add(bpData.entryId);
+          diskSlugToEntryId.set(slug, bpData.entryId);
+        }
+      } catch {}
+    }
+  }
+
+  // Compare by entryId when available (reliable across filename convention changes).
+  // Fall back to slug comparison only when the disk YAML has no entryId.
+  const localOnlyBlueprintSlugs = [...diskBlueprintSlugs].filter(s => {
+    const entryId = diskSlugToEntryId.get(s);
+    if (entryId) return !mobileEntryIds.has(entryId);
+    return !mobileBlueprintBySlug.has(s);
+  });
+  const mobileOnlyBlueprintEntryIds = [...mobileEntryIds].filter(id => !diskEntryIds.has(id));
+
+  // Compare actors (convert mobile internal → disk format for apples-to-apples comparison).
+  // Sort by key so insertion-order differences don't produce false positives.
+  const mobileActors = mobileActorsToDiskFormat(mobileState);
+  let diskActors: Record<string, any> = {};
+  try { diskActors = yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) ?? {}; } catch {}
+  const sortedDiskActors = Object.fromEntries(Object.entries(diskActors).sort(([a], [b]) => a.localeCompare(b)));
+  const sortedMobileActors = Object.fromEntries(Object.entries(mobileActors).sort(([a], [b]) => a.localeCompare(b)));
+  const actorsDiffer = JSON.stringify(sortedDiskActors) !== JSON.stringify(sortedMobileActors);
+
+  // Compare variables. Sort by variableId so ordering differences don't produce false positives.
+  // Also skip if disk is empty — clone always writes [] so a non-empty mobile state is not a real conflict.
+  let variablesDiffer = false;
+  const variablesPath = path.join(cardDir, VARIABLES_FILE);
+  if (fs.existsSync(variablesPath)) {
+    try {
+      const diskVariables: any[] = yaml.parse(fs.readFileSync(variablesPath, 'utf-8')) ?? [];
+      const mobileVariables: any[] = Array.isArray(mobileState.variables) ? mobileState.variables : [];
+      if (diskVariables.length > 0 || mobileVariables.length > 0) {
+        const sortVars = (vars: any[]) =>
+          [...vars].sort((a, b) => (a.variableId ?? a.name ?? '').localeCompare(b.variableId ?? b.name ?? ''));
+        variablesDiffer = diskVariables.length > 0 &&
+          JSON.stringify(sortVars(diskVariables)) !== JSON.stringify(sortVars(mobileVariables));
+      }
+    } catch {}
+  }
+
+  const hasConflicts = localOnlyBlueprintSlugs.length > 0 ||
+    mobileOnlyBlueprintEntryIds.length > 0 ||
+    actorsDiffer ||
+    variablesDiffer;
+
+  return { localOnlyBlueprintSlugs, mobileOnlyBlueprintEntryIds, actorsDiffer, variablesDiffer, hasConflicts };
+}
+
+// Compute what needs to change on mobile so its state matches disk files.
+// Returns FileChanges in the same format as detectChanges() — can be passed directly to _sendChanges().
+export function computeDiskVsMobileDelta(cardDir: string, mobileState: StateInternalMessage): FileChanges {
+  const result: FileChanges = {
+    changedBlueprints: {},
+    changedActors: null,
+    changedVariables: null,
+    hasChanges: false,
+  };
+
+  const meta = readMeta(cardDir);
+  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
+
+  // Build set of all mobile blueprint entryIds
+  const mobileEntryIds = new Set(Object.keys(mobileState.blueprints));
+
+  // Process disk blueprints
+  const diskEntryIds = new Set<string>();
+  if (fs.existsSync(bpDir)) {
+    for (const file of fs.readdirSync(bpDir)) {
+      if (!file.endsWith('.yaml')) continue;
+      const slug = file.replace('.yaml', '');
+      const yamlContent = fs.readFileSync(path.join(bpDir, file), 'utf-8');
+      let bpData: any;
+      try { bpData = yaml.parse(yamlContent) as any; } catch { continue; }
+
+      // entryId: from YAML file, or previously assigned UUID in meta.json blueprintIdMap
+      const entryId: string | undefined = bpData?.entryId ?? meta?.blueprintIdMap[slug];
+
+      if (entryId) {
+        diskEntryIds.add(entryId);
+        if (!mobileEntryIds.has(entryId)) {
+          // Disk has this blueprint, mobile doesn't → send it
+          result.hasChanges = true;
+          const edit: BlueprintChange = { entryId, title: bpData?.title ?? slug };
+          if (bpData?.components) {
+            const components = { ...bpData.components };
+            if (components.Script?.file) {
+              const { file: _f, ...rest } = components.Script;
+              components.Script = rest;
+            }
+            edit.components = yaml.stringify(components, { lineWidth: 120 });
+          }
+          const luaPath = path.join(bpDir, `${slug}.lua`);
+          if (fs.existsSync(luaPath)) edit.script = [{ code: fs.readFileSync(luaPath, 'utf-8') }];
+          if (bpData?.drawing) edit.drawing = bpData.drawing;
+          result.changedBlueprints[entryId] = edit;
+        }
+        // Both have same entryId → skip content comparison for now (future work)
+      } else {
+        // No known entryId → treat as new blueprint for mobile
+        const newKey = `new-${slug}`;
+        result.hasChanges = true;
+        const edit: BlueprintChange = {
+          entryId: newKey,
+          isNew: true,
+          forkBlueprintId: bpData?.forkBlueprintId ?? 'default-blueprint-0',
+          title: bpData?.title ?? slug,
+        };
+        if (bpData?.components) {
+          const components = { ...bpData.components };
+          if (components.Script?.file) {
+            const { file: _f, ...rest } = components.Script;
+            components.Script = rest;
+          }
+          edit.components = yaml.stringify(components, { lineWidth: 120 });
+        }
+        const luaPath = path.join(bpDir, `${slug}.lua`);
+        if (fs.existsSync(luaPath)) edit.script = [{ code: fs.readFileSync(luaPath, 'utf-8') }];
+        if (bpData?.drawing) edit.drawing = bpData.drawing;
+        result.changedBlueprints[newKey] = edit;
+      }
+    }
+  }
+
+  // Mobile blueprints not on disk → remove from mobile
+  for (const entryId of mobileEntryIds) {
+    if (!diskEntryIds.has(entryId)) {
+      result.hasChanges = true;
+      result.changedBlueprints[entryId] = { entryId, removeBlueprint: true };
+    }
+  }
+
+  // Actors: compute sparse diff (disk vs mobile-in-disk-format)
+  const actorsPath = path.join(cardDir, ACTORS_FILE);
+  const diskActors: Record<string, any> = fs.existsSync(actorsPath)
+    ? (yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) as Record<string, any>) ?? {}
+    : {};
+  const mobileActors = mobileActorsToDiskFormat(mobileState);
+
+  const actorsDiff: Record<string, any> = {};
+  for (const [key, data] of Object.entries(diskActors)) {
+    if (!(key in mobileActors)) {
+      actorsDiff[key] = data;
+    } else if (JSON.stringify(data) !== JSON.stringify(mobileActors[key])) {
+      actorsDiff[key] = data;
+    }
+  }
+  for (const key of Object.keys(mobileActors)) {
+    if (!(key in diskActors)) actorsDiff[key] = { removeActor: true };
+  }
+  if (Object.keys(actorsDiff).length > 0) {
+    result.hasChanges = true;
+    result.changedActors = actorsDiff;
+  }
+
+  // Variables
+  const variablesPath = path.join(cardDir, VARIABLES_FILE);
+  if (fs.existsSync(variablesPath)) {
+    try {
+      const diskVariables = yaml.parse(fs.readFileSync(variablesPath, 'utf-8'));
+      if (JSON.stringify(diskVariables) !== JSON.stringify(mobileState.variables)) {
+        result.hasChanges = true;
+        result.changedVariables = diskVariables;
+      }
+    } catch {}
+  }
+
+  // Scene properties (from card.yaml)
+  const cardYamlPath = path.join(cardDir, CARD_YAML_FILE);
+  if (fs.existsSync(cardYamlPath)) {
+    try {
+      const cardData = yaml.parse(fs.readFileSync(cardYamlPath, 'utf-8')) as any;
+      if (JSON.stringify(cardData?.sceneProperties) !== JSON.stringify(mobileState.sceneProperties)) {
+        result.changedSceneProperties = cardData?.sceneProperties;
+        result.hasChanges = true;
+      }
+    } catch {}
+  }
+
+  return result;
+}
+
+// Create (or refresh) meta.json from existing disk files. Used in CLI-primary mode so the
+// file watcher has a correct hash baseline without needing to write any mobile state.
+export function initMetaFromDisk(cardDir: string, deckId: string, cardId: string): void {
+  const existingMeta = readMeta(cardDir);
+  const blueprintIdMap: Record<string, string> = existingMeta?.blueprintIdMap ?? {};
+  const drawPreviewHashes: Record<string, string> = existingMeta?.drawPreviewHashes ?? {};
+  const hashes: FileHashes = {};
+
+  const bpDir = path.join(cardDir, BLUEPRINTS_DIR);
+  if (fs.existsSync(bpDir)) {
+    for (const file of fs.readdirSync(bpDir)) {
+      if (!file.endsWith('.yaml') && !file.endsWith('.lua')) continue;
+      const relPath = path.join(BLUEPRINTS_DIR, file);
+      const content = fs.readFileSync(path.join(cardDir, relPath), 'utf-8');
+      hashes[relPath] = contentHash(content);
+      if (file.endsWith('.yaml')) {
+        const slug = file.replace('.yaml', '');
+        try {
+          const bpData = yaml.parse(content) as any;
+          if (bpData?.entryId && !blueprintIdMap[slug]) blueprintIdMap[slug] = bpData.entryId;
+        } catch {}
+      }
+    }
+  }
+
+  let lastActors: Record<string, any> | undefined;
+  const actorsPath = path.join(cardDir, ACTORS_FILE);
+  if (fs.existsSync(actorsPath)) {
+    const content = fs.readFileSync(actorsPath, 'utf-8');
+    hashes[ACTORS_FILE] = contentHash(content);
+    try { lastActors = yaml.parse(content) ?? {}; } catch {}
+  }
+
+  const variablesPath = path.join(cardDir, VARIABLES_FILE);
+  if (fs.existsSync(variablesPath)) {
+    hashes[VARIABLES_FILE] = contentHash(fs.readFileSync(variablesPath, 'utf-8'));
+  }
+
+  const cardYamlPath = path.join(cardDir, CARD_YAML_FILE);
+  if (fs.existsSync(cardYamlPath)) {
+    hashes[CARD_YAML_FILE] = contentHash(fs.readFileSync(cardYamlPath, 'utf-8'));
+  }
+
+  writeMeta(cardDir, { deckId, cardId, hashes, blueprintIdMap, lastActors, drawPreviewHashes });
+}
