@@ -11,7 +11,7 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsup && cp src/assets/AGENTS.md dist/assets/ && cp src/assets/favicon.ico dist/assets/",
+    "build": "tsup && cp -r src/assets/. dist/assets/",
     "prepublishOnly": "npm run build",
     "dev": "tsx src/index.ts",
     "test": "vitest run",

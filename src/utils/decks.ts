@@ -418,7 +418,12 @@ export async function generateSceneContext(sceneData: any): Promise<string> {
     if (entry.entryType !== 'actorBlueprint') continue;
     const behaviorNames = Object.keys(entry.actorBlueprint?.components ?? {})
       .map((k) => behaviorInternalToDisplay[k] ?? k);
-    bpLines.push(`  - title: "${entry.title}", entryId: ${entryId}, behaviors: [${behaviorNames.join(', ')}]`);
+    const bodyComp = entry.actorBlueprint?.components?.Body ?? {};
+    let sizeInfo = '';
+    // Body widthScale/heightScale are in internal format (0–1); multiply ×10 for external (YAML) format
+    if (bodyComp.widthScale != null) sizeInfo += `, widthScale=${Math.round(bodyComp.widthScale * 10 * 10) / 10}`;
+    if (bodyComp.heightScale != null) sizeInfo += `, heightScale=${Math.round(bodyComp.heightScale * 10 * 10) / 10}`;
+    bpLines.push(`  - title: "${entry.title}", entryId: ${entryId}, behaviors: [${behaviorNames.join(', ')}]${sizeInfo}`);
   }
 
   // --- Actors ---
@@ -428,7 +433,11 @@ export async function generateSceneContext(sceneData: any): Promise<string> {
     if (!entry) continue;
     const body = actor.bp?.components?.Body ?? {};
     const angleDeg = body.angle != null ? Math.round(body.angle * (180 / Math.PI) * 10) / 10 : 0;
-    actorLines.push(`  a${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`);
+    let actorLine = `  a${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`;
+    // Body widthScale/heightScale are in internal format (0–1); multiply ×10 for external (YAML) format
+    if (body.widthScale != null) actorLine += `, widthScale=${Math.round(body.widthScale * 10 * 10) / 10}`;
+    if (body.heightScale != null) actorLine += `, heightScale=${Math.round(body.heightScale * 10 * 10) / 10}`;
+    actorLines.push(actorLine);
   }
 
   const parts: string[] = [];
@@ -454,18 +463,42 @@ function loadCliDocs(isAdmin: boolean): string | null {
   }
 }
 
-// Write AGENTS.md and CLAUDE.md at deck level: static context + CLI docs.
+// Write AGENTS.md at deck level: static CLI docs.
+// Write BEHAVIORS.md and DRAW_JSON.md separately: reference docs read on demand, not auto-loaded.
 export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
   const isAdmin = config.getIsAdmin();
   const cliDocs = loadCliDocs(isAdmin);
   if (!cliDocs) return;
-  const staticContext = await generateStaticContext();
-  const content = staticContext ? staticContext + '\n\n' + cliDocs : cliDocs;
+
   const agentsPath = path.join(deckDir, 'AGENTS.md');
-  const existing = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : null;
-  if (existing === content) return;
-  fs.writeFileSync(agentsPath, content);
-  fs.writeFileSync(path.join(deckDir, 'CLAUDE.md'), content);
+  const existingAgents = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : null;
+  if (existingAgents !== cliDocs) {
+    fs.writeFileSync(agentsPath, cliDocs);
+  }
+
+  const castleDir = path.join(deckDir, '.castle');
+
+  const staticContext = await generateStaticContext();
+  if (staticContext) {
+    const behaviorsPath = path.join(castleDir, 'BEHAVIORS.md');
+    const behaviorsContent = `# Behaviors & Rules Reference\n\nRead this file when writing rules YAML or setting behavior properties.\n\n${staticContext}`;
+    const existingBehaviors = fs.existsSync(behaviorsPath) ? fs.readFileSync(behaviorsPath, 'utf8') : null;
+    if (existingBehaviors !== behaviorsContent) {
+      fs.writeFileSync(behaviorsPath, behaviorsContent);
+    }
+  }
+
+  const drawJsonDocsPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/DRAW_JSON.md');
+  try {
+    const drawJsonDocs = fs.readFileSync(drawJsonDocsPath, 'utf8');
+    const drawJsonPath = path.join(castleDir, 'DRAW_JSON.md');
+    const existingDrawJson = fs.existsSync(drawJsonPath) ? fs.readFileSync(drawJsonPath, 'utf8') : null;
+    if (existingDrawJson !== drawJsonDocs) {
+      fs.writeFileSync(drawJsonPath, drawJsonDocs);
+    }
+  } catch {
+    // asset missing, skip
+  }
 }
 
 async function writeAgentFilesAsync({ deckDir, cardDir, sceneData }: { deckDir: string; cardDir: string; sceneData: any }) {

@@ -11,7 +11,7 @@ import {
   CLIScreenshotMessage,
   AppToCliMessage,
 } from './mobile-protocol.js';
-import { writeStateInternal, applyStateDiff, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes } from './mobile-files.js';
+import { writeStateInternal, applyStateDiff, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes, stabilizeNewBlueprintIds } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
@@ -453,6 +453,8 @@ export class CLIMobileConnection {
   }
 
   private _sendChanges(changes: FileChanges, cardDir: string) {
+    stabilizeNewBlueprintIds(changes, cardDir);
+
     if (!this.connected) {
       this.logger.cli('not connected, skipping change send');
       return;

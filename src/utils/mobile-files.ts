@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import yaml from 'yaml';
+import { v4 as uuidv4 } from 'uuid';
 import { StateInternalMessage, StateInternalDiffMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
@@ -289,6 +290,34 @@ export function updateMetaHashes(cardDir: string): void {
   }
 
   writeMeta(cardDir, meta);
+}
+
+// For new blueprints (isNew: true), generate a stable CLI-assigned UUID and persist it to
+// blueprintIdMap immediately. This replaces the temporary "new-{slug}" key with the real UUID
+// in `changes.changedBlueprints` so that (1) detectChanges() never re-detects the same
+// blueprint as new on subsequent file changes, and (2) mobile can use the same UUID so
+// subsequent edits reference the correct entryId without waiting for a state echo.
+export function stabilizeNewBlueprintIds(changes: FileChanges, cardDir: string): void {
+  const isNewEntries = Object.entries(changes.changedBlueprints).filter(([, bp]) => bp.isNew);
+  if (isNewEntries.length === 0) return;
+
+  const meta = readMeta(cardDir);
+  if (!meta) return;
+
+  let metaChanged = false;
+  for (const [key, bp] of isNewEntries) {
+    const slug = key.replace(/^new-/, '');
+    if (!meta.blueprintIdMap[slug]) {
+      meta.blueprintIdMap[slug] = uuidv4();
+      metaChanged = true;
+    }
+    const uuid = meta.blueprintIdMap[slug];
+    delete changes.changedBlueprints[key];
+    bp.entryId = uuid;
+    changes.changedBlueprints[uuid] = bp;
+  }
+
+  if (metaChanged) writeMeta(cardDir, meta);
 }
 
 // Body fields that are engine-computed and should not be written to blueprint YAMLs

@@ -124,6 +124,10 @@ deck-{deckId}/
         └── {name}.preview.png  # Auto-generated PNG preview of the drawing
 ```
 
+## Mobile Client Compatibility
+
+The mobile client (castle-client) must be on the **`@jesse/cli`** branch for the CLI bridge features (real-time file sync, blueprint editing, actor sync) to work correctly.
+
 ## Development
 
 ### Prerequisites

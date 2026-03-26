@@ -1,4 +1,6 @@
 
+For the full list of available behaviors, triggers, responses, and conditions, read **`.castle/BEHAVIORS.md`** — consult it when writing rules YAML or setting behavior properties.
+
 ---
 
 ## Working Style
@@ -156,8 +158,8 @@ title: Player Ship
 entryId: <uuid>          # Do not change — used to match this file to the in-app blueprint
 components:
   Layout:                # Size and visibility defaults (position is set per-actor in actors.yaml)
-    widthScale: 10       # Note: scale is 10x (1.0 in engine = 10 here)
-    heightScale: 10
+    widthScale: 1.5      # World units (camera is 10 units wide, -5 to 5)
+    heightScale: 1.5
   Rules:
     rules:
       rule-0:
@@ -188,53 +190,7 @@ Read `.preview.png` whenever you want to see what a blueprint's drawing looks li
 
 #### draw.json format
 
-`.draw.json` files store the vector drawing and physics shapes for a blueprint. You can edit them directly. Read `.preview.png` first to understand the current drawing, then make targeted edits.
-
-Top-level structure:
-```json
-{
-  "Drawing2": { "drawData": { ... } },
-  "Body": { "fixtures": [...], "editorBounds": {...} },
-  "LocalVariables": { "localVariables": [...] }
-}
-```
-
-`Drawing2.drawData` fields:
-- `version`: 3 (format version — do not change)
-- `scale`: 10 (coordinate scale — do not change)
-- `colors`: array of `{r, g, b, a}` palette entries (0–1 range)
-- `layers`: array of layer objects
-- `framesBounds`: array of `{minX, maxX, minY, maxY}` per animation frame
-
-Layer object:
-- `title`: layer name
-- `id`: unique string (e.g. `"layer3"`)
-- `isVisible`: bool
-- `frames`: array of frame objects
-
-Frame object:
-- `pathDataList`: array of vector stroke objects
-- `fillPng`: (optional) base64-encoded PNG of rasterized fill content — editable, but keep it small since it is loaded synchronously in the client
-
-Path object (vector stroke):
-- `p`: flat coordinate array `[x1, y1, x2, y2, ...]` in editor units
-- `s`: style/brush type (1, 2, or 3)
-- `c`: (optional) `[r, g, b, a]` color override, 0–1 range; if omitted, uses palette color
-- `f`: bool, is freehand
-- `isTransparent`: (optional) bool, marks path as eraser stroke
-
-`Body.fixtures` (physics/collision shapes):
-- `shapeType`: `"polygon"` or `"circle"`
-- `points`: flat coordinate array for polygons
-- `x`, `y`: center offset
-- `radius`: circle radius (0 for polygons)
-
-Coordinate system: positive Y is downward, same as `actors.yaml`. Units are editor units — same scale as `widthScale`/`heightScale` (divide by 10 for engine units).
-
-Easiest edits:
-- Colors: change the `c` field on paths, or entries in the top-level `colors` palette
-- Physics shapes: modify `Body.fixtures`
-- Layer visibility: toggle `isVisible`
+Read **`.castle/DRAW_JSON.md`** for the full `.draw.json` format reference. Consult it when editing vector drawings or physics shapes.
 
 #### Editing blueprints
 
@@ -298,8 +254,8 @@ title: Bullet
 drawing: red circle
 components:
   Layout:
-    widthScale: 3
-    heightScale: 3
+    widthScale: 0.4
+    heightScale: 0.4
   Dynamic Motion:
     vy: -10
   Solid:
@@ -323,7 +279,7 @@ a456:
   title: Wall
   x: 5
   y: 0
-  widthScale: 20          # Overrides from blueprint (10x scale)
+  widthScale: 3           # 3 world units wide
   angle: 45               # Degrees
 ```
 
@@ -527,7 +483,7 @@ components:
 ### Important notes
 
 - Positive Y is downward. Angles in YAML files (`actors.yaml`, `actors.yaml` overrides) are in **degrees**. In Lua scripts, angles use **radians** (`self.rotation` is in radians — multiply degrees by `math.pi/180` to convert).
-- Scale values are 10x: a `widthScale` of 10 means 1.0 in the engine.
+- `widthScale` and `heightScale` are in **world units**. The camera is **10 units wide** (-5 to 5) and **14 units tall** (-7 to 7). Typical sizes: small objects (bullets, coins) 0.3–0.8, normal characters/enemies 0.8–2, large enemies/bosses 2–5, platforms/walls 1–5 per tile, full-screen overlays 10. A `widthScale` of 10 fills the entire camera width.
 - The default camera view extends from -5 to 5 on X and -7 to 7 on Y.
 - Gravity strength is scaled by 10 (1 unit = 10 units/s²).
 - Use `variableName` (not `variableId`) when referencing variables in rules. The system resolves names to IDs automatically.
