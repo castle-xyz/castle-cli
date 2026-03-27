@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import WebSocket from 'ws';
 import yaml from 'yaml';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,8 +65,9 @@ export class CLIMobileConnection {
   // Stable session ID used in state_internal messages sent from CLI → Mobile.
   private _cliSessionId: string = uuidv4();
 
-  // Draw hash tracking for CLI → Mobile: only send .draw.json data when hash changed.
+  // Blueprint/draw hash tracking for CLI → Mobile: only send when content changed.
   private _lastSentDrawHashes: Map<string, string> = new Map(); // entryId → last sent Drawing2.hash
+  private _lastSentBlueprintHashes: Map<string, string> = new Map(); // entryId → hash of components+script
 
   // Tracks cardIds we've received state_internal for (for first-sync log).
   private seenCards: Set<string> = new Set();
@@ -128,8 +130,9 @@ export class CLIMobileConnection {
       // Enable the cli tunnel feature
       this._send({ type: 'cli_tunnel_start_listening' });
 
-      // Reset draw hash tracking on reconnect (so first edits include fresh draw data)
+      // Reset hash tracking on reconnect so first edits include fresh data
       this._lastSentDrawHashes.clear();
+      this._lastSentBlueprintHashes.clear();
 
       // Request state from app, providing known draw hashes so mobile can skip redundant sends
       const knownDrawHashes = this._buildKnownDrawHashes();
@@ -517,10 +520,17 @@ export class CLIMobileConnection {
         }
 
         const bp: any = { entryId, title: bpData?.title ?? slug };
-        if (Object.keys(components).length > 0) {
-          bp.components = yaml.stringify(components, { lineWidth: 120 });
+
+        // Only include components/script if content changed since last sent (avoids
+        // repeated re-application of rules on mobile which corrupts rule state)
+        const componentsYaml = Object.keys(components).length > 0 ? yaml.stringify(components, { lineWidth: 120 }) : '';
+        const bpHash = crypto.createHash('sha256').update(componentsYaml + (luaContent ?? '')).digest('hex');
+        if (this._lastSentBlueprintHashes.get(entryId) !== bpHash) {
+          if (componentsYaml) bp.components = componentsYaml;
+          if (luaContent) bp.script = [{ code: luaContent }];
+          this._lastSentBlueprintHashes.set(entryId, bpHash);
         }
-        if (luaContent) bp.script = [{ code: luaContent }];
+
         if (drawing) bp.drawing = drawing;
         blueprints[entryId] = bp;
       }

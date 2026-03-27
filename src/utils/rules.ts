@@ -138,8 +138,13 @@ function serializeBaseRulerInner(rule: any) {
 }
 
 function serializeRuleInner(rule: any, topLevelResponses: any[] = []) {
-  if (typeof rule != 'object') {
+  if (typeof rule != 'object' || rule === null) {
     return rule;
+  }
+
+  // Empty/placeholder response with no identity — skip serialization
+  if (!rule.name && !rule.behaviorId) {
+    return null;
   }
 
   let ruleSchema = getRule(rule.behaviorId, rule.name);
