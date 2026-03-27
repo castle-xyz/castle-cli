@@ -13,6 +13,8 @@ Check `.castle/logs.txt` for errors after making changes — `[CLI]` lines are f
 
 Read **`.castle/screenshots/latest.png`** to see what the game currently looks like. Capture screenshots via `castle.cliScreenshot("label")` in Lua or via the `screenshot` command (see below).
 
+For Playwright browser automation and other testing patterns, read **`.castle/TESTING.md`**.
+
 ## Commands
 
 Write commands to `.castle/commands.json` to control the deck (JSONL — one JSON object per line). The CLI polls this file, processes lines without a `response` field, and writes the response back on the same line.
@@ -30,6 +32,8 @@ Prefer Lua scripts for game logic. Scripts are easier to read, edit, and debug a
 
 <!-- ADMIN_ONLY_START -->
 IMPORTANT: When creating blueprints that use the draw API (`onDraw`), you must set `visible: true` on the Layout behavior. New blueprints forked from the Empty default may have visibility off, which prevents `onDraw` from being called.
+
+Read **`.castle/DRAW_API.md`** for the full `onDraw` and `castle.draw.*` API reference.
 <!-- ADMIN_ONLY_END -->
 
 ## CLI File System

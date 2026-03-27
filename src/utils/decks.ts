@@ -485,7 +485,7 @@ export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
   }
 
   const assetsDir = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets');
-  for (const assetFile of ['DRAW_JSON.md', 'EXAMPLES.md', 'TESTING.md']) {
+  for (const assetFile of ['DRAW_API.md', 'DRAW_JSON.md', 'EXAMPLES.md', 'TESTING.md']) {
     try {
       const content = fs.readFileSync(path.join(assetsDir, assetFile), 'utf8');
       const destPath = path.join(castleDir, assetFile);

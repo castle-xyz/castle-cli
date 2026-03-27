@@ -641,7 +641,10 @@ export class CLIMobileConnection {
   private _flushFileChanges() {
     for (const [cardId] of this.watchers) {
       const cardDir = this.cardDirs.get(cardId) ?? path.join(this.deckDir, `card-${cardId}`);
-      this._sendFullState(cardDir);
+      const changes = detectChanges(cardDir);
+      if (changes?.hasChanges) {
+        this._sendFullState(cardDir);
+      }
     }
   }
 
