@@ -308,9 +308,10 @@ export class CLIMobileConnection {
     const lastSessionId = this.lastCliSessionIds.get(cardId);
     const sessionChanged = !!lastSessionId && lastSessionId !== state.cliSessionId;
 
-    // Detect conflicts: if disk has files and they differ from mobile, resolve before writing.
-    // An empty deck (no actors.yaml) always uses mobile-primary (current behavior).
-    const conflicts = detectConflicts(cardDir, state);
+    // Detect conflicts only on first connect or session change — not on every subsequent
+    // mobile state (which would spam the user as the game runs and actors move).
+    const isFirstConnect = !this.seenCards.has(cardId);
+    const conflicts = (isFirstConnect || sessionChanged) ? detectConflicts(cardDir, state) : null;
     let useCLIPrimary = false;
     if (conflicts?.hasConflicts) {
       if (this.cliPrimary) {
@@ -566,7 +567,20 @@ export class CLIMobileConnection {
       const p = path.join(cardDir, 'card.yaml');
       if (fs.existsSync(p)) fileSnapshot.set(p, fs.readFileSync(p));
     }
-    this._pendingEdits.set(cardDir, { message: edit, fileSnapshot });
+    const existingPending = this._pendingEdits.get(cardDir);
+    const mergedSnapshot = new Map<string, Buffer>(existingPending?.fileSnapshot ?? []);
+    for (const [k, v] of fileSnapshot) mergedSnapshot.set(k, v);
+    const mergedMessage: EditMessage = {
+      ...edit,
+      blueprints: { ...(existingPending?.message?.blueprints ?? {}), ...(edit.blueprints ?? {}) },
+      actors: (edit.actors ?? existingPending?.message?.actors),
+      variables: (edit.variables ?? existingPending?.message?.variables),
+      sceneProperties: edit.sceneProperties ?? existingPending?.message?.sceneProperties,
+    };
+    if (!mergedMessage.blueprints || Object.keys(mergedMessage.blueprints).length === 0) {
+      delete mergedMessage.blueprints;
+    }
+    this._pendingEdits.set(cardDir, { message: mergedMessage, fileSnapshot: mergedSnapshot });
 
     this._sendToApp(edit);
     updateMetaHashes(cardDir);

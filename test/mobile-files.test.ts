@@ -86,7 +86,7 @@ describe('detectChanges', () => {
     writeTestState(tmpDir);
 
     // Modify blueprint YAML
-    const yamlPath = path.join(tmpDir, 'blueprints', 'Player.yaml');
+    const yamlPath = path.join(tmpDir, 'blueprints', 'player.yaml');
     const content = fs.readFileSync(yamlPath, 'utf-8');
     fs.writeFileSync(yamlPath, content + '\n# modified');
 
@@ -181,13 +181,13 @@ describe('writeStateInternal', () => {
     const bpDir = path.join(tmpDir, 'blueprints');
 
     // Blueprint YAML must exist (without drawData)
-    const yamlPath = path.join(bpDir, 'Test.yaml');
+    const yamlPath = path.join(bpDir, 'test.yaml');
     expect(fs.existsSync(yamlPath)).toBe(true);
     const bpData = yaml.parse(fs.readFileSync(yamlPath, 'utf-8'));
     expect(bpData.components?.Drawing?.drawData).toBeUndefined();
 
     // Companion .draw.json must exist with drawing data
-    const drawPath = path.join(bpDir, 'Test.draw.json');
+    const drawPath = path.join(bpDir, 'test.draw.json');
     expect(fs.existsSync(drawPath)).toBe(true);
     const drawData = JSON.parse(fs.readFileSync(drawPath, 'utf-8'));
     expect(drawData.Drawing2.drawData).toBeDefined();
@@ -230,15 +230,15 @@ describe('writeStateInternal', () => {
     await writeStateInternal(tmpDir, state1);
 
     const bpDir = path.join(tmpDir, 'blueprints');
-    expect(fs.existsSync(path.join(bpDir, 'Alpha.draw.json'))).toBe(true);
-    expect(fs.existsSync(path.join(bpDir, 'Beta.draw.json'))).toBe(true);
+    expect(fs.existsSync(path.join(bpDir, 'alpha.draw.json'))).toBe(true);
+    expect(fs.existsSync(path.join(bpDir, 'beta.draw.json'))).toBe(true);
 
     // Second write with only Alpha — Beta should be cleaned up
     const state2: any = { ...state1, blueprints: { 'e1': state1.blueprints['e1'] } };
     await writeStateInternal(tmpDir, state2);
 
-    expect(fs.existsSync(path.join(bpDir, 'Alpha.draw.json'))).toBe(true);
-    expect(fs.existsSync(path.join(bpDir, 'Beta.draw.json'))).toBe(false);
+    expect(fs.existsSync(path.join(bpDir, 'alpha.draw.json'))).toBe(true);
+    expect(fs.existsSync(path.join(bpDir, 'beta.draw.json'))).toBe(false);
   });
 
   it('writes sceneProperties to card.yaml', async () => {
@@ -325,7 +325,7 @@ describe('writeStateInternal', () => {
     await writeStateInternal(tmpDir, stateWithDraw);
 
     const bpDir = path.join(tmpDir, 'blueprints');
-    const drawPath = path.join(bpDir, 'Sprite.draw.json');
+    const drawPath = path.join(bpDir, 'sprite.draw.json');
     expect(fs.existsSync(drawPath)).toBe(true);
     const originalDraw = fs.readFileSync(drawPath, 'utf-8');
 
@@ -380,7 +380,7 @@ describe('writeStateInternal', () => {
     };
     await writeStateInternal(tmpDir, state1);
 
-    const drawPath = path.join(tmpDir, 'blueprints', 'Shape.draw.json');
+    const drawPath = path.join(tmpDir, 'blueprints', 'shape.draw.json');
     const data1 = JSON.parse(fs.readFileSync(drawPath, 'utf-8'));
     expect(data1.Drawing2.hash).toBe('hash-v1');
 
@@ -449,7 +449,7 @@ describe('detectChanges — .draw.json detection', () => {
     updateMetaHashes(tmpDir);
 
     // Now modify the .draw.json file directly (simulating user editing the draw data)
-    const drawPath = path.join(tmpDir, 'blueprints', 'Tile.draw.json');
+    const drawPath = path.join(tmpDir, 'blueprints', 'tile.draw.json');
     const updatedDraw = {
       Drawing2: {
         drawData: { framesBounds: [{ minX: 0, maxX: 99, minY: 0, maxY: 99 }] },

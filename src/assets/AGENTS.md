@@ -150,7 +150,7 @@ deck-{deckId}/                   # Deck root
 
 ### Blueprints
 
-Each blueprint is a `.yaml` file in `blueprints/`. The filename preserves the title's casing with non-alphanumeric characters replaced by underscores (e.g., "Player Ship" → `Player_Ship.yaml`).
+Each blueprint is a `.yaml` file in `blueprints/`. The filename is the title lowercased with non-alphanumeric characters replaced by underscores (e.g., "Player Ship" → `player_ship.yaml`).
 
 Blueprint YAML structure:
 ```yaml

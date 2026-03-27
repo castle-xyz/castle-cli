@@ -102,16 +102,16 @@ describe('pull command', () => {
       title: 'Player',
       entryId: 'entry-001',
       components: {
-        Script: { file: 'Player_script.lua' },
+        Script: { file: 'player.lua' },
       },
     };
     fs.writeFileSync(
-      path.join(deckDir, 'card-card-xyz', 'blueprints', 'Player.yaml'),
+      path.join(deckDir, 'card-card-xyz', 'blueprints', 'player.yaml'),
       yaml.stringify(bpData)
     );
     const localScript = 'function update() print("local edit") end';
     fs.writeFileSync(
-      path.join(deckDir, 'card-card-xyz', 'blueprints', 'Player_script.lua'),
+      path.join(deckDir, 'card-card-xyz', 'blueprints', 'player.lua'),
       localScript
     );
 
@@ -119,11 +119,11 @@ describe('pull command', () => {
 
     // Script file reference should be preserved
     const bpAfter = yaml.parse(
-      fs.readFileSync(path.join(deckDir, 'card-card-xyz', 'blueprints', 'Player.yaml'), 'utf-8')
+      fs.readFileSync(path.join(deckDir, 'card-card-xyz', 'blueprints', 'player.yaml'), 'utf-8')
     );
     // Script file pointer should reference the existing local file
     if (bpAfter.components?.Script?.file) {
-      expect(bpAfter.components.Script.file).toBe('Player_script.lua');
+      expect(bpAfter.components.Script.file).toBe('player.lua');
     }
   });
 });

@@ -11,9 +11,6 @@ export async function push(options: { directory?: string } = {}) {
 
   const directory = options.directory || '.';
 
-  // Force sync to get latest server state before pushing
-  await Decks.syncCardVersionsAsync({ deckDir: directory, force: true });
-
   let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: console.log });
   if (!deck) {
     return;

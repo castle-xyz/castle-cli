@@ -59,7 +59,7 @@ describe('writeActorsAndVariablesAsync', () => {
     // Create blueprints dir with a blueprint file so meta can include it
     fs.mkdirSync(path.join(cardDir, 'blueprints'));
     fs.writeFileSync(
-      path.join(cardDir, 'blueprints', 'Player.yaml'),
+      path.join(cardDir, 'blueprints', 'player.yaml'),
       yaml.stringify({ title: 'Player', entryId: 'entry-001', components: {} })
     );
   });
@@ -148,7 +148,7 @@ describe('writeActorsAndVariablesAsync', () => {
     expect(meta.cardId).toBe('456');
     expect(meta.hashes['actors.yaml']).toBeDefined();
     expect(meta.hashes['variables.yaml']).toBeDefined();
-    expect(meta.blueprintIdMap['Player']).toBe('entry-001');
+    expect(meta.blueprintIdMap['player']).toBe('entry-001');
   });
 });
 
@@ -173,7 +173,7 @@ describe('newSceneDataForCardAsync', () => {
       },
     };
     fs.writeFileSync(
-      path.join(cardDir, 'blueprints', 'Player.yaml'),
+      path.join(cardDir, 'blueprints', 'player.yaml'),
       yaml.stringify(bpData)
     );
 
@@ -182,7 +182,7 @@ describe('newSceneDataForCardAsync', () => {
       Drawing2: { drawData: { framesBounds: [{ minX: 0, maxX: 100, minY: 0, maxY: 100 }] } },
     };
     fs.writeFileSync(
-      path.join(cardDir, 'blueprints', 'Player.draw.json'),
+      path.join(cardDir, 'blueprints', 'player.draw.json'),
       JSON.stringify(drawData, null, 2)
     );
 

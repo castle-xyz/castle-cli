@@ -6,7 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { StateInternalMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
-import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled } from './decks.js';
+import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled, titleToSlug } from './decks.js';
+export { titleToSlug } from './decks.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
 const ACTORS_FILE = 'actors.yaml';
@@ -14,16 +15,6 @@ const VARIABLES_FILE = 'variables.yaml';
 const CARD_YAML_FILE = 'card.yaml';
 const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
-
-
-// Convert a blueprint title to a safe filename slug (lowercase, underscores)
-export function titleToSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    || 'untitled';
-}
 
 // Content hash for change detection
 function contentHash(content: string): string {
@@ -487,8 +478,15 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
           previewPromises.push(maybeRegenerateDrawPreviewAsync(bpDir, slug, drawFileData.Drawing2, drawPreviewHashes));
         }
       }
+    } else {
+      // drawDataOmitted: mobile sent hash but no blobs — existing .draw.json is still valid.
+      // Store its current hash so detectChanges doesn't treat it as changed.
+      const drawJsonPath = path.join(bpDir, `${slug}.draw.json`);
+      if (fs.existsSync(drawJsonPath)) {
+        const existingContent = fs.readFileSync(drawJsonPath, 'utf-8');
+        hashes[path.join(BLUEPRINTS_DIR, `${slug}.draw.json`)] = contentHash(existingContent);
+      }
     }
-    // drawDataOmitted: slug is already in writtenSlugs so the cleanup loop won't delete .draw.json
 
     // Strip engine-only Drawing2 fields (not needed in YAML; stored in .draw.json above)
     if (rawComponents.Drawing2) {
@@ -627,7 +625,11 @@ export function mobileInternalStateToSceneData(state: StateInternalMessage): any
 // Returns ConflictSummary with hasConflicts=false if states appear in sync.
 export function detectConflicts(cardDir: string, mobileState: StateInternalMessage): ConflictSummary | null {
   const actorsPath = path.join(cardDir, ACTORS_FILE);
-  if (!fs.existsSync(actorsPath)) return null; // empty deck
+  const bpDirPath = path.join(cardDir, BLUEPRINTS_DIR);
+  const hasActors = fs.existsSync(actorsPath);
+  const hasBlueprints =
+    fs.existsSync(bpDirPath) && fs.readdirSync(bpDirPath).some((f) => f.endsWith('.yaml'));
+  if (!hasActors && !hasBlueprints) return null; // empty deck
 
   // Build mobile blueprint slug → entryId map (same slug-dedup logic as writeStateInternal)
   const mobileBlueprintBySlug = new Map<string, string>();

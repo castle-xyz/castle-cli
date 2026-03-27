@@ -5,6 +5,7 @@ import yaml from 'yaml';
 const GITIGNORE_CONTENT = `.castle/logs.txt
 .castle/commands.json
 .castle/screenshots/
+.castle/serve.pid
 **/.castle/meta.json
 **/.DS_Store
 `;

@@ -218,15 +218,23 @@ export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { de
   return sceneData;
 }
 
+export function titleToSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    || 'untitled';
+}
+
 function newFilenameForTitle({ title, extension, blueprintsDir }: { title: string; extension: string; blueprintsDir: string }) {
-  let dedupedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled';
-  let filename = path.join(blueprintsDir, `${dedupedTitle}.${extension}`);
+  const slug = titleToSlug(title);
+  let filename = path.join(blueprintsDir, `${slug}.${extension}`);
 
   if (fs.existsSync(filename)) {
     let counter = 0;
     while (fs.existsSync(filename)) {
       counter++;
-      filename = path.join(blueprintsDir, `${dedupedTitle}_${counter}.${extension}`);
+      filename = path.join(blueprintsDir, `${slug}_${counter}.${extension}`);
     }
   }
 
@@ -544,7 +552,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
     const blueprintFilename = newFilenameForTitle({ title, extension: 'yaml', blueprintsDir });
     const scriptFilename = path.relative(
       blueprintsDir,
-      newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+      newFilenameForTitle({ title, extension: 'lua', blueprintsDir })
     );
 
     const writeScriptFile = (content: string) => {
@@ -675,7 +683,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
 
     let scriptFilename = path.relative(
       blueprintsDir,
-      newFilenameForTitle({ title: title + '_script', extension: 'lua', blueprintsDir })
+      newFilenameForTitle({ title, extension: 'lua', blueprintsDir })
     );
 
     if (localComponents) {

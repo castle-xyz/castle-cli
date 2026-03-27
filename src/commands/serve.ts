@@ -292,6 +292,54 @@ export async function serve(
     if (debug) console.log('[serve] No deck.yaml found — running in mobile-first mode');
   }
 
+  // Check for a running serve instance for this deck directory.
+  const castleDir = path.join(directory, '.castle');
+  const pidFile = path.join(castleDir, 'serve.pid');
+
+  fs.mkdirSync(castleDir, { recursive: true });
+
+  if (fs.existsSync(pidFile)) {
+    try {
+      const existingPid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
+      if (!isNaN(existingPid)) {
+        try {
+          process.kill(existingPid, 0); // throws if process doesn't exist
+          const mtime = fs.statSync(pidFile).mtime;
+          const ageSeconds = Math.round((Date.now() - mtime.getTime()) / 1000);
+          const ageStr = ageSeconds < 60 ? `${ageSeconds}s ago` : `${Math.round(ageSeconds / 60)}m ago`;
+          console.warn(`\nWarning: castle serve (PID ${existingPid}) is already running for this deck directory (started ${ageStr}).`);
+          console.warn(`  Run "kill ${existingPid}" to stop it, or proceed with two concurrent servers.\n`);
+        } catch {
+          // Process no longer alive — stale PID file, ignore it.
+        }
+      }
+    } catch {
+      // Unreadable PID file — ignore.
+    }
+  }
+
+  fs.writeFileSync(pidFile, String(process.pid));
+
+  const cleanupPidFile = () => {
+    try {
+      if (fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() === String(process.pid)) {
+        fs.unlinkSync(pidFile);
+      }
+    } catch {}
+  };
+  process.on('exit', cleanupPidFile);
+  process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
+  process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
+
+  // Ensure serve.pid is gitignored in existing decks (new decks get this via workspace.ts).
+  const gitignorePath = path.join(directory, '.gitignore');
+  if (fs.existsSync(gitignorePath)) {
+    const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
+    if (!gitignoreContent.includes('.castle/serve.pid')) {
+      fs.appendFileSync(gitignorePath, '\n.castle/serve.pid\n');
+    }
+  }
+
   let port: number | null = null;
 
   if (options.port) {
