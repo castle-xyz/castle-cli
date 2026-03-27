@@ -36,7 +36,7 @@ program
   .description('Clone a deck from the server')
   .option('-d, --directory <directory>', 'Directory to clone into')
   .option('--replace', 'Replace the directory if it already exists')
-  .option('--no-draw-previews', 'Disable draw preview PNG generation (stored in deck.yaml)')
+  .option('--draw-previews', 'Enable draw preview PNG generation (stored in deck.yaml)')
   .action(async (deckId, options) => {
     await clone(deckId, options);
   });
@@ -64,7 +64,7 @@ program
   .option('-c, --card <cardId>', 'Initial card to serve')
   .option('--open', 'Automatically open browser')
   .option('--debug', 'Show verbose connection and file-change logs')
-  .option('--no-draw-previews', 'Disable draw preview PNG generation (stored in deck.yaml)')
+  .option('--draw-previews', 'Enable draw preview PNG generation (stored in deck.yaml)')
   .option('--cli-primary', 'Use local files as source of truth when mobile state conflicts (no prompt)')
   .option('--mobile-primary', 'Use mobile state as source of truth when local files conflict (no prompt)')
   .action(async (directory, options) => {

@@ -116,16 +116,6 @@ describe('serve command', () => {
       })
     );
 
-    // Write cardversions and version tracking file (new location: .castle/ not .castle/.cache/)
-    fs.writeFileSync(
-      path.join(deckDir, '.castle', 'cardversions.json'),
-      JSON.stringify({ 'card-xyz': 'https://example.com/card-xyz.json' })
-    );
-    fs.writeFileSync(
-      path.join(deckDir, '.castle', 'card-xyz.version'),
-      'https://example.com/card-xyz.json'
-    );
-
     // Mock API
     vi.mocked(API.deck).mockResolvedValue(MOCK_DECK);
 

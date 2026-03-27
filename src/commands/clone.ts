@@ -67,10 +67,10 @@ export async function clone(deckArg: string, options: { directory?: string; repl
 
   initializeDeckDir(deckDirectory, deck.deckId);
 
-  if (options.drawPreviews === false) {
+  if (options.drawPreviews === true) {
     const deckYamlPath = path.join(deckDirectory, 'deck.yaml');
     const deckConfig = yaml.parse(fs.readFileSync(deckYamlPath, 'utf8'));
-    deckConfig.drawPreviews = false;
+    deckConfig.drawPreviews = true;
     fs.writeFileSync(deckYamlPath, yaml.stringify(deckConfig));
   }
 

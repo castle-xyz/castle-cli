@@ -127,7 +127,8 @@ describe('clone command', () => {
     expect(actorEntry.y).toBe(20);
     // Angle converted from radians (0.785) to degrees (~44.97)
     expect(actorEntry.angle).toBeCloseTo(44.97, 1);
-    expect(actorEntry.widthScale).toBeCloseTo(5.0, 1); // ×10
+    // widthScale stripped when matching blueprint default (0.5 internal = 5.0 ×10)
+    expect(actorEntry.widthScale).toBeUndefined();
   });
 
   it('creates blueprints directory with blueprint files', async () => {

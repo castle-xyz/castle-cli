@@ -43,7 +43,6 @@ interface MetaData {
   cardId: string;
   hashes: FileHashes;
   blueprintIdMap: Record<string, string>; // slug -> entryId
-  lastActors?: Record<string, any>; // actors map last written to disk (disk format, for diff computation)
   drawPreviewHashes?: Record<string, string>; // slug → Drawing2.hash, for stale-preview detection
 }
 
@@ -75,8 +74,8 @@ export interface BlueprintChange {
 
 export interface FileChanges {
   changedBlueprints: Record<string, BlueprintChange>;
-  changedActors: Record<string, any> | null;
-  changedVariables: Record<string, any> | null;
+  changedActors?: Record<string, any> | null;
+  changedVariables?: Record<string, any> | null;
   changedSceneProperties?: any;
   hasChanges: boolean;
 }
@@ -96,8 +95,6 @@ export function detectChanges(cardDir: string): FileChanges | null {
 
   const result: FileChanges = {
     changedBlueprints: {},
-    changedActors: null,
-    changedVariables: null,
     hasChanges: false,
   };
 
@@ -214,46 +211,12 @@ export function detectChanges(cardDir: string): FileChanges | null {
     }
   }
 
-  // Check actors — compute a sparse diff vs. the last written state
+  // Check actors
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
     const content = fs.readFileSync(actorsPath, 'utf-8');
     if (meta.hashes[ACTORS_FILE] !== contentHash(content)) {
-      try {
-        const rawParsed = yaml.parse(content);
-        const currentActors: Record<string, any> = (rawParsed && !Array.isArray(rawParsed)) ? rawParsed : {};
-        // If lastActors is missing (old meta without diff support), skip actor diff.
-        if (meta.lastActors !== undefined) {
-          const lastActors: Record<string, any> = meta.lastActors;
-          const actorsDiff: Record<string, any> = {};
-
-          // Added or changed actors
-          for (const [key, actor] of Object.entries(currentActors)) {
-            const last = lastActors[key];
-            if (!last) {
-              actorsDiff[key] = actor; // new
-            } else {
-              if (JSON.stringify(actor) !== JSON.stringify(last)) {
-                actorsDiff[key] = actor; // changed
-              }
-            }
-          }
-
-          // Removed actors
-          for (const key of Object.keys(lastActors)) {
-            if (!(key in currentActors)) {
-              actorsDiff[key] = { removeActor: true };
-            }
-          }
-
-          if (Object.keys(actorsDiff).length > 0) {
-            result.hasChanges = true;
-            result.changedActors = actorsDiff;
-          }
-        }
-      } catch (e: any) {
-        console.error(`[files] failed to parse actors.yaml: ${e.reason || e.message}`);
-      }
+      result.hasChanges = true;
     }
   }
 
@@ -262,27 +225,16 @@ export function detectChanges(cardDir: string): FileChanges | null {
   if (fs.existsSync(variablesPath)) {
     const content = fs.readFileSync(variablesPath, 'utf-8');
     if (meta.hashes[VARIABLES_FILE] !== contentHash(content)) {
-      try {
-        result.changedVariables = yaml.parse(content) as any;
-        result.hasChanges = true;
-      } catch (e: any) {
-        console.error(`[files] failed to parse variables.yaml: ${e.reason || e.message}`);
-      }
+      result.hasChanges = true;
     }
   }
 
-  // Check card.yaml (sceneProperties)
+  // Check card.yaml
   const cardYamlPath = path.join(cardDir, CARD_YAML_FILE);
   if (fs.existsSync(cardYamlPath)) {
     const content = fs.readFileSync(cardYamlPath, 'utf-8');
     if (meta.hashes[CARD_YAML_FILE] !== contentHash(content)) {
-      try {
-        const cardData = yaml.parse(content) as any;
-        result.changedSceneProperties = cardData?.sceneProperties;
-        result.hasChanges = true;
-      } catch (e: any) {
-        console.error(`[files] failed to parse card.yaml: ${e.reason || e.message}`);
-      }
+      result.hasChanges = true;
     }
   }
 
@@ -307,14 +259,7 @@ export function updateMetaHashes(cardDir: string): void {
 
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
-    const actorsContent = fs.readFileSync(actorsPath, 'utf-8');
-    meta.hashes[ACTORS_FILE] = contentHash(actorsContent);
-    try {
-      const parsed = yaml.parse(actorsContent);
-      meta.lastActors = (parsed && !Array.isArray(parsed)) ? parsed : {};
-    } catch (e) {
-      console.warn('[files] failed to parse actors.yaml in updateMetaHashes:', e);
-    }
+    meta.hashes[ACTORS_FILE] = contentHash(fs.readFileSync(actorsPath, 'utf-8'));
   }
 
   const variablesPath = path.join(cardDir, VARIABLES_FILE);
@@ -600,7 +545,6 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     cardId: state.cardId,
     hashes,
     blueprintIdMap,
-    lastActors: actorsForDisk,
     drawPreviewHashes,
   };
   writeMeta(cardDir, meta);
@@ -751,8 +695,6 @@ export function detectConflicts(cardDir: string, mobileState: StateInternalMessa
 export function computeDiskVsMobileDelta(cardDir: string, mobileState: StateInternalMessage): FileChanges {
   const result: FileChanges = {
     changedBlueprints: {},
-    changedActors: null,
-    changedVariables: null,
     hasChanges: false,
   };
 
@@ -916,15 +858,9 @@ export function initMetaFromDisk(cardDir: string, deckId: string, cardId: string
     }
   }
 
-  let lastActors: Record<string, any> | undefined;
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
-    const content = fs.readFileSync(actorsPath, 'utf-8');
-    hashes[ACTORS_FILE] = contentHash(content);
-    try {
-      const parsed = yaml.parse(content);
-      lastActors = (parsed && !Array.isArray(parsed)) ? parsed : {};
-    } catch {}
+    hashes[ACTORS_FILE] = contentHash(fs.readFileSync(actorsPath, 'utf-8'));
   }
 
   const variablesPath = path.join(cardDir, VARIABLES_FILE);
@@ -937,5 +873,5 @@ export function initMetaFromDisk(cardDir: string, deckId: string, cardId: string
     hashes[CARD_YAML_FILE] = contentHash(fs.readFileSync(cardYamlPath, 'utf-8'));
   }
 
-  writeMeta(cardDir, { deckId, cardId, hashes, blueprintIdMap, lastActors, drawPreviewHashes });
+  writeMeta(cardDir, { deckId, cardId, hashes, blueprintIdMap, drawPreviewHashes });
 }

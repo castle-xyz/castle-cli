@@ -476,6 +476,6 @@ describe('computeDiskVsMobileDelta', () => {
 
     const delta = computeDiskVsMobileDelta(tmpDir, mobile);
     expect(delta.hasChanges).toBe(false);
-    expect(delta.changedVariables).toBeNull();
+    expect(delta.changedVariables).toBeUndefined();
   });
 });

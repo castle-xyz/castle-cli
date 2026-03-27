@@ -41,6 +41,7 @@ describe('PNG auto-generation in newSceneDataForCardAsync', () => {
     cardDir = path.join(deckDir, 'card-c1');
     bpDir = path.join(cardDir, 'blueprints');
     fs.mkdirSync(cardDir, { recursive: true });
+    fs.writeFileSync(path.join(deckDir, 'deck.yaml'), yaml.stringify({ deckId: 'test', drawPreviews: true }));
     vi.clearAllMocks();
   });
 

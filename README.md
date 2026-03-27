@@ -112,7 +112,6 @@ deck-{deckId}/
 │   └── screenshots/          # Captured screenshots
 └── card-{cardId}/
     ├── card.yaml             # Card metadata and scene properties
-    ├── SCENE.md              # Generated scene context for agents
     ├── variables.yaml        # Variable definitions
     ├── actors.yaml           # Actor instances
     ├── .castle/

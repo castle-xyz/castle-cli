@@ -14,11 +14,11 @@ import {
   RequestStateMessage,
   RequestDrawDataMessage,
 } from './mobile-protocol.js';
-import { writeStateInternal, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes, stabilizeNewBlueprintIds, detectConflicts, initMetaFromDisk, readMeta, ConflictSummary } from './mobile-files.js';
+import { writeStateInternal, detectChanges, FileChanges, updateMetaHashes, stabilizeNewBlueprintIds, detectConflicts, initMetaFromDisk, readMeta, ConflictSummary } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
-import { generateSceneContext, writeDeckAgentFilesAsync } from './decks.js';
+import { writeDeckAgentFilesAsync } from './decks.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const CASTLE_DIR = '.castle';
@@ -353,13 +353,6 @@ export class CLIMobileConnection {
     await writeStateInternal(cardDir, state);
     this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
 
-    // If any actor is missing persistentId, send full state so C++ stores them.
-    // Older decks load from CDN without persistentId; newer decks already have them.
-    const allHavePersistentId = Object.values(state.actors).every((a: any) => !!a.persistentId);
-    if (!allHavePersistentId) {
-      this._sendFullState(cardDir);
-    }
-
     // Check for draw hash mismatches: if mobile sent a blueprint with a different Drawing2.hash
     // than what's on disk, request the missing draw data.
     const mismatched = this._findDrawHashMismatches(state, cardDir);
@@ -368,26 +361,7 @@ export class CLIMobileConnection {
       this._sendToApp({ type: 'requestDrawData', entryIds: mismatched } as RequestDrawDataMessage);
     }
 
-    const sceneData = mobileInternalStateToSceneData(state);
-    const sceneContext = await generateSceneContext(sceneData);
-    if (sceneContext) {
-      fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
-    }
     await writeDeckAgentFilesAsync(deckDir);
-
-    const castleDir = path.join(deckDir, CASTLE_DIR);
-    if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
-    const cardVersionsPath = path.join(castleDir, 'cardversions.json');
-    let cardVersions: any = {};
-    try {
-      cardVersions = JSON.parse(fs.readFileSync(cardVersionsPath, 'utf-8'));
-    } catch (e: any) {
-      if (e.code !== 'ENOENT') {
-        console.warn('[mobile] failed to parse cardversions.json:', e);
-      }
-    }
-    cardVersions[cardId] = 'mobile';
-    fs.writeFileSync(cardVersionsPath, JSON.stringify(cardVersions, null, 2));
 
     if (this.onStateWritten) {
       this.onStateWritten(cardId, deckDir);
@@ -478,6 +452,15 @@ export class CLIMobileConnection {
     const changes = detectChanges(cardDir);
     if (changes) stabilizeNewBlueprintIds(changes, cardDir);
 
+    // Collect entryIds of blueprints that are new on disk (just stabilized) so we can
+    // include forkBlueprintId — mobile can't edit a blueprint it's never seen before.
+    const newBlueprintEntryIds = new Set<string>();
+    if (changes) {
+      for (const bp of Object.values(changes.changedBlueprints)) {
+        if (bp.isNew && bp.entryId) newBlueprintEntryIds.add(bp.entryId);
+      }
+    }
+
     const meta = readMeta(cardDir);
     if (!meta) return;
 
@@ -520,6 +503,9 @@ export class CLIMobileConnection {
         }
 
         const bp: any = { entryId, title: bpData?.title ?? slug };
+        if (newBlueprintEntryIds.has(entryId)) {
+          bp.forkBlueprintId = bpData?.forkBlueprintId || 'default-blueprint-0';
+        }
 
         // Only include components/script if content changed since last sent (avoids
         // repeated re-application of rules on mobile which corrupts rule state)

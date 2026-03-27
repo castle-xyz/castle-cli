@@ -9,6 +9,7 @@ const GITIGNORE_CONTENT = `.castle/logs.txt
 **/.castle/meta.json
 **/.DS_Store
 **/*.preview.png
+**/*.draw.json
 `;
 
 export function initializeDeckDir(deckDir: string, deckId: string): void {
@@ -16,7 +17,7 @@ export function initializeDeckDir(deckDir: string, deckId: string): void {
 
   const deckYamlPath = path.join(deckDir, 'deck.yaml');
   if (!fs.existsSync(deckYamlPath)) {
-    fs.writeFileSync(deckYamlPath, yaml.stringify({ deckId, drawPreviews: true }));
+    fs.writeFileSync(deckYamlPath, yaml.stringify({ deckId }));
   }
 
   const gitignorePath = path.join(deckDir, '.gitignore');

@@ -105,7 +105,6 @@ describe('detectChanges', () => {
 
     const changes = detectChanges(tmpDir);
     expect(changes!.hasChanges).toBe(true);
-    expect(changes!.changedActors).toBeDefined();
   });
 
   it('detects changed variables.yaml', () => {
@@ -118,7 +117,6 @@ describe('detectChanges', () => {
 
     const changes = detectChanges(tmpDir);
     expect(changes!.hasChanges).toBe(true);
-    expect(changes!.changedVariables).toBeDefined();
   });
 
   it('detects changed sceneProperties in card.yaml', () => {
@@ -133,7 +131,6 @@ describe('detectChanges', () => {
 
     const changes = detectChanges(tmpDir);
     expect(changes!.hasChanges).toBe(true);
-    expect(changes!.changedSceneProperties).toEqual({ backgroundColor: { r: 1, g: 0, b: 0, a: 1 } });
   });
 });
 

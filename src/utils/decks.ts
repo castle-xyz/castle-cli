@@ -12,13 +12,13 @@ import * as Behaviors from './behaviors.js';
 import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
 import { nextActorKey, sortActorMap } from './actor-keys.js';
 
-// Read drawPreviews flag from deck.yaml. Returns true (previews enabled) unless explicitly false.
+// Read drawPreviews flag from deck.yaml. Returns false (previews disabled) unless explicitly true.
 export function isDrawPreviewsEnabled(deckDir: string): boolean {
   try {
     const config = yaml.parse(fs.readFileSync(path.join(deckDir, 'deck.yaml'), 'utf8'));
-    return config?.drawPreviews !== false;
+    return config?.drawPreviews === true;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -145,6 +145,8 @@ const STRIP_NON_PROP_COMPONENTS = new Set(['Drawing2', 'Script']);
 //   - Fields where rulesGet=false && rulesSet=false && !userEditable → computed/internal
 //     (e.g. Body.width, height, fixtures, editorBounds, layerName, relativeToCameraFix)
 //   - Body fields in BODY_PER_ACTOR_FIELDS → exclusively per-actor (go in actors.yaml)
+//   - Camera component when disabled — it's noise on non-camera blueprints (test normalizes Camera away)
+//   - Empty LocalVariables — no user-editable content; test already normalizes empty LocalVariables away
 // 'disabled' is always preserved.
 function stripBlueprintComponents(components: any, behaviors: any): void {
   for (const compName of Object.keys(components)) {
@@ -167,6 +169,20 @@ function stripBlueprintComponents(components: any, behaviors: any): void {
         // Exclusively per-actor — goes in actors.yaml, not blueprint YAML
         delete comp[field];
       }
+    }
+
+    // Remove Camera component when disabled — it's noise on non-camera blueprints.
+    // The round-trip test already deletes Camera from both sides of the comparison.
+    if (compName === 'Camera' && comp.disabled === true) {
+      delete components[compName];
+      continue;
+    }
+
+    // Remove empty LocalVariables — no user-editable content when there are no local variables.
+    // The round-trip test already normalizes empty LocalVariables away from both sides.
+    if (compName === 'LocalVariables' && Object.keys(comp).length === 0) {
+      delete components[compName];
+      continue;
     }
   }
 }
@@ -202,21 +218,6 @@ export function extractDrawData(components: any): Record<string, any> | null {
 export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { deckDir: string; cardId: string; sceneDataUrl: string }) {
   const response = await Axios.get(sceneDataUrl);
   const sceneData = response.data;
-
-  let castleDir = getCastleDir(deckDir);
-
-  // Track last synced version in .castle/ (no longer in .castle/.cache/)
-  fs.writeFileSync(path.join(castleDir, `${cardId}.version`), sceneDataUrl);
-
-  let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
-  let cardVersions: Record<string, string> = {};
-
-  try {
-    cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));
-  } catch (e) {}
-
-  cardVersions[cardId] = sceneDataUrl;
-  fs.writeFileSync(cardVersionsFilePath, JSON.stringify(cardVersions, null, 2));
 
   return sceneData;
 }
@@ -259,9 +260,19 @@ export function singleActorToDiskEntry(
   const entry: any = { title: blueprintEntry.title };
   entry.x = body.x ?? 0;
   entry.y = body.y ?? 0;
-  if (body.angle !== undefined) entry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000; // degrees
-  if (body.widthScale !== undefined) entry.widthScale = body.widthScale * 10; // ×10
-  if (body.heightScale !== undefined) entry.heightScale = body.heightScale * 10; // ×10
+  // Omit angle when 0 (default) to reduce noise
+  if (body.angle !== undefined) {
+    const angleDeg = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000;
+    if (angleDeg !== 0) entry.angle = angleDeg;
+  }
+  // Omit widthScale/heightScale when matching blueprint default (same logic as content/targetDeckId above)
+  const bpBody = blueprintEntry.actorBlueprint?.components?.Body ?? {};
+  if (body.widthScale !== undefined && body.widthScale !== bpBody.widthScale) {
+    entry.widthScale = body.widthScale * 10; // ×10
+  }
+  if (body.heightScale !== undefined && body.heightScale !== bpBody.heightScale) {
+    entry.heightScale = body.heightScale * 10; // ×10
+  }
   if (drawing2.initialFrame !== undefined && drawing2.initialFrame !== 1) entry.initialFrame = drawing2.initialFrame;
   if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) entry.fontSizeScale = text.fontSizeScale;
   // Only save content/targetDeckId if they differ from the blueprint default (same logic as castle-client)
@@ -417,55 +428,6 @@ export async function generateStaticContext(): Promise<string> {
   return parts.join('\n\n');
 }
 
-// Generate per-card scene context (blueprints and actors) from scene data.
-export async function generateSceneContext(sceneData: any): Promise<string> {
-  const { behaviors } = await getCastleMetadata();
-  const library = sceneData.snapshot.library ?? {};
-  const actors = sceneData.snapshot.actors ?? [];
-
-  // Build behaviorName (internal) → displayName map
-  const behaviorInternalToDisplay: Record<string, string> = {};
-  for (const b of Object.values(behaviors) as any[]) {
-    behaviorInternalToDisplay[b.name] = b.displayName;
-  }
-
-  // --- Blueprints ---
-  const bpLines: string[] = [];
-  for (const [entryId, entry] of Object.entries(library) as [string, any][]) {
-    if (entry.entryType !== 'actorBlueprint') continue;
-    const behaviorNames = Object.keys(entry.actorBlueprint?.components ?? {})
-      .map((k) => behaviorInternalToDisplay[k] ?? k);
-    const bodyComp = entry.actorBlueprint?.components?.Body ?? {};
-    let sizeInfo = '';
-    // Body widthScale/heightScale are in internal format (0–1); multiply ×10 for external (YAML) format
-    if (bodyComp.widthScale != null) sizeInfo += `, widthScale=${Math.round(bodyComp.widthScale * 10 * 10) / 10}`;
-    if (bodyComp.heightScale != null) sizeInfo += `, heightScale=${Math.round(bodyComp.heightScale * 10 * 10) / 10}`;
-    bpLines.push(`  - title: "${entry.title}", entryId: ${entryId}, behaviors: [${behaviorNames.join(', ')}]${sizeInfo}`);
-  }
-
-  // --- Actors ---
-  const actorLines: string[] = [];
-  for (const actor of actors) {
-    const entry = library[actor.parentEntryId];
-    if (!entry) continue;
-    const body = actor.bp?.components?.Body ?? {};
-    const angleDeg = body.angle != null ? Math.round(body.angle * (180 / Math.PI) * 10) / 10 : 0;
-    let actorLine = `  a${actor.actorId}: title="${entry.title}", x=${body.x ?? 0}, y=${body.y ?? 0}, angle=${angleDeg}°`;
-    // Body widthScale/heightScale are in internal format (0–1); multiply ×10 for external (YAML) format
-    if (body.widthScale != null) actorLine += `, widthScale=${Math.round(body.widthScale * 10 * 10) / 10}`;
-    if (body.heightScale != null) actorLine += `, heightScale=${Math.round(body.heightScale * 10 * 10) / 10}`;
-    actorLines.push(actorLine);
-  }
-
-  const parts: string[] = [];
-  if (bpLines.length > 0) {
-    parts.push(`All blueprints in the deck:\n${bpLines.join('\n')}`);
-  }
-  if (actorLines.length > 0) {
-    parts.push(`Actors in the scene (angles in degrees, positive Y is downward):\n${actorLines.join('\n')}`);
-  }
-  return parts.join('\n\n');
-}
 
 function loadCliDocs(isAdmin: boolean): string | null {
   try {
@@ -493,36 +455,51 @@ export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
     fs.writeFileSync(agentsPath, cliDocs);
   }
 
+  // CLAUDE.md auto-loads AGENTS.md plus the reference files Claude reads on every task.
+  // Having them in CLAUDE.md eliminates the round-trip Read calls Claude would otherwise make.
+  // Also include the card directory path so Claude doesn't need to glob for it.
+  const claudePath = path.join(deckDir, 'CLAUDE.md');
+  const cardDirs = fs.readdirSync(deckDir)
+    .filter(f => f.startsWith('card-') && fs.statSync(path.join(deckDir, f)).isDirectory());
+  const cardLine = cardDirs.length === 1
+    ? `Card directory: \`${cardDirs[0]}/\`\n\n`
+    : cardDirs.length > 1
+      ? `Card directories: ${cardDirs.map(d => `\`${d}/\``).join(', ')}\n\n`
+      : '';
+  const claudeContent = `${cardLine}@AGENTS.md\n@.castle/BEHAVIORS.md\n@.castle/EXAMPLES.md\n`;
+  const existingClaude = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, 'utf8') : null;
+  if (existingClaude !== claudeContent) {
+    fs.writeFileSync(claudePath, claudeContent);
+  }
+
   const castleDir = path.join(deckDir, '.castle');
 
   const staticContext = await generateStaticContext();
   if (staticContext) {
     const behaviorsPath = path.join(castleDir, 'BEHAVIORS.md');
-    const behaviorsContent = `# Behaviors & Rules Reference\n\nRead this file when writing rules YAML or setting behavior properties.\n\n${staticContext}`;
+    const behaviorsContent = `# Behaviors & Rules Reference\n\nConsult this file when writing rules YAML or setting behavior properties.\n\n${staticContext}`;
     const existingBehaviors = fs.existsSync(behaviorsPath) ? fs.readFileSync(behaviorsPath, 'utf8') : null;
     if (existingBehaviors !== behaviorsContent) {
       fs.writeFileSync(behaviorsPath, behaviorsContent);
     }
   }
 
-  const drawJsonDocsPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/DRAW_JSON.md');
-  try {
-    const drawJsonDocs = fs.readFileSync(drawJsonDocsPath, 'utf8');
-    const drawJsonPath = path.join(castleDir, 'DRAW_JSON.md');
-    const existingDrawJson = fs.existsSync(drawJsonPath) ? fs.readFileSync(drawJsonPath, 'utf8') : null;
-    if (existingDrawJson !== drawJsonDocs) {
-      fs.writeFileSync(drawJsonPath, drawJsonDocs);
+  const assetsDir = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets');
+  for (const assetFile of ['DRAW_JSON.md', 'EXAMPLES.md', 'TESTING.md']) {
+    try {
+      const content = fs.readFileSync(path.join(assetsDir, assetFile), 'utf8');
+      const destPath = path.join(castleDir, assetFile);
+      const existing = fs.existsSync(destPath) ? fs.readFileSync(destPath, 'utf8') : null;
+      if (existing !== content) {
+        fs.writeFileSync(destPath, content);
+      }
+    } catch {
+      // asset missing, skip
     }
-  } catch {
-    // asset missing, skip
   }
 }
 
-async function writeAgentFilesAsync({ deckDir, cardDir, sceneData }: { deckDir: string; cardDir: string; sceneData: any }) {
-  const sceneContext = await generateSceneContext(sceneData);
-  if (sceneContext) {
-    fs.writeFileSync(path.join(cardDir, 'SCENE.md'), sceneContext);
-  }
+async function writeAgentFilesAsync({ deckDir }: { deckDir: string; cardDir?: string; sceneData?: any }) {
   await writeDeckAgentFilesAsync(deckDir);
 }
 
@@ -868,11 +845,13 @@ export async function newSceneDataForCardAsync({
         if (!parentEntryId || !localLibrary[parentEntryId]) continue;
 
         // Flat format: { title, x, y, angle (degrees), widthScale ×10, initialFrame }
+        // Fall back to blueprint default when widthScale/heightScale are omitted (stripped when matching default).
+        const bpBody = localLibrary[parentEntryId]?.actorBlueprint?.components?.Body;
         const body: any = {
           x: data.x ?? 0,
           y: data.y ?? 0,
-          widthScale: data.widthScale ?? 0, // ×10; applySnapshot converts ÷10
-          heightScale: data.heightScale ?? 0,
+          widthScale: data.widthScale ?? bpBody?.widthScale ?? 0, // ×10; applySnapshot converts ÷10
+          heightScale: data.heightScale ?? bpBody?.heightScale ?? 0,
         };
         if (data.angle !== undefined) body.angle = data.angle; // degrees; applySnapshot converts
 
@@ -1073,32 +1052,3 @@ export async function pushCardsAsync({ deckDir, cards }: { deckDir: string; card
   }
 }
 
-export async function syncCardVersionsAsync({ deckDir, force = false }: { deckDir: string; force?: boolean }) {
-  let castleDir = getCastleDir(deckDir);
-  let cardVersionsFilePath = path.join(castleDir, 'cardversions.json');
-  let cardVersions: Record<string, string> = {};
-
-  try {
-    cardVersions = JSON.parse(fs.readFileSync(cardVersionsFilePath, 'utf8'));
-  } catch (e) {}
-
-  let cardIds = Object.keys(cardVersions);
-
-  for (let cardId of cardIds) {
-    const sceneDataUrl = cardVersions[cardId];
-
-    // Skip mobile-sourced entries (they have no URL to fetch)
-    if (sceneDataUrl === 'mobile') continue;
-
-    let cachedSceneDataUrl = '';
-    try {
-      cachedSceneDataUrl = fs.readFileSync(path.join(castleDir, `${cardId}.version`), 'utf8').trim();
-    } catch (e) {}
-
-    if (cachedSceneDataUrl != sceneDataUrl || force) {
-      console.log(`Syncing card ${cardId}...`);
-      const cardDir = path.join(deckDir, `card-${cardId}`);
-      await pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir });
-    }
-  }
-}

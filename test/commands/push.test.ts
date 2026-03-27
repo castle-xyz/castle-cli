@@ -102,17 +102,6 @@ describe('push command', () => {
       yaml.stringify(bpData)
     );
 
-    // Write cardversions.json pointing to the scene data URL
-    fs.writeFileSync(
-      path.join(deckDir, '.castle', 'cardversions.json'),
-      JSON.stringify({ 'card-xyz': 'https://example.com/card-xyz.json' })
-    );
-    // Write version file so force sync doesn't re-download
-    fs.writeFileSync(
-      path.join(deckDir, '.castle', '.cache', 'card-xyz.version'),
-      'https://example.com/card-xyz.json'
-    );
-
     // Mock API
     vi.mocked(API.deck).mockResolvedValue(MOCK_DECK);
     vi.mocked(API.createSceneDataUploadConfig).mockResolvedValue([

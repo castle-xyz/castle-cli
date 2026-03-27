@@ -104,9 +104,9 @@ describe('writeActorsAndVariablesAsync', () => {
     expect(actorEntry.y).toBe(20);
     // Angle converted from radians (0.785) to degrees (~44.97)
     expect(actorEntry.angle).toBeCloseTo(44.97, 1);
-    // widthScale ×10 (external format)
-    expect(actorEntry.widthScale).toBe(5.0);
-    expect(actorEntry.heightScale).toBe(5.0);
+    // widthScale/heightScale stripped when matching blueprint default (0.5 internal = 5.0 ×10)
+    expect(actorEntry.widthScale).toBeUndefined();
+    expect(actorEntry.heightScale).toBeUndefined();
   });
 
   it('writes variables.yaml as empty array', async () => {
