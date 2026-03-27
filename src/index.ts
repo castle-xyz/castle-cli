@@ -12,6 +12,9 @@ import { login } from './commands/login.js';
 import { logout } from './commands/logout.js';
 import { whoami } from './commands/whoami.js';
 import { drawPreview } from './commands/draw-preview.js';
+import { screenshot } from './commands/screenshot.js';
+import { stopAndPlay } from './commands/stop-and-play.js';
+import { syncMode } from './commands/sync-mode.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,6 +70,7 @@ program
   .option('--draw-previews', 'Enable draw preview PNG generation (stored in deck.yaml)')
   .option('--cli-primary', 'Use local files as source of truth when mobile state conflicts (no prompt)')
   .option('--mobile-primary', 'Use mobile state as source of truth when local files conflict (no prompt)')
+  .option('--sync-mode <mode>', 'Sync direction: both (default), cli-to-mobile, or mobile-to-cli')
   .action(async (directory, options) => {
     await serve(directory || '.', options);
   });
@@ -97,6 +101,27 @@ program
   .description('Show the current CLI version')
   .action(() => {
     console.log(packageVersion);
+  });
+
+program
+  .command('screenshot [directory]')
+  .description('Take a screenshot of the running mobile session')
+  .action(async (directory) => {
+    await screenshot(directory || '.');
+  });
+
+program
+  .command('stop-and-play [directory]')
+  .description('Stop and restart the deck on the connected mobile device')
+  .action(async (directory) => {
+    await stopAndPlay(directory || '.');
+  });
+
+program
+  .command('sync-mode <mode> [directory]')
+  .description('Change the sync direction of a running castle serve (both, cli-to-mobile, mobile-to-cli)')
+  .action(async (mode, directory) => {
+    await syncMode(mode, directory || '.');
   });
 
 program

@@ -3,9 +3,9 @@ import * as path from 'path';
 import yaml from 'yaml';
 
 const GITIGNORE_CONTENT = `.castle/logs.txt
-.castle/commands.json
 .castle/screenshots/
 .castle/serve.pid
+.castle/serve.port
 **/.castle/meta.json
 **/.DS_Store
 **/*.preview.png
@@ -38,13 +38,6 @@ export function initializeDeckDir(deckDir: string, deckId: string): void {
     fs.writeFileSync(logsPath, '');
   }
 
-  const commandsPath = path.join(castleDir, 'commands.json');
-  if (!fs.existsSync(commandsPath)) {
-    fs.writeFileSync(commandsPath, '');
-  }
-
-  const screenshotsPath = path.join(castleDir, 'screenshots');
-  if (!fs.existsSync(screenshotsPath)) fs.mkdirSync(screenshotsPath);
 }
 
 export function initializeCardDir(cardDir: string, cardId: string): void {

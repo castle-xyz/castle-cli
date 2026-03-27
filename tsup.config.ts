@@ -6,5 +6,6 @@ export default defineConfig({
   dts: false,
   outDir: 'dist',
   splitting: false,
+  bundle: false,
   clean: true,
 });

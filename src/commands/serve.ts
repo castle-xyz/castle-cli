@@ -9,7 +9,7 @@ import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
-import { CLIMobileConnection } from '../utils/mobile.js';
+import { CLIMobileConnection, SyncMode } from '../utils/mobile.js';
 import * as config from '../utils/config.js';
 import { getCacheDir, readCache, writeCache, fetchPlayerId } from '../utils/cache.js';
 import * as api from '../utils/api.js';
@@ -224,7 +224,7 @@ async function fetchCoreViews(debug: boolean): Promise<string> {
 
 export async function serve(
   directory: string = '.',
-  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean; cliPrimary?: boolean; mobilePrimary?: boolean } = {}
+  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean; cliPrimary?: boolean; mobilePrimary?: boolean; syncMode?: string } = {}
 ) {
   const debug = !!options.debug;
 
@@ -278,6 +278,7 @@ export async function serve(
   // Check for a running serve instance for this deck directory.
   const castleDir = path.join(directory, '.castle');
   const pidFile = path.join(castleDir, 'serve.pid');
+  const portFile = path.join(castleDir, 'serve.port');
 
   fs.mkdirSync(castleDir, { recursive: true });
 
@@ -309,17 +310,21 @@ export async function serve(
         fs.unlinkSync(pidFile);
       }
     } catch {}
+    try { if (fs.existsSync(portFile)) fs.unlinkSync(portFile); } catch {}
   };
   process.on('exit', cleanupPidFile);
   process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
   process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
 
-  // Ensure serve.pid is gitignored in existing decks (new decks get this via workspace.ts).
+  // Ensure serve.pid and serve.port are gitignored in existing decks (new decks get this via workspace.ts).
   const gitignorePath = path.join(directory, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
     const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
     if (!gitignoreContent.includes('.castle/serve.pid')) {
       fs.appendFileSync(gitignorePath, '\n.castle/serve.pid\n');
+    }
+    if (!gitignoreContent.includes('.castle/serve.port')) {
+      fs.appendFileSync(gitignorePath, '\n.castle/serve.port\n');
     }
   }
 
@@ -352,15 +357,17 @@ export async function serve(
   });
 
   // Start mobile WebSocket connection (if logged in).
+  let mobileConnection: CLIMobileConnection | null = null;
   const token = config.getToken();
   if (token) {
-    const mobileConnection = new CLIMobileConnection({
+    mobileConnection = new CLIMobileConnection({
       deckDir: directory,
       token,
       debug,
       expectedDeckId: deckId,
       cliPrimary: options.cliPrimary,
       mobilePrimary: options.mobilePrimary,
+      syncMode: options.syncMode as SyncMode | undefined,
       onStateWritten: (cardId, actualDeckDir) => {
         deckDirForRoutes = actualDeckDir;
         version++;
@@ -530,6 +537,47 @@ export async function serve(
       res.sendStatus(200);
     });
 
+    app.post('/api/screenshot', async (req, res) => {
+      if (!mobileConnection) {
+        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
+        return;
+      }
+      try {
+        const result = await mobileConnection.cmdScreenshot();
+        res.json(result);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    app.post('/api/stop-and-play', async (req, res) => {
+      if (!mobileConnection) {
+        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
+        return;
+      }
+      try {
+        const result = await mobileConnection.cmdStopAndPlay();
+        res.json(result);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    app.post('/api/set-sync-mode', express.json(), (req, res) => {
+      if (!mobileConnection) {
+        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
+        return;
+      }
+      const { mode } = req.body ?? {};
+      const validModes = ['both', 'cli-to-mobile', 'mobile-to-cli'];
+      if (!mode || !validModes.includes(mode)) {
+        res.status(400).json({ error: `Invalid mode: "${mode}". Must be one of: both, cli-to-mobile, mobile-to-cli` });
+        return;
+      }
+      mobileConnection.setSyncMode(mode as SyncMode);
+      res.json({ mode, doneAt: new Date().toISOString() });
+    });
+
     // Listen and resolve with actual bound port (port 0 = OS-assigned)
     const server = await new Promise<{ app: any; port: number; url: string }>((resolve, reject) => {
       const httpServer = app.listen(port, () => {
@@ -537,6 +585,7 @@ export async function serve(
         const actualPort = addr?.port ?? port;
         const url = `http://localhost:${actualPort}`;
         console.log(`Serving on ${url}`);
+        fs.writeFileSync(portFile, String(actualPort));
 
         if (options.open) {
           setTimeout(async () => { await openBrowser(url); }, 100);

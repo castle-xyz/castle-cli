@@ -22,14 +22,13 @@ import { writeDeckAgentFilesAsync } from './decks.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const CASTLE_DIR = '.castle';
-const COMMANDS_FILE = 'commands.json';
 const SCREENSHOTS_DIR = 'screenshots';
 const MAX_SCREENSHOTS = 100;
-const COMMANDS_POLL_MS = 500;
-const MAX_COMMAND_LINES = 200;
 const RECONNECT_INTERVAL_MS = 3000;
 const PING_INTERVAL_MS = 10000;
 const PONG_TIMEOUT_MS = 3000;
+
+export type SyncMode = 'both' | 'cli-to-mobile' | 'mobile-to-cli';
 
 export interface CLIMobileConnectionOptions {
   deckDir: string;
@@ -38,6 +37,7 @@ export interface CLIMobileConnectionOptions {
   expectedDeckId?: string;
   cliPrimary?: boolean;   // Use local disk files as source of truth when conflict is detected (no prompt)
   mobilePrimary?: boolean; // Use mobile state as source of truth when conflict is detected (no prompt)
+  syncMode?: SyncMode;
   onStateWritten?: (cardId: string, deckDir: string) => void;
 }
 
@@ -56,6 +56,7 @@ export class CLIMobileConnection {
   private logger: Logger;
   private cliPrimary: boolean;
   private mobilePrimary: boolean;
+  private syncMode: SyncMode;
   private connected = false;
   private shouldReconnect = true;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -76,29 +77,25 @@ export class CLIMobileConnection {
   private _stateQueue: Promise<void> = Promise.resolve();
   private _editIdCounter: number = 0;
 
-  // Commands
-  private commandsPollTimer: ReturnType<typeof setInterval> | null = null;
-  private commandsPath: string;
   private screenshotsDir: string;
   private screenshotCounter = 0;
-  private processingCommands = false;
 
   // Pending screenshot request
   private screenshotResolve: ((data: string | null) => void) | null = null;
 
-  constructor({ deckDir, token, debug, expectedDeckId, cliPrimary, mobilePrimary, onStateWritten }: CLIMobileConnectionOptions) {
+  constructor({ deckDir, token, debug, expectedDeckId, cliPrimary, mobilePrimary, syncMode, onStateWritten }: CLIMobileConnectionOptions) {
     this.deckDir = deckDir;
     this.token = token;
     this.debug = !!debug;
     this.expectedDeckId = expectedDeckId ?? null;
     this.cliPrimary = !!cliPrimary;
     this.mobilePrimary = !!mobilePrimary;
+    this.syncMode = syncMode ?? 'both';
     this.onStateWritten = onStateWritten;
 
     if (!fs.existsSync(deckDir)) fs.mkdirSync(deckDir, { recursive: true });
     const castleDir = path.join(deckDir, CASTLE_DIR);
     if (!fs.existsSync(castleDir)) fs.mkdirSync(castleDir, { recursive: true });
-    this.commandsPath = path.join(castleDir, COMMANDS_FILE);
     this.screenshotsDir = path.join(castleDir, SCREENSHOTS_DIR);
     this.logger = new Logger(deckDir);
   }
@@ -107,6 +104,11 @@ export class CLIMobileConnection {
     this.logger.cli(`project directory: ${this.deckDir}`);
     if (this.debug) console.log(`[mobile] project directory: ${this.deckDir}`);
     this._connect();
+  }
+
+  setSyncMode(mode: SyncMode) {
+    this.syncMode = mode;
+    console.log(`[mobile] sync mode: ${mode}`);
   }
 
   private _connect() {
@@ -125,7 +127,7 @@ export class CLIMobileConnection {
     this.ws.on('open', () => {
       this.connected = true;
       this.logger.cli('connected to tunnel');
-      console.log('[mobile] connected');
+      console.log('[mobile] connected to tunnel (waiting for mobile app...)');
 
       // Enable the cli tunnel feature
       this._send({ type: 'cli_tunnel_start_listening' });
@@ -140,9 +142,6 @@ export class CLIMobileConnection {
 
       // Start keepalive pings
       this._startPing();
-
-      // Start commands poll immediately on connect (don't wait for state_internal)
-      this._startCommandsPoll();
     });
 
     this.ws.on('message', (data) => {
@@ -307,6 +306,16 @@ export class CLIMobileConnection {
 
     initializeCardDir(cardDir, cardId);
 
+    // cli-to-mobile: never write mobile state to disk — route straight to CLI-primary push.
+    if (this.syncMode === 'cli-to-mobile') {
+      if (!this.seenCards.has(cardId)) {
+        this.seenCards.add(cardId);
+        console.log(`[mobile] mobile app connected (card ${cardId}) — pushing local files to mobile`);
+      }
+      await this._handleStateInternalCLIPrimary(state, cardDir, cardId, deckDir);
+      return;
+    }
+
     const lastSessionId = this.lastCliSessionIds.get(cardId);
     const sessionChanged = !!lastSessionId && lastSessionId !== state.cliSessionId;
 
@@ -328,9 +337,9 @@ export class CLIMobileConnection {
     if (!this.seenCards.has(cardId)) {
       this.seenCards.add(cardId);
       if (useCLIPrimary) {
-        console.log(`[mobile] card ${cardId}: CLI-primary sync — pushing local files to mobile`);
+        console.log(`[mobile] mobile app connected (card ${cardId}) — pushing local files to mobile`);
       } else {
-        console.log(`[mobile] card ${cardId}: synced (${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors)`);
+        console.log(`[mobile] mobile app connected (card ${cardId}, ${Object.keys(state.blueprints).length} blueprints, ${actorKeys.length} actors)`);
       }
     }
 
@@ -369,13 +378,14 @@ export class CLIMobileConnection {
 
     if (!this.watchers.has(cardId)) {
       const watcher = new FileWatcher(cardDir, (_changes: FileChanges) => {
-        this._sendFullState(cardDir);
+        if (this.syncMode !== 'mobile-to-cli') {
+          this._sendFullState(cardDir);
+        }
       });
       watcher.start();
       this.watchers.set(cardId, watcher);
     }
 
-    this._startCommandsPoll();
   }
 
   // CLI-primary: push disk state to mobile instead of writing mobile state to disk.
@@ -399,13 +409,14 @@ export class CLIMobileConnection {
 
     if (!this.watchers.has(cardId)) {
       const watcher = new FileWatcher(cardDir, (_changes: FileChanges) => {
-        this._sendFullState(cardDir);
+        if (this.syncMode !== 'mobile-to-cli') {
+          this._sendFullState(cardDir);
+        }
       });
       watcher.start();
       this.watchers.set(cardId, watcher);
     }
 
-    this._startCommandsPoll();
     this.logger.cli(`CLI-primary: pushed disk state to mobile (card ${cardId})`);
   }
 
@@ -505,6 +516,11 @@ export class CLIMobileConnection {
         const bp: any = { entryId, title: bpData?.title ?? slug };
         if (newBlueprintEntryIds.has(entryId)) {
           bp.forkBlueprintId = bpData?.forkBlueprintId || 'default-blueprint-0';
+        }
+        // Send YAML drawing shorthand on every call until .draw.json exists (i.e. until the
+        // drawing has been echoed back from mobile and written to disk by writeStateInternal).
+        if (bpData?.drawing && !fs.existsSync(drawJsonPath)) {
+          bp.drawing = bpData.drawing;
         }
 
         // Only include components/script if content changed since last sent (avoids
@@ -648,108 +664,7 @@ export class CLIMobileConnection {
     }
   }
 
-  // --- Commands ---
-
-  private _startCommandsPoll() {
-    if (this.commandsPollTimer) return;
-    this.commandsPollTimer = setInterval(() => this._pollCommands(), COMMANDS_POLL_MS);
-  }
-
-  private _stopCommandsPoll() {
-    if (this.commandsPollTimer) {
-      clearInterval(this.commandsPollTimer);
-      this.commandsPollTimer = null;
-    }
-  }
-
-  private _pollCommands() {
-    if (this.processingCommands) return;
-    if (!fs.existsSync(this.commandsPath)) return;
-    let content: string;
-    try {
-      content = fs.readFileSync(this.commandsPath, 'utf-8');
-    } catch {
-      return;
-    }
-
-    const lines = content.split('\n').filter(l => l.trim());
-    if (lines.length === 0) return;
-
-    const parsed: any[] = [];
-    let hasUnprocessed = false;
-    for (const line of lines) {
-      try {
-        const cmd = JSON.parse(line);
-        parsed.push(cmd);
-        if (!cmd.response) hasUnprocessed = true;
-      } catch {
-        parsed.push({ _raw: line, response: { error: 'invalid json' } });
-      }
-    }
-    if (!hasUnprocessed) return;
-
-    this._processCommands(parsed, lines.length);
-  }
-
-  private async _processCommands(commands: any[], originalLineCount: number) {
-    this.processingCommands = true;
-    try {
-      for (const cmd of commands) {
-        if (cmd.response) continue;
-        if (!cmd.type) {
-          cmd.response = { error: 'missing type', doneAt: new Date().toISOString() };
-          continue;
-        }
-        try {
-          switch (cmd.type) {
-            case 'screenshot':
-              cmd.response = await this._cmdScreenshot();
-              break;
-            case 'stopAndPlay':
-              cmd.response = await this._cmdStopAndPlay();
-              break;
-            default:
-              cmd.response = { error: `unknown command: ${cmd.type}`, doneAt: new Date().toISOString() };
-              this.logger.cli(`unknown command: ${cmd.type}`);
-          }
-        } catch (e: any) {
-          cmd.response = { error: e.message, doneAt: new Date().toISOString() };
-          this.logger.cli(`command ${cmd.type} failed: ${e.message}`);
-        }
-      }
-
-      let newLines: string[] = [];
-      try {
-        const current = fs.readFileSync(this.commandsPath, 'utf-8');
-        const currentLines = current.split('\n').filter(l => l.trim());
-        if (currentLines.length > originalLineCount) {
-          newLines = currentLines.slice(originalLineCount);
-        }
-      } catch {}
-
-      this._writeCommands(commands, newLines);
-    } finally {
-      this.processingCommands = false;
-    }
-  }
-
-  private _writeCommands(commands: any[], appendLines: string[] = []) {
-    try {
-      let lines = commands.map(cmd => {
-        if (cmd._raw) return cmd._raw;
-        return JSON.stringify(cmd);
-      });
-      lines.push(...appendLines);
-      if (lines.length > MAX_COMMAND_LINES + 200) {
-        lines = lines.slice(lines.length - MAX_COMMAND_LINES);
-      }
-      fs.writeFileSync(this.commandsPath, lines.join('\n') + '\n');
-    } catch (e: any) {
-      this.logger.cli(`failed to write commands.json: ${e.message}`);
-    }
-  }
-
-  private async _cmdScreenshot(): Promise<any> {
+  async cmdScreenshot(): Promise<any> {
     this._flushFileChanges();
 
     if (!this.connected) {
@@ -757,54 +672,59 @@ export class CLIMobileConnection {
       return { error: 'not connected', doneAt: new Date().toISOString() };
     }
 
-    if (this.screenshotResolve) {
-      this.screenshotResolve(null);
-      this.screenshotResolve = null;
-    }
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (this.screenshotResolve) {
+        this.screenshotResolve(null);
+        this.screenshotResolve = null;
+      }
 
-    this.logger.cli('screenshot: requesting...');
-    this._sendToApp({ type: 'requestScreenshot' });
+      this.logger.cli(`screenshot: requesting... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      this._sendToApp({ type: 'requestScreenshot' });
 
-    const data = await new Promise<string | null>((resolve) => {
-      this.screenshotResolve = resolve;
-      setTimeout(() => {
-        if (this.screenshotResolve === resolve) {
-          this.screenshotResolve = null;
-          resolve(null);
+      const data = await new Promise<string | null>((resolve) => {
+        this.screenshotResolve = resolve;
+        setTimeout(() => {
+          if (this.screenshotResolve === resolve) {
+            this.screenshotResolve = null;
+            resolve(null);
+          }
+        }, 5000);
+      });
+
+      if (data) {
+        if (!fs.existsSync(this.screenshotsDir)) {
+          fs.mkdirSync(this.screenshotsDir, { recursive: true });
         }
-      }, 5000);
-    });
 
-    if (!data) {
-      this.logger.cli('screenshot: timed out');
-      return { error: 'timed out', doneAt: new Date().toISOString() };
+        const buf = Buffer.from(data, 'base64');
+
+        const latestPath = path.join(this.screenshotsDir, 'latest.png');
+        fs.writeFileSync(latestPath, buf);
+
+        this.screenshotCounter++;
+        const numberedName = `${String(this.screenshotCounter).padStart(3, '0')}.png`;
+        fs.writeFileSync(path.join(this.screenshotsDir, numberedName), buf);
+
+        const files = fs.readdirSync(this.screenshotsDir)
+          .filter(f => f.match(/^\d{3}\.png$/))
+          .sort();
+        while (files.length > MAX_SCREENSHOTS) {
+          const old = files.shift()!;
+          fs.unlinkSync(path.join(this.screenshotsDir, old));
+        }
+
+        const screenshotPath = `.castle/screenshots/${numberedName}`;
+        this.logger.cli(`screenshot: saved ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
+        console.log(`[mobile] screenshot saved: ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
+        return { doneAt: new Date().toISOString(), file: screenshotPath };
+      }
+
+      this.logger.cli(`screenshot: no data (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      if (!this.connected) break;
     }
 
-    if (!fs.existsSync(this.screenshotsDir)) {
-      fs.mkdirSync(this.screenshotsDir, { recursive: true });
-    }
-
-    const buf = Buffer.from(data, 'base64');
-
-    const latestPath = path.join(this.screenshotsDir, 'latest.png');
-    fs.writeFileSync(latestPath, buf);
-
-    this.screenshotCounter++;
-    const numberedName = `${String(this.screenshotCounter).padStart(3, '0')}.png`;
-    fs.writeFileSync(path.join(this.screenshotsDir, numberedName), buf);
-
-    const files = fs.readdirSync(this.screenshotsDir)
-      .filter(f => f.match(/^\d{3}\.png$/))
-      .sort();
-    while (files.length > MAX_SCREENSHOTS) {
-      const old = files.shift()!;
-      fs.unlinkSync(path.join(this.screenshotsDir, old));
-    }
-
-    const screenshotPath = `.castle/screenshots/${numberedName}`;
-    this.logger.cli(`screenshot: saved ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
-    console.log(`[mobile] screenshot saved: ${screenshotPath} (${Math.round(buf.length / 1024)}KB)`);
-    return { doneAt: new Date().toISOString(), file: screenshotPath };
+    return { error: 'timed out', doneAt: new Date().toISOString() };
   }
 
   private _handleScreenshot(msg: ScreenshotMessage) {
@@ -838,7 +758,7 @@ export class CLIMobileConnection {
     this.logger.cli(`cliScreenshot: saved ${filename} (${Math.round(buf.length / 1024)}KB)`);
   }
 
-  private async _cmdStopAndPlay(): Promise<any> {
+  async cmdStopAndPlay(): Promise<any> {
     this._flushFileChanges();
 
     if (!this.connected) {
@@ -851,13 +771,10 @@ export class CLIMobileConnection {
     return { doneAt: new Date().toISOString() };
   }
 
-  // --- End Commands ---
-
   stop() {
     this.shouldReconnect = false;
     this._stateQueue = Promise.resolve();
     this._editIdCounter = 0;
-    this._stopCommandsPoll();
     this._stopPing();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);

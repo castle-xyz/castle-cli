@@ -469,6 +469,15 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     });
 
     const bpData: any = { title, entryId, components: serializedComponents };
+    // Preserve drawing shorthand from existing YAML — permanent annotation of the intended
+    // drawing. _sendFullState only forwards it when no .draw.json exists, so it's safe to keep.
+    const existingYamlPath = path.join(bpDir, `${slug}.yaml`);
+    if (fs.existsSync(existingYamlPath)) {
+      try {
+        const existingBpData = yaml.parse(fs.readFileSync(existingYamlPath, 'utf-8')) as any;
+        if (typeof existingBpData?.drawing === 'string') bpData.drawing = existingBpData.drawing;
+      } catch {}
+    }
 
     // Reference lua file in Script component if script was written
     if (scriptCode && serializedComponents.Script) {

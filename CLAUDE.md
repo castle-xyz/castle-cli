@@ -35,7 +35,6 @@ deck-{deckId}/
 ├── AGENTS.md                 # Agent instructions (generated)
 ├── .castle/                  # Deck-level runtime state (git-ignored)
 │   ├── logs.txt              # Combined CLI + deck script logs
-│   ├── commands.json         # JSONL command interface (CLI polls this)
 │   └── screenshots/          # Captured screenshots
 └── card-{cardId}/            # One subdirectory per card
     ├── card.yaml             # Card metadata (cardId, sceneProperties, actorBlueprintInherit, linkTargetDeckIds)
@@ -85,10 +84,6 @@ The mobile app sends state over WebSocket via one message type:
 - `StateInternalMessage` — full state in raw internal format (requires WASM conversion via `getSnapshotExternalValues`). Optional fields: `sceneProperties`, `actorBlueprintInherit`, `linkTargetDeckIds` — written to `card.yaml` on receive.
 
 The CLI writes received state to YAML files on disk. A file watcher detects local changes → sends `EditMessage` back to the mobile app. Files are the single source of truth; WebSocket is the transport layer.
-
-### JSONL Commands
-
-`.castle/commands.json` is newline-delimited JSON. CLI polls for entries without a `response` field and appends the response in-place. Example: `{"type":"screenshot"}` → `{"type":"screenshot","response":{...}}`.
 
 ### WASM Module
 

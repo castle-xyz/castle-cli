@@ -17,14 +17,14 @@ For Playwright browser automation and other testing patterns, read **`.castle/TE
 
 ## Commands
 
-Write commands to `.castle/commands.json` to control the deck (JSONL — one JSON object per line). The CLI polls this file, processes lines without a `response` field, and writes the response back on the same line.
+Use `castle` CLI commands to control the deck while `castle serve` is running:
 
-Available commands:
+- **`castle stop-and-play`**: Stops and restarts the deck. **Run this after every edit** — file changes are applied before it runs. After restart, the deck needs a moment to render.
+- **`castle screenshot`**: Captures a screenshot. Also saved to `.castle/screenshots/latest.png`.
 
-- **`stopAndPlay`**: Stops and restarts the deck. **Run this after every edit** — file changes are applied before it runs. After restart, the deck needs a moment to render; send `screenshot` as a separate command if you need to wait for physics/animations to settle.
-- **`screenshot`**: Captures a screenshot. Response includes `file` path; also saved to `.castle/screenshots/latest.png`.
+**Agentic workflow:** Run `castle stop-and-play` after every edit. Run `castle screenshot` only when you need to verify something visual. Check `.castle/logs.txt` for errors when things aren't working.
 
-**Agentic workflow:** Run `stopAndPlay` after every edit. Take a `screenshot` only when you need to verify something visual. Check `.castle/logs.txt` for errors when things aren't working.
+For shell syntax and debugging tips, read **`.castle/TESTING.md`**.
 
 ## Scripting vs. Rules
 
@@ -48,7 +48,6 @@ deck-{deckId}/                   # Deck root
   deck.yaml                      # Deck metadata
   .castle/                       # Deck-level runtime state
     logs.txt                     # CLI and deck logs
-    commands.json                # Write commands here (screenshot, stopAndPlay, etc.)
     screenshots/
       latest.png                 # Most recent screenshot
       001.png ...                # Rolling history (last 100 kept)
@@ -206,15 +205,25 @@ Valid `lifetime` values:
 
 Consult `.castle/EXAMPLES.md` for copy-paste YAML patterns (scoring, spawning, collisions, repeating actions, etc.).
 
+### Physics
+
+Castle uses **direct velocity control**, not force-based physics:
+
+- Set `Dynamic Motion.vx` / `Dynamic Motion.vy` in rules or Lua (`self.vx`, `self.vy`). There is no `applyForce` or `addImpulse`.
+- **`Dynamic Motion`** makes an actor physically simulated — responds to gravity, friction, and collisions; can push and be pushed by other dynamic actors. Add `Solid` to enable collision detection.
+- **`Fixed Motion`** moves at constant velocity. Its velocity cannot be changed by collisions or gravity — it blocks dynamic actors and triggers collision rules normally, but cannot be pushed. Useful for moving platforms, enemy patrols, or projectiles that should never be deflected.
+- **`Gravity`** pulls actors with `Dynamic Motion` downward (positive Y). Strength is scaled by 10 (e.g. a value of 4 = 40 units/s²).
+- **`Axis Lock`** with `rotates: false` prevents an actor from spinning. Actors won't rotate from physics unless you remove this behavior or set `rotates: true`.
+- **`Friction`** is placed on static actors (e.g. ground blocks) and slows down dynamic actors that touch them — not on the moving actor itself.
+
 ### Important notes
 
 - Positive Y is downward. Angles in `actors.yaml` are in **degrees**. In Lua scripts, angles use **radians** (`self.rotation` is in radians — multiply degrees by `math.pi/180` to convert).
 - `widthScale` and `heightScale` are in **world units**. The camera is **10 units wide** (-5 to 5) and **14 units tall** (-7 to 7). Typical sizes: small objects (bullets, coins) 0.3–0.8, normal characters/enemies 0.8–2, large enemies/bosses 2–5, platforms/walls 1–5 per tile, full-screen overlays 10.
-- Gravity strength is scaled by 10 (1 unit = 10 units/s²).
 - Use `variableName` (not `variableId`) when referencing variables in rules. The system resolves names to IDs automatically.
 - Use `entryTitle` (not `entryId`) when referencing blueprints in create responses.
 - Use `behaviorName` (not `behaviorId`) for trigger and response behavior references.
 - Changes are detected automatically when you save files. The CLI sends them to the app.
-- **The mobile client does not hot-reload.** After editing any file, you must run `stopAndPlay` for the mobile user to see the change. (The web player hot-reloads automatically.) Always do this after edits — don't skip it — unless the user says not to restart the card/deck when you make edits.
+- **The mobile client does not hot-reload.** After editing any file, you must run `castle stop-and-play` for the mobile user to see the change. (The web player hot-reloads automatically.) Always do this after edits — don't skip it — unless the user says not to restart the card/deck when you make edits.
 - After the app applies changes, it sends updated state back and the files are rewritten with the latest data (including any generated IDs).
 - The `.castle/meta.json` file tracks content hashes to detect changes. Do not edit it.

@@ -2,25 +2,14 @@
 
 ## Shell tips for commands
 
-Use `echo >>` to append commands and `tail -1` to check the response:
+Use the CLI commands directly:
 
 ```bash
-echo '{"type": "screenshot"}' >> .castle/commands.json
-sleep 1 && tail -1 .castle/commands.json
+castle stop-and-play
+castle screenshot
 ```
 
-Commands complete within 1 second. **Never sleep more than 1 second** — check `tail -1` and retry if the response isn't there yet.
-
-## Command IDs
-
-Add an `id` field to any command to identify its response later:
-```
-{"type": "screenshot", "id": "after-fix"}
-```
-The CLI preserves the `id` in the response line:
-```bash
-grep '"after-fix"' .castle/commands.json
-```
+`castle screenshot` prints the saved file path. `castle stop-and-play` exits silently on success.
 
 ## Screenshot history
 
@@ -58,7 +47,7 @@ await page.mouse.click(clickX, clickY);
 
 ## Mobile app
 
-Requires the Castle mobile app open and connected. After edits, run `stopAndPlay`, then use the `screenshot` command or `castle.cliScreenshot("label")` in Lua. Screenshots saved to `.castle/screenshots/latest.png`.
+Requires the Castle mobile app open and connected. After edits, run `castle stop-and-play`, then use `castle screenshot` or `castle.cliScreenshot("label")` in Lua. Screenshots saved to `.castle/screenshots/latest.png`.
 
 ## Which to use
 
