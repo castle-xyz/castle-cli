@@ -33,13 +33,6 @@ const TEST_BLUEPRINTS: Record<string, any> = {
   'bp-001': { title: 'Player', components: { Body: { widthScale: 0.5, heightScale: 0.5 } } },
 };
 
-function actorsDictToList(actors: Record<string, any>): any[] {
-  return Object.entries(actors).map(([k, v]) => ({
-    actorId: k.startsWith('a') ? k.slice(1) : k,
-    ...(v as any),
-  }));
-}
-
 function writeTestState(cardDir: string, actors: Record<string, any>) {
   const bpDir = path.join(cardDir, 'blueprints');
   fs.mkdirSync(bpDir, { recursive: true });
@@ -54,7 +47,7 @@ function writeTestState(cardDir: string, actors: Record<string, any>) {
       yaml.stringify({ title: bp.title, entryId, components: bp.components }, { lineWidth: 120 })
     );
   }
-  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsDictToList(actors), { lineWidth: 120 }));
+  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
 
   fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify({
     deckId: 'deck-1',
@@ -82,16 +75,17 @@ function reapplyPendingActors(
 ): boolean {
   const actorsPath = path.join(cardDir, 'actors.yaml');
   const raw = fs.existsSync(actorsPath) ? fs.readFileSync(actorsPath, 'utf-8') : '';
-  const currentList: any[] = (yaml.parse(raw) as any[]) || [];
-  const currentIds = new Set(currentList.map((a: any) => `a${a.actorId}`));
+  const parsed = yaml.parse(raw);
+  const currentMap: Record<string, any> = (parsed && !Array.isArray(parsed)) ? parsed : {};
+  const currentKeys = new Set(Object.keys(currentMap));
 
   // Satisfied if every key we *added* is now present (mobile may have extra game actors).
-  if (addedKeys.every(k => currentIds.has(k))) {
+  if (addedKeys.every(k => currentKeys.has(k))) {
     return true; // satisfied
   }
 
   // Some added actors are missing from mobile's state — re-write and re-send.
-  fs.writeFileSync(actorsPath, yaml.stringify(actorsDictToList(desired), { lineWidth: 120 }));
+  fs.writeFileSync(actorsPath, yaml.stringify(desired, { lineWidth: 120 }));
   return false;
 }
 
@@ -110,7 +104,7 @@ describe('circular edit: delete actor then add it back', () => {
     // lastMobileActors = { a100: ... }
 
     // ── Phase 2: User deletes actor A ────────────────────────────────────────
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify([], { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({}, { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={}, lastMobile={a100} → addedKeys=[] (nothing added)
@@ -136,7 +130,7 @@ describe('circular edit: delete actor then add it back', () => {
 
     // ── Phase 5: User adds actor A BACK ──────────────────────────────────────
     const userActorA = { title: 'Player', x: 10, y: 20 };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify([{ actorId: '100', ...userActorA }], { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({ a100: userActorA }, { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={a100}, lastMobile={} → addedKeys=['a100']
@@ -152,8 +146,8 @@ describe('circular edit: delete actor then add it back', () => {
     expect(satisfiedAfterAddRace).toBe(false); // must re-apply
 
     // actors.yaml was re-written with actor A
-    const actorsAfterReapply = yaml.parse(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as any[];
-    expect(actorsAfterReapply?.some((a: any) => String(a.actorId) === '100')).toBe(true);
+    const actorsAfterReapply = yaml.parse(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as Record<string, any>;
+    expect(actorsAfterReapply?.['a100']).toBeDefined();
 
     // detectChanges must find a change so FileWatcher re-sends the EditMessage
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true); // ← critical re-send trigger
@@ -187,13 +181,18 @@ function makeMobileState(options: {
   for (const [id, bp] of Object.entries(options.blueprints ?? {})) {
     blueprints[id] = { entryType: 'actorBlueprint', title: bp.title, actorBlueprint: { components: bp.components ?? {} } };
   }
+  // Add persistentId to each actor (matches disk key) so mobileActorsToDiskFormat can key by it
+  const actorsWithPersistentId: Record<string, any> = {};
+  for (const [id, actor] of Object.entries(options.actors ?? {})) {
+    actorsWithPersistentId[id] = { persistentId: id, ...(actor as any) };
+  }
   return {
     type: 'state_internal',
     deckId: 'deck-1',
     cardId: 'card-1',
     cliSessionId: 'session-1',
     blueprints,
-    actors: options.actors ?? {},
+    actors: actorsWithPersistentId,
     variables: options.variables ?? null,
     sceneProperties: null,
   };
@@ -221,7 +220,7 @@ function writeDiskState(cardDir: string, options: {
 
   fs.writeFileSync(
     path.join(cardDir, 'actors.yaml'),
-    yaml.stringify(actorsDictToList(options.actors ?? {}), { lineWidth: 120 })
+    yaml.stringify(options.actors ?? {}, { lineWidth: 120 })
   );
   fs.writeFileSync(
     path.join(cardDir, 'variables.yaml'),
@@ -252,7 +251,7 @@ describe('circular edit: mobile has additional game actors beyond what user edit
 
     // User adds actor A (simulate the scenario where they deleted and re-added it)
     const userActors = { a100: { title: 'Player', x: 10, y: 20 } };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify(actorsDictToList(userActors), { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify(userActors, { lineWidth: 120 }));
 
     // Simulate _sendChanges: lastMobile had {a100}, desired has {a100}
     // addedKeys = [] because a100 was already in lastMobile. But let's say the
@@ -455,5 +454,28 @@ describe('computeDiskVsMobileDelta', () => {
     expect(delta.hasChanges).toBe(true);
     expect(delta.changedActors!['a1']).toBeDefined();
     expect(delta.changedActors!['a1'].x).toBe(99);
+  });
+
+  it('does not report variable change when order differs but content is identical', () => {
+    const varA = { variableId: 'var-b', name: 'lives', initialValue: 3, lifetime: 'card' };
+    const varB = { variableId: 'var-a', name: 'score', initialValue: 0, lifetime: 'card' };
+
+    // Mobile sends variables in [varA, varB] order
+    const mobile = makeMobileState({
+      blueprints: { 'bp-1': { title: 'Player' } },
+      actors: {},
+      variables: [varA, varB],
+    });
+
+    // Disk has same variables but in [varB, varA] order
+    writeDiskState(tmpDir, {
+      blueprints: { 'bp-1': { entryId: 'bp-1', title: 'Player' } },
+      actors: {},
+      variables: [varB, varA],
+    });
+
+    const delta = computeDiskVsMobileDelta(tmpDir, mobile);
+    expect(delta.hasChanges).toBe(false);
+    expect(delta.changedVariables).toBeNull();
   });
 });

@@ -4,3 +4,5 @@ deck-*/
 test/screenshots/
 .castle/
 node-dev/
+
+.castle/serve.pid

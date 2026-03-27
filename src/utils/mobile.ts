@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import WebSocket from 'ws';
+import yaml from 'yaml';
+import { v4 as uuidv4 } from 'uuid';
 import {
   StateInternalMessage,
-  EditMessage,
+  VariableData,
   LogsMessage,
   ScreenshotMessage,
   CLIScreenshotMessage,
@@ -11,7 +13,7 @@ import {
   RequestStateMessage,
   RequestDrawDataMessage,
 } from './mobile-protocol.js';
-import { writeStateInternal, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes, stabilizeNewBlueprintIds, detectConflicts, computeDiskVsMobileDelta, initMetaFromDisk, readMeta, ConflictSummary } from './mobile-files.js';
+import { writeStateInternal, detectChanges, FileChanges, mobileInternalStateToSceneData, updateMetaHashes, stabilizeNewBlueprintIds, detectConflicts, initMetaFromDisk, readMeta, ConflictSummary } from './mobile-files.js';
 import { initializeDeckDir, initializeCardDir } from './workspace.js';
 import { FileWatcher } from './mobile-watcher.js';
 import { Logger } from './logger.js';
@@ -59,11 +61,8 @@ export class CLIMobileConnection {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Pending edit: the last EditMessage sent plus a snapshot of the edited files.
-  // After writeStateInternal(), if mobile's state reverted any of these files, we re-apply
-  // and resend. Handles both race conditions (mobile sends stale state during round-trip)
-  // and dropped messages.
-  private _pendingEdits: Map<string, { message: EditMessage; fileSnapshot: Map<string, Buffer> }> = new Map();
+  // Stable session ID used in state_internal messages sent from CLI → Mobile.
+  private _cliSessionId: string = uuidv4();
 
   // Draw hash tracking for CLI → Mobile: only send .draw.json data when hash changed.
   private _lastSentDrawHashes: Map<string, string> = new Map(); // entryId → last sent Drawing2.hash
@@ -351,28 +350,11 @@ export class CLIMobileConnection {
     await writeStateInternal(cardDir, state);
     this.logger.cli(`wrote ${Object.keys(state.blueprints).length} blueprints, ${Object.keys(state.actors).length} actors for card ${cardId}`);
 
-    // Re-apply any pending edit if mobile's state reverted our changes.
-    // Handles both race conditions (mobile sends stale state during round-trip) and dropped messages.
-    const pending = this._pendingEdits.get(cardDir);
-    if (pending) {
-      let anyReverted = false;
-      for (const [filePath, snapshotContent] of pending.fileSnapshot) {
-        try {
-          const current = fs.readFileSync(filePath);
-          if (!current.equals(snapshotContent)) {
-            fs.writeFileSync(filePath, snapshotContent);
-            anyReverted = true;
-          }
-        } catch { /* file removed — skip */ }
-      }
-      if (anyReverted) {
-        updateMetaHashes(cardDir);
-        this.logger.cli('re-applying pending edit (mobile state predated CLI edit)');
-        this._sendToApp(pending.message);
-      } else {
-        // Mobile's state already incorporated our edit — clear pending
-        this._pendingEdits.delete(cardDir);
-      }
+    // If any actor is missing persistentId, send full state so C++ stores them.
+    // Older decks load from CDN without persistentId; newer decks already have them.
+    const allHavePersistentId = Object.values(state.actors).every((a: any) => !!a.persistentId);
+    if (!allHavePersistentId) {
+      this._sendFullState(cardDir);
     }
 
     // Check for draw hash mismatches: if mobile sent a blueprint with a different Drawing2.hash
@@ -409,8 +391,8 @@ export class CLIMobileConnection {
     }
 
     if (!this.watchers.has(cardId)) {
-      const watcher = new FileWatcher(cardDir, (changes) => {
-        this._sendChanges(changes, cardDir);
+      const watcher = new FileWatcher(cardDir, (_changes: FileChanges) => {
+        this._sendFullState(cardDir);
       });
       watcher.start();
       this.watchers.set(cardId, watcher);
@@ -429,11 +411,8 @@ export class CLIMobileConnection {
     // Initialize meta.json from disk files so the file watcher has a correct hash baseline
     initMetaFromDisk(cardDir, state.deckId, cardId);
 
-    // Compute and push the delta (what disk has vs what mobile has)
-    const delta = computeDiskVsMobileDelta(cardDir, state);
-    if (delta.hasChanges) {
-      this._sendChanges(delta, cardDir);
-    }
+    // Push full disk state to mobile (includes persistentId for all actors)
+    this._sendFullState(cardDir);
 
     await writeDeckAgentFilesAsync(deckDir);
 
@@ -442,8 +421,8 @@ export class CLIMobileConnection {
     }
 
     if (!this.watchers.has(cardId)) {
-      const watcher = new FileWatcher(cardDir, (changes) => {
-        this._sendChanges(changes, cardDir);
+      const watcher = new FileWatcher(cardDir, (_changes: FileChanges) => {
+        this._sendFullState(cardDir);
       });
       watcher.start();
       this.watchers.set(cardId, watcher);
@@ -486,103 +465,104 @@ export class CLIMobileConnection {
     });
   }
 
-  private _sendChanges(changes: FileChanges, cardDir: string) {
-    stabilizeNewBlueprintIds(changes, cardDir);
-
+  private _sendFullState(cardDir: string) {
     if (!this.connected) {
-      this.logger.cli('not connected, skipping change send');
+      this.logger.cli('not connected, skipping full state send');
       return;
     }
 
-    const changedBlueprintCount = Object.keys(changes.changedBlueprints).length;
-    const parts: string[] = [];
-    if (changedBlueprintCount > 0) parts.push(`${changedBlueprintCount} blueprint(s)`);
-    if (changes.changedActors) parts.push('actors');
-    if (changes.changedVariables) parts.push('variables');
-    if (changes.changedSceneProperties !== undefined) parts.push('scene properties');
+    // Stabilize any new blueprint IDs (writes to meta.json if needed)
+    const changes = detectChanges(cardDir);
+    if (changes) stabilizeNewBlueprintIds(changes, cardDir);
 
-    const description = `cli: updated ${parts.join(', ')}`;
-    this.logger.cli(`sending edit: ${description}`);
-    console.log(`[mobile] sending edit: updated ${parts.join(', ')}`);
-
-    const edit: EditMessage = {
-      type: 'edit',
-      description,
-      editId: ++this._editIdCounter,
-    };
-
-    if (changedBlueprintCount > 0) {
-      edit.blueprints = changes.changedBlueprints;
-    }
-    if (changes.changedActors) {
-      edit.actors = changes.changedActors;
-    }
-    if (changes.changedVariables) {
-      edit.variables = changes.changedVariables;
-    }
-    if (changes.changedSceneProperties !== undefined) {
-      edit.sceneProperties = changes.changedSceneProperties;
-    }
-
-  // Filter out draw data when hash unchanged (avoid resending large draw blobs)
-    if (edit.blueprints) {
-      for (const [entryId, bp] of Object.entries(edit.blueprints) as [string, any][]) {
-        if (bp.drawing?.Drawing2?.hash) {
-          const hash = bp.drawing.Drawing2.hash;
-          if (this._lastSentDrawHashes.get(entryId) === hash) {
-            delete bp.drawing;
-          } else {
-            this._lastSentDrawHashes.set(entryId, hash);
-          }
-        }
-      }
-    }
-
-    // Snapshot files at send time for pending edit re-apply on mobile echo
-    const fileSnapshot = new Map<string, Buffer>();
     const meta = readMeta(cardDir);
-    if (meta?.blueprintIdMap) {
-      const entryIdToSlug = Object.fromEntries(
-        Object.entries(meta.blueprintIdMap).map(([slug, id]) => [id, slug])
-      );
-      for (const entryId of Object.keys(changes.changedBlueprints)) {
-        const slug = entryIdToSlug[entryId];
-        if (slug) {
-          for (const ext of ['.yaml', '.lua', '.draw.json']) {
-            const p = path.join(cardDir, 'blueprints', slug + ext);
-            if (fs.existsSync(p)) fileSnapshot.set(p, fs.readFileSync(p));
-          }
+    if (!meta) return;
+
+    // Build full blueprints from disk
+    const blueprints: Record<string, any> = {};
+    const bpDir = path.join(cardDir, 'blueprints');
+    if (fs.existsSync(bpDir)) {
+      for (const file of fs.readdirSync(bpDir)) {
+        if (!file.endsWith('.yaml')) continue;
+        const slug = file.replace('.yaml', '');
+        let bpData: any;
+        try {
+          bpData = yaml.parse(fs.readFileSync(path.join(bpDir, file), 'utf-8')) as any;
+        } catch { continue; }
+
+        const entryId: string | undefined = bpData?.entryId ?? meta.blueprintIdMap[slug];
+        if (!entryId) continue;
+
+        const components = { ...(bpData?.components ?? {}) };
+        if (components.Script?.file) {
+          const { file: _f, ...rest } = components.Script;
+          components.Script = rest;
         }
+
+        const luaPath = path.join(bpDir, `${slug}.lua`);
+        const luaContent = fs.existsSync(luaPath) ? fs.readFileSync(luaPath, 'utf-8') : null;
+
+        // Draw data: include only if hash changed vs what we last sent
+        let drawing: any = undefined;
+        const drawJsonPath = path.join(bpDir, `${slug}.draw.json`);
+        if (fs.existsSync(drawJsonPath)) {
+          try {
+            const drawData = JSON.parse(fs.readFileSync(drawJsonPath, 'utf-8'));
+            const hash = drawData?.Drawing2?.hash;
+            if (hash && this._lastSentDrawHashes.get(entryId) !== hash) {
+              drawing = drawData;
+              this._lastSentDrawHashes.set(entryId, hash);
+            }
+          } catch {}
+        }
+
+        const bp: any = { entryId, title: bpData?.title ?? slug };
+        if (Object.keys(components).length > 0) {
+          bp.components = yaml.stringify(components, { lineWidth: 120 });
+        }
+        if (luaContent) bp.script = [{ code: luaContent }];
+        if (drawing) bp.drawing = drawing;
+        blueprints[entryId] = bp;
       }
     }
-    if (changes.changedActors) {
-      const p = path.join(cardDir, 'actors.yaml');
-      if (fs.existsSync(p)) fileSnapshot.set(p, fs.readFileSync(p));
-    }
-    if (changes.changedVariables) {
-      const p = path.join(cardDir, 'variables.yaml');
-      if (fs.existsSync(p)) fileSnapshot.set(p, fs.readFileSync(p));
-    }
-    if (changes.changedSceneProperties !== undefined) {
-      const p = path.join(cardDir, 'card.yaml');
-      if (fs.existsSync(p)) fileSnapshot.set(p, fs.readFileSync(p));
-    }
-    const existingPending = this._pendingEdits.get(cardDir);
-    const mergedSnapshot = new Map<string, Buffer>(existingPending?.fileSnapshot ?? []);
-    for (const [k, v] of fileSnapshot) mergedSnapshot.set(k, v);
-    const mergedMessage: EditMessage = {
-      ...edit,
-      blueprints: { ...(existingPending?.message?.blueprints ?? {}), ...(edit.blueprints ?? {}) },
-      actors: (edit.actors ?? existingPending?.message?.actors),
-      variables: (edit.variables ?? existingPending?.message?.variables),
-      sceneProperties: edit.sceneProperties ?? existingPending?.message?.sceneProperties,
-    };
-    if (!mergedMessage.blueprints || Object.keys(mergedMessage.blueprints).length === 0) {
-      delete mergedMessage.blueprints;
-    }
-    this._pendingEdits.set(cardDir, { message: mergedMessage, fileSnapshot: mergedSnapshot });
 
-    this._sendToApp(edit);
+    // Build full actors with persistentId
+    const actors: Record<string, any> = {};
+    const actorsPath = path.join(cardDir, 'actors.yaml');
+    if (fs.existsSync(actorsPath)) {
+      try {
+        const raw = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+        if (raw && !Array.isArray(raw)) {
+          for (const [key, actor] of Object.entries(raw as Record<string, any>)) {
+            actors[key] = { ...(actor as any), persistentId: key };
+          }
+        }
+      } catch {}
+    }
+
+    // Build variables
+    let variables: VariableData[] = [];
+    const variablesPath = path.join(cardDir, 'variables.yaml');
+    if (fs.existsSync(variablesPath)) {
+      try {
+        const raw = yaml.parse(fs.readFileSync(variablesPath, 'utf-8'));
+        if (Array.isArray(raw)) variables = raw as VariableData[];
+      } catch {}
+    }
+
+    const msg: StateInternalMessage = {
+      type: 'state_internal',
+      deckId: meta.deckId,
+      cardId: meta.cardId,
+      cliSessionId: this._cliSessionId,
+      editId: ++this._editIdCounter,
+      blueprints,
+      actors,
+      variables,
+    };
+
+    this.logger.cli(`sending full state: ${Object.keys(blueprints).length} blueprints, ${Object.keys(actors).length} actors`);
+    this._sendToApp(msg);
     updateMetaHashes(cardDir);
   }
 
@@ -661,15 +641,11 @@ export class CLIMobileConnection {
     return mismatched;
   }
 
-  // Flush any pending file changes to the app (for the currently active card)
+  // Flush any pending file changes to the app (for all active cards)
   private _flushFileChanges() {
-    // Find the most recently updated card
-    for (const [cardId, _watcher] of this.watchers) {
+    for (const [cardId] of this.watchers) {
       const cardDir = this.cardDirs.get(cardId) ?? path.join(this.deckDir, `card-${cardId}`);
-      const changes = detectChanges(cardDir);
-      if (changes && changes.hasChanges) {
-        this._sendChanges(changes, cardDir);
-      }
+      this._sendFullState(cardDir);
     }
   }
 

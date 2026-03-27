@@ -105,28 +105,29 @@ describe('clone command', () => {
     expect(data.cardId).toBe('card-xyz');
   });
 
-  it('creates actors.yaml in flat format with title and degrees', async () => {
+  it('creates actors.yaml in map format with title and degrees', async () => {
     const deckDir = path.join(tmpDir, 'test-deck');
     await clone('deck-abc', { directory: deckDir });
 
     const actorsYaml = path.join(deckDir, 'card-card-xyz', 'actors.yaml');
     expect(fs.existsSync(actorsYaml)).toBe(true);
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(actorsYaml, 'utf-8'));
-    // Should be list format
-    expect(Array.isArray(actorsList)).toBe(true);
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(actorsYaml, 'utf-8'));
+    // Should be map format (not array)
+    expect(Array.isArray(actorsMap)).toBe(false);
 
-    // Should have an entry with actorId 123 in flat format
-    const actor123 = actorsList.find(a => String(a.actorId) === '123');
-    expect(actor123).toBeDefined();
-    expect(actor123.title).toBe('Player'); // title instead of entryId
-    expect(actor123.entryId).toBeUndefined();
-    expect(actor123.components).toBeUndefined(); // flat format, no nested components
-    expect(actor123.x).toBe(10);
-    expect(actor123.y).toBe(20);
+    // First actor gets key 'a0'
+    const actorEntry = actorsMap['a0'];
+    expect(actorEntry).toBeDefined();
+    expect(actorEntry.title).toBe('Player'); // title instead of entryId
+    expect(actorEntry.actorId).toBeUndefined(); // no actorId in map values
+    expect(actorEntry.entryId).toBeUndefined();
+    expect(actorEntry.components).toBeUndefined(); // flat format, no nested components
+    expect(actorEntry.x).toBe(10);
+    expect(actorEntry.y).toBe(20);
     // Angle converted from radians (0.785) to degrees (~44.97)
-    expect(actor123.angle).toBeCloseTo(44.97, 1);
-    expect(actor123.widthScale).toBeCloseTo(5.0, 1); // ×10
+    expect(actorEntry.angle).toBeCloseTo(44.97, 1);
+    expect(actorEntry.widthScale).toBeCloseTo(5.0, 1); // ×10
   });
 
   it('creates blueprints directory with blueprint files', async () => {

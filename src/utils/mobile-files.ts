@@ -1,12 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import yaml from 'yaml';
 import { v4 as uuidv4 } from 'uuid';
 import { StateInternalMessage, VariableData } from './mobile-protocol.js';
 import { serializeComponents } from './behaviors.js';
 import { getSnapshotExternalValues } from './castle-core-node.js';
-import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled, titleToSlug } from './decks.js';
+import { writeCardYamlFields, extractDrawData, maybeRegenerateDrawPreviewAsync, isDrawPreviewsEnabled, titleToSlug, singleActorToDiskEntry, contentHash } from './decks.js';
+import { nextActorKey, sortActorMap } from './actor-keys.js';
 export { titleToSlug } from './decks.js';
 
 const BLUEPRINTS_DIR = 'blueprints';
@@ -16,9 +16,22 @@ const CARD_YAML_FILE = 'card.yaml';
 const CASTLE_DIR = '.castle';
 const META_FILE = path.join(CASTLE_DIR, 'meta.json');
 
-// Content hash for change detection
-function contentHash(content: string): string {
-  return crypto.createHash('md5').update(content).digest('hex');
+
+const FLOAT_EPSILON = 0.001;
+
+function actorFieldsEqual(a: any, b: any): boolean {
+  if (typeof a === 'number' && typeof b === 'number') {
+    return Math.abs(a - b) < FLOAT_EPSILON;
+  }
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object' || a === null) return a === b;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!actorFieldsEqual(a[k], b[k])) return false;
+  }
+  return true;
 }
 
 interface FileHashes {
@@ -30,7 +43,7 @@ interface MetaData {
   cardId: string;
   hashes: FileHashes;
   blueprintIdMap: Record<string, string>; // slug -> entryId
-  lastActors?: any[]; // actors list last written to disk (disk format, for diff computation)
+  lastActors?: Record<string, any>; // actors map last written to disk (disk format, for diff computation)
   drawPreviewHashes?: Record<string, string>; // slug → Drawing2.hash, for stale-preview detection
 }
 
@@ -207,32 +220,29 @@ export function detectChanges(cardDir: string): FileChanges | null {
     const content = fs.readFileSync(actorsPath, 'utf-8');
     if (meta.hashes[ACTORS_FILE] !== contentHash(content)) {
       try {
-        const currentActors = (yaml.parse(content) as any[]) ?? [];
+        const rawParsed = yaml.parse(content);
+        const currentActors: Record<string, any> = (rawParsed && !Array.isArray(rawParsed)) ? rawParsed : {};
         // If lastActors is missing (old meta without diff support), skip actor diff.
         if (meta.lastActors !== undefined) {
-          const lastActors: any[] = meta.lastActors;
-          const lastById = new Map(lastActors.map(a => [String(a.actorId), a]));
+          const lastActors: Record<string, any> = meta.lastActors;
           const actorsDiff: Record<string, any> = {};
 
           // Added or changed actors
-          for (const actor of currentActors) {
-            const id = String(actor.actorId);
-            const { actorId, ...rest } = actor;
-            const last = lastById.get(id);
+          for (const [key, actor] of Object.entries(currentActors)) {
+            const last = lastActors[key];
             if (!last) {
-              actorsDiff[`a${id}`] = rest; // new
+              actorsDiff[key] = actor; // new
             } else {
-              const { actorId: _lid, ...lastRest } = last;
-              if (JSON.stringify(rest) !== JSON.stringify(lastRest)) {
-                actorsDiff[`a${id}`] = rest; // changed
+              if (JSON.stringify(actor) !== JSON.stringify(last)) {
+                actorsDiff[key] = actor; // changed
               }
             }
           }
 
           // Removed actors
-          for (const last of lastActors) {
-            if (!currentActors.some(a => String(a.actorId) === String(last.actorId))) {
-              actorsDiff[`a${last.actorId}`] = { removeActor: true };
+          for (const key of Object.keys(lastActors)) {
+            if (!(key in currentActors)) {
+              actorsDiff[key] = { removeActor: true };
             }
           }
 
@@ -279,7 +289,7 @@ export function detectChanges(cardDir: string): FileChanges | null {
   return result;
 }
 
-// Update stored hashes to reflect current file state (call after sending an EditMessage)
+// Update stored hashes to reflect current file state (call after sending a state_internal message)
 export function updateMetaHashes(cardDir: string): void {
   const meta = readMeta(cardDir);
   if (!meta) return;
@@ -300,7 +310,8 @@ export function updateMetaHashes(cardDir: string): void {
     const actorsContent = fs.readFileSync(actorsPath, 'utf-8');
     meta.hashes[ACTORS_FILE] = contentHash(actorsContent);
     try {
-      meta.lastActors = (yaml.parse(actorsContent) as any[]) ?? [];
+      const parsed = yaml.parse(actorsContent);
+      meta.lastActors = (parsed && !Array.isArray(parsed)) ? parsed : {};
     } catch (e) {
       console.warn('[files] failed to parse actors.yaml in updateMetaHashes:', e);
     }
@@ -348,38 +359,33 @@ export function stabilizeNewBlueprintIds(changes: FileChanges, cardDir: string):
 }
 
 // Convert mobile state actors (internal format: angle in radians, widthScale 0–1) to
-// disk format (angle in degrees, widthScale ×10). Returns a list with explicit actorId fields.
-export function mobileActorsToDiskFormat(state: StateInternalMessage): any[] {
-  const actorsList: any[] = [];
-  for (const [key, actor] of Object.entries(state.actors)) {
-    const actorTyped = actor as any;
-    const body = actorTyped.bp?.components?.Body ?? {};
-    const drawing2 = actorTyped.bp?.components?.Drawing2 ?? {};
-    const text = actorTyped.bp?.components?.Text ?? {};
-    const link = actorTyped.bp?.components?.Link ?? {};
+// disk format (angle in degrees, widthScale ×10). Returns a map keyed by persistentId.
+// existingKeys: keys already present on disk (to avoid collisions for actors without persistentId).
+export function mobileActorsToDiskFormat(
+  state: StateInternalMessage,
+  existingKeys?: Set<string>
+): Record<string, any> {
+  const actorsMap: Record<string, any> = {};
+  const usedKeys = new Set<string>(existingKeys ?? []);
 
+  for (const [, actor] of Object.entries(state.actors)) {
+    const actorTyped = actor as any;
     const parentEntryId = actorTyped.parentEntryId;
     const entry = state.blueprints[parentEntryId] as any;
-    const title = entry?.title;
-    if (!title) continue;
+    if (!entry?.title) continue;
 
-    const actorId = actorTyped.actorId ?? (key.startsWith('a') ? key.slice(1) : key);
-    const actorEntry: any = { actorId, title };
-    actorEntry.x = body.x ?? 0;
-    actorEntry.y = body.y ?? 0;
-    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000;
-    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10;
-    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10;
-    if (drawing2.initialFrame && drawing2.initialFrame !== 1) actorEntry.initialFrame = drawing2.initialFrame;
-    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) actorEntry.fontSizeScale = text.fontSizeScale;
-    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
-    if (text.content !== undefined && text.content !== blueprintContent) actorEntry.content = text.content;
-    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
-    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) actorEntry.targetDeckId = link.targetDeckId;
+    // Resolve map key: persistentId > generate new key
+    let mapKey: string;
+    if (actorTyped.persistentId && typeof actorTyped.persistentId === 'string') {
+      mapKey = actorTyped.persistentId;
+    } else {
+      mapKey = nextActorKey(usedKeys);
+    }
+    usedKeys.add(mapKey);
 
-    actorsList.push(actorEntry);
+    actorsMap[mapKey] = singleActorToDiskEntry(actorTyped.bp, entry);
   }
-  return actorsList;
+  return actorsMap;
 }
 
 // Body fields that are engine-computed and should not be written to blueprint YAMLs
@@ -536,21 +542,39 @@ export async function writeStateInternal(cardDir: string, state: StateInternalMe
     }
   }
 
-  // Clean up blueprint files that no longer exist (including .draw.json companions)
+  // Clean up blueprint files that no longer exist (including .draw.json and .preview.png companions)
   const existingBpFiles = fs.existsSync(bpDir) ? fs.readdirSync(bpDir) : [];
   for (const file of existingBpFiles) {
     const slug = file.endsWith('.draw.json')
       ? file.slice(0, -'.draw.json'.length)
+      : file.endsWith('.preview.png')
+      ? file.slice(0, -'.preview.png'.length)
       : file.replace(/\.(yaml|lua)$/, '');
-    if (!writtenSlugs.has(slug) && (file.endsWith('.yaml') || file.endsWith('.lua') || file.endsWith('.draw.json'))) {
+    if (!writtenSlugs.has(slug) && (
+      file.endsWith('.yaml') || file.endsWith('.lua') ||
+      file.endsWith('.draw.json') || file.endsWith('.preview.png')
+    )) {
       fs.unlinkSync(path.join(bpDir, file));
+      if (file.endsWith('.preview.png')) delete drawPreviewHashes[slug];
     }
   }
 
   await Promise.all(previewPromises);
 
+  // Collect existing persistentId keys from current actors.yaml to avoid key collisions for new mobile actors
+  const existingActorKeys = new Set<string>();
+  const existingActorsPath = path.join(cardDir, ACTORS_FILE);
+  if (fs.existsSync(existingActorsPath)) {
+    try {
+      const existingRaw = yaml.parse(fs.readFileSync(existingActorsPath, 'utf-8'));
+      if (existingRaw && !Array.isArray(existingRaw)) {
+        for (const key of Object.keys(existingRaw)) existingActorKeys.add(key);
+      }
+    } catch {}
+  }
+
   // Write actors.yaml — convert internal format (widthScale 0–1, radians) to disk format (×10, degrees)
-  const actorsForDisk = mobileActorsToDiskFormat(state);
+  const actorsForDisk = sortActorMap(mobileActorsToDiskFormat(state, existingActorKeys));
   const actorsContent = yaml.stringify(actorsForDisk, { lineWidth: 120 });
   fs.writeFileSync(path.join(cardDir, ACTORS_FILE), actorsContent);
   hashes[ACTORS_FILE] = contentHash(actorsContent);
@@ -676,19 +700,25 @@ export function detectConflicts(cardDir: string, mobileState: StateInternalMessa
   });
   const mobileOnlyBlueprintEntryIds = [...mobileEntryIds].filter(id => !diskEntryIds.has(id));
 
-  // Compare actors by actorId: match each disk actor to its mobile counterpart, then compare content.
+  // Compare actors by persistentId (map key): match each disk actor to its mobile counterpart.
   const mobileActors = mobileActorsToDiskFormat(mobileState);
-  let diskActors: any[] = [];
-  try { diskActors = yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) ?? []; } catch {}
-  const mobileById = new Map(mobileActors.map(a => [String(a.actorId), a]));
-  let actorsDiffer = diskActors.length !== mobileActors.length;
+  let diskActors: Record<string, any> = {};
+  try {
+    const parsed = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    if (parsed && !Array.isArray(parsed)) diskActors = parsed;
+  } catch {}
+  const diskKeys = Object.keys(diskActors);
+  const mobileKeys = Object.keys(mobileActors);
+  let actorsDiffer = diskKeys.length !== mobileKeys.length;
   if (!actorsDiffer) {
-    for (const diskActor of diskActors) {
-      const mobileActor = mobileById.get(String(diskActor.actorId));
-      if (!mobileActor) { actorsDiffer = true; break; }
-      const { actorId: _d, ...diskContent } = diskActor;
-      const { actorId: _m, ...mobileContent } = mobileActor;
-      if (JSON.stringify(diskContent) !== JSON.stringify(mobileContent)) { actorsDiffer = true; break; }
+    for (const [key, diskActor] of Object.entries(diskActors)) {
+      const mobileActor = mobileActors[key];
+      if (!mobileActor) {
+        actorsDiffer = true; break;
+      }
+      if (!actorFieldsEqual(diskActor, mobileActor)) {
+        actorsDiffer = true; break;
+      }
     }
   }
 
@@ -718,7 +748,6 @@ export function detectConflicts(cardDir: string, mobileState: StateInternalMessa
 }
 
 // Compute what needs to change on mobile so its state matches disk files.
-// Returns FileChanges in the same format as detectChanges() — can be passed directly to _sendChanges().
 export function computeDiskVsMobileDelta(cardDir: string, mobileState: StateInternalMessage): FileChanges {
   const result: FileChanges = {
     changedBlueprints: {},
@@ -800,31 +829,31 @@ export function computeDiskVsMobileDelta(cardDir: string, mobileState: StateInte
     }
   }
 
-  // Actors: compute sparse diff (disk vs mobile-in-disk-format), matched by actorId
+  // Actors: compute sparse diff (disk vs mobile-in-disk-format), matched by persistentId key
   const actorsPath = path.join(cardDir, ACTORS_FILE);
-  const diskActors: any[] = fs.existsSync(actorsPath)
-    ? (yaml.parse(fs.readFileSync(actorsPath, 'utf-8')) as any[]) ?? []
-    : [];
+  let diskActors: Record<string, any> = {};
+  if (fs.existsSync(actorsPath)) {
+    try {
+      const parsed = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+      if (parsed && !Array.isArray(parsed)) diskActors = parsed;
+    } catch {}
+  }
   const mobileActors = mobileActorsToDiskFormat(mobileState);
-  const mobileById = new Map(mobileActors.map(a => [String(a.actorId), a]));
-  const diskById = new Map(diskActors.map(a => [String(a.actorId), a]));
 
   const actorsDiff: Record<string, any> = {};
-  for (const diskActor of diskActors) {
-    const { actorId, ...content } = diskActor;
-    const mobileActor = mobileById.get(String(actorId));
+  for (const [key, diskActor] of Object.entries(diskActors)) {
+    const mobileActor = mobileActors[key];
     if (!mobileActor) {
-      actorsDiff[`a${actorId}`] = content; // new actor on disk
+      actorsDiff[key] = diskActor; // new actor on disk
     } else {
-      const { actorId: _m, ...mobileContent } = mobileActor;
-      if (JSON.stringify(content) !== JSON.stringify(mobileContent)) {
-        actorsDiff[`a${actorId}`] = content; // changed
+      if (!actorFieldsEqual(diskActor, mobileActor)) {
+        actorsDiff[key] = diskActor; // changed
       }
     }
   }
-  for (const mobileActor of mobileActors) {
-    if (!diskById.has(String(mobileActor.actorId))) {
-      actorsDiff[`a${mobileActor.actorId}`] = { removeActor: true };
+  for (const key of Object.keys(mobileActors)) {
+    if (!(key in diskActors)) {
+      actorsDiff[key] = { removeActor: true };
     }
   }
   if (Object.keys(actorsDiff).length > 0) {
@@ -832,12 +861,15 @@ export function computeDiskVsMobileDelta(cardDir: string, mobileState: StateInte
     result.changedActors = actorsDiff;
   }
 
-  // Variables
+  // Variables — sort before comparing to avoid false positives from ordering differences
   const variablesPath = path.join(cardDir, VARIABLES_FILE);
   if (fs.existsSync(variablesPath)) {
     try {
-      const diskVariables = yaml.parse(fs.readFileSync(variablesPath, 'utf-8'));
-      if (JSON.stringify(diskVariables) !== JSON.stringify(mobileState.variables)) {
+      const diskVariables: any[] = yaml.parse(fs.readFileSync(variablesPath, 'utf-8')) ?? [];
+      const mobileVariables: any[] = Array.isArray(mobileState.variables) ? mobileState.variables : [];
+      const sortVars = (vars: any[]) =>
+        [...vars].sort((a, b) => (a.variableId ?? a.name ?? '').localeCompare(b.variableId ?? b.name ?? ''));
+      if (diskVariables.length > 0 && JSON.stringify(sortVars(diskVariables)) !== JSON.stringify(sortVars(mobileVariables))) {
         result.hasChanges = true;
         result.changedVariables = diskVariables;
       }
@@ -884,12 +916,15 @@ export function initMetaFromDisk(cardDir: string, deckId: string, cardId: string
     }
   }
 
-  let lastActors: any[] | undefined;
+  let lastActors: Record<string, any> | undefined;
   const actorsPath = path.join(cardDir, ACTORS_FILE);
   if (fs.existsSync(actorsPath)) {
     const content = fs.readFileSync(actorsPath, 'utf-8');
     hashes[ACTORS_FILE] = contentHash(content);
-    try { lastActors = (yaml.parse(content) as any[]) ?? []; } catch {}
+    try {
+      const parsed = yaml.parse(content);
+      lastActors = (parsed && !Array.isArray(parsed)) ? parsed : {};
+    } catch {}
   }
 
   const variablesPath = path.join(cardDir, VARIABLES_FILE);

@@ -10,6 +10,7 @@ import * as API from './api.js';
 import * as config from './config.js';
 import * as Behaviors from './behaviors.js';
 import { applySnapshot, getCastleMetadata } from './castle-core-node.js';
+import { nextActorKey, sortActorMap } from './actor-keys.js';
 
 // Read drawPreviews flag from deck.yaml. Returns true (previews enabled) unless explicitly false.
 export function isDrawPreviewsEnabled(deckDir: string): boolean {
@@ -19,6 +20,34 @@ export function isDrawPreviewsEnabled(deckDir: string): boolean {
   } catch {
     return true;
   }
+}
+
+export function getDeckId(deckDir: string): string {
+  try {
+    const config = yaml.parse(fs.readFileSync(path.join(deckDir, 'deck.yaml'), 'utf8'));
+    return config?.deckId || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function buildCardIdToDirectoryMap(
+  directory: string,
+  logPrefix?: string,
+): Promise<Record<string, string>> {
+  const cardIdToDirectory: Record<string, string> = {};
+  const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
+  for (const cardFile of cardFiles) {
+    try {
+      const cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
+      if (cardData?.cardId) {
+        cardIdToDirectory[cardData.cardId] = path.dirname(cardFile);
+      }
+    } catch (e) {
+      if (logPrefix) console.warn(`[${logPrefix}] failed to parse ${cardFile}:`, e);
+    }
+  }
+  return cardIdToDirectory;
 }
 
 // Regenerate {slug}.preview.png if drawPreviewHashes[slug] doesn't match the current Drawing2.hash.
@@ -58,7 +87,7 @@ function patchDrawPreviewHashesInMeta(cardDir: string, drawPreviewHashes: Record
   } catch {}
 }
 
-function contentHash(content: string): string {
+export function contentHash(content: string): string {
   return crypto.createHash('md5').update(content).digest('hex');
 }
 
@@ -169,32 +198,6 @@ export function extractDrawData(components: any): Record<string, any> | null {
   return Object.keys(drawData).length > 0 ? drawData : null;
 }
 
-/**
- * Get the deck ID of the current deck.
- */
-export function getCurrentDeck(deckDir: string = '.'): string | undefined {
-  let filePath = path.join(deckDir, 'deck.yaml');
-  try {
-    const deckConfig = yaml.parse(fs.readFileSync(filePath, 'utf8'));
-    return deckConfig.deckId;
-  } catch (e: any) {
-    console.error(`Error reading deck.yaml: ${e.message ?? e}`);
-    return undefined;
-  }
-}
-
-/**
- * Get the card IDs of the cards in the current deck.
- */
-export function getCurrentDeckCards(deckDir: string = '.'): string[] {
-  try {
-    const cards = fs.readdirSync(deckDir).filter(file => file.startsWith('card-'));
-    return cards.map(card => card.replace('card-', ''));
-  } catch (e: any) {
-    console.error(`Error reading cards: ${e.message ?? e}`);
-    return [];
-  }
-}
 
 export async function syncSceneDataAsync({ deckDir, cardId, sceneDataUrl }: { deckDir: string; cardId: string; sceneDataUrl: string }) {
   const response = await Axios.get(sceneDataUrl);
@@ -241,48 +244,55 @@ function newFilenameForTitle({ title, extension, blueprintsDir }: { title: strin
   return filename;
 }
 
-// Build the actors.yaml list from internal-format sceneData actors.
-// Writes flat format with actorId, title (not entryId), angle in degrees, widthScale ×10.
-function buildActorsYamlObj(actors: any[], library: any): any[] {
-  const actorsList: any[] = [];
+// Convert a single actor's bp (internal format: angle radians, widthScale 0–1) to disk format
+// (angle degrees, widthScale ×10). Used by both the serve/WebSocket path and the clone/pull path
+// so both produce identical output for the same input.
+export function singleActorToDiskEntry(
+  actorBp: { components?: { Body?: any; Drawing2?: any; Text?: any; Link?: any } } | undefined,
+  blueprintEntry: { title: string; actorBlueprint?: { components?: any } }
+): Record<string, any> {
+  const body = actorBp?.components?.Body ?? {};
+  const drawing2 = actorBp?.components?.Drawing2 ?? {};
+  const text = actorBp?.components?.Text ?? {};
+  const link = actorBp?.components?.Link ?? {};
+
+  const entry: any = { title: blueprintEntry.title };
+  entry.x = body.x ?? 0;
+  entry.y = body.y ?? 0;
+  if (body.angle !== undefined) entry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000; // degrees
+  if (body.widthScale !== undefined) entry.widthScale = body.widthScale * 10; // ×10
+  if (body.heightScale !== undefined) entry.heightScale = body.heightScale * 10; // ×10
+  if (drawing2.initialFrame !== undefined && drawing2.initialFrame !== 1) entry.initialFrame = drawing2.initialFrame;
+  if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) entry.fontSizeScale = text.fontSizeScale;
+  // Only save content/targetDeckId if they differ from the blueprint default (same logic as castle-client)
+  const blueprintContent = blueprintEntry.actorBlueprint?.components?.Text?.content;
+  if (text.content !== undefined && text.content !== blueprintContent) entry.content = text.content;
+  const blueprintTargetDeckId = blueprintEntry.actorBlueprint?.components?.Link?.targetDeckId;
+  if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) entry.targetDeckId = link.targetDeckId;
+
+  return entry;
+}
+
+// Build the actors.yaml map from internal-format sceneData actors.
+// Keys are generated stable persistentIds (a0, a1, ..., b0, b1, ...).
+export function buildActorsYamlMap(
+  actors: any[],
+  library: any
+): Record<string, any> {
+  const map: Record<string, any> = {};
+
   for (const actor of actors) {
     const entry = library[actor.parentEntryId];
     if (!entry) continue;
 
-    const body = actor.bp?.components?.Body ?? {};
-    const drawing2 = actor.bp?.components?.Drawing2 ?? {};
-
-    const actorEntry: any = { actorId: actor.actorId, title: entry.title };
-    actorEntry.x = body.x ?? 0;
-    actorEntry.y = body.y ?? 0;
-    if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000; // degrees
-    if (body.widthScale !== undefined) actorEntry.widthScale = body.widthScale * 10; // ×10
-    if (body.heightScale !== undefined) actorEntry.heightScale = body.heightScale * 10; // ×10
-    if (drawing2.initialFrame && drawing2.initialFrame !== 1) {
-      actorEntry.initialFrame = drawing2.initialFrame;
-    }
-    const text = actor.bp?.components?.Text ?? {};
-    if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) {
-      actorEntry.fontSizeScale = text.fontSizeScale;
-    }
-    // Only save content if it differs from the blueprint default (same logic as castle-client)
-    const blueprintContent = entry.actorBlueprint?.components?.Text?.content;
-    if (text.content !== undefined && text.content !== blueprintContent) {
-      actorEntry.content = text.content;
-    }
-
-    const link = actor.bp?.components?.Link ?? {};
-    const blueprintTargetDeckId = entry.actorBlueprint?.components?.Link?.targetDeckId;
-    if (link.targetDeckId !== undefined && link.targetDeckId !== blueprintTargetDeckId) {
-      actorEntry.targetDeckId = link.targetDeckId;
-    }
-
-    actorsList.push(actorEntry);
+    const key = nextActorKey(new Set(Object.keys(map)));
+    map[key] = singleActorToDiskEntry(actor.bp, entry);
   }
-  return actorsList;
+
+  return map;
 }
 
-// Write actors.yaml (nested display-name format) and variables.yaml for a card.
+// Write actors.yaml (map format keyed by persistentId) and variables.yaml for a card.
 // Also writes .castle/meta.json for mobile sync compatibility.
 // Actors are in internal sceneData format; this function converts to external format.
 export async function writeActorsAndVariablesAsync({
@@ -299,9 +309,9 @@ export async function writeActorsAndVariablesAsync({
   cardId: string;
 }) {
   const actors = sceneData.snapshot.actors;
-  const actorsObj = buildActorsYamlObj(actors, library);
+  const actorsMap = sortActorMap(buildActorsYamlMap(actors, library));
 
-  const actorsContent = yaml.stringify(actorsObj);
+  const actorsContent = yaml.stringify(actorsMap);
   fs.writeFileSync(path.join(cardDir, 'actors.yaml'), actorsContent);
 
   // Write empty variables.yaml (server decks don't have mobile variables)
@@ -341,7 +351,7 @@ export async function writeActorsAndVariablesAsync({
     }
   }
 
-  const meta = {
+  const meta: any = {
     deckId,
     cardId,
     hashes,
@@ -522,11 +532,7 @@ export async function cloneCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }:
   const { behaviors } = await getCastleMetadata();
 
   // Get deckId for meta.json
-  let deckId = '';
-  try {
-    const deckConfig = yaml.parse(fs.readFileSync(path.join(deckDir, 'deck.yaml'), 'utf8'));
-    deckId = deckConfig.deckId || '';
-  } catch (e) {}
+  const deckId = getDeckId(deckDir);
 
   const blueprintsDir = getBlueprintsDir(cardDir);
   const drawPreviewsEnabled = isDrawPreviewsEnabled(deckDir);
@@ -640,11 +646,7 @@ export async function pullCardAsync({ cardId, sceneDataUrl, cardDir, deckDir }: 
   const { behaviors } = await getCastleMetadata();
 
   // Get deckId for meta.json
-  let deckId = '';
-  try {
-    const deckConfig = yaml.parse(fs.readFileSync(path.join(deckDir, 'deck.yaml'), 'utf8'));
-    deckId = deckConfig.deckId || '';
-  } catch (e) {}
+  const deckId = getDeckId(deckDir);
 
   const entryIdToBlueprintFilename = await getEntryIdToBlueprintFilenameAsync(cardDir);
   const blueprintsDir = getBlueprintsDir(cardDir);
@@ -849,16 +851,23 @@ export async function newSceneDataForCardAsync({
 
   if (fs.existsSync(actorsFilePath)) {
     const actorsData = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
-    if (Array.isArray(actorsData)) {
+
+    // Support both new map format (keyed by persistentId) and legacy array format
+    const actorEntries: Array<[string | null, any]> = Array.isArray(actorsData)
+      ? (actorsData as any[]).map(d => [null, d])                          // legacy: no persistentId
+      : Object.entries(actorsData as Record<string, any>);                 // new: key = persistentId
+
+    if (actorEntries.length > 0 || actorsData != null) {
       actorsFileExists = true;
-      for (const data of actorsData as any[]) {
-        const actorId = String(data.actorId ?? '');
+      for (const [persistentId, data] of actorEntries) {
+        // Legacy array format stored actorId inside data; map format has no actorId in data
+        const actorId = Array.isArray(actorsData) ? String(data.actorId ?? '') : String(persistentId ?? '');
 
         // Support both title and entryId lookups
         const parentEntryId = data.entryId || (data.title && titleToEntryId[data.title]);
         if (!parentEntryId || !localLibrary[parentEntryId]) continue;
 
-        // Flat format: { actorId, title, x, y, angle (degrees), widthScale ×10, initialFrame }
+        // Flat format: { title, x, y, angle (degrees), widthScale ×10, initialFrame }
         const body: any = {
           x: data.x ?? 0,
           y: data.y ?? 0,
@@ -880,7 +889,9 @@ export async function newSceneDataForCardAsync({
           components.Link = { targetDeckId: data.targetDeckId };
         }
 
-        localActors.push({ actorId, parentEntryId, bp: { components } });
+        const actorObj: any = { actorId, parentEntryId, bp: { components } };
+        if (persistentId) actorObj.persistentId = persistentId;
+        localActors.push(actorObj);
       }
     }
   }

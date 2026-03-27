@@ -26,7 +26,7 @@ function writeTestState(cardDir: string) {
   const bpData = { title: 'Player', entryId: 'entry-001', components: { Layout: { widthScale: 0.5, heightScale: 0.5 } } };
   fs.writeFileSync(path.join(bpDir, `${slug}.yaml`), yaml.stringify(bpData, { lineWidth: 120 }));
 
-  const actors = [{ actorId: 100, title: 'Player', x: 10, y: 20 }];
+  const actors = { a0: { title: 'Player', x: 10, y: 20 } };
   fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
 
   const variables = [{ variableId: 'var-1', name: 'score', initialValue: 0, lifetime: 'card' }];
@@ -352,6 +352,44 @@ describe('writeStateInternal', () => {
     // .draw.json must be unchanged (preserved)
     expect(fs.existsSync(drawPath)).toBe(true);
     expect(fs.readFileSync(drawPath, 'utf-8')).toBe(originalDraw);
+  });
+
+  it('cleans up stale .preview.png files when blueprint is removed', async () => {
+    // First write: two blueprints
+    const state1: any = {
+      type: 'state_internal',
+      deckId: 'deck-1',
+      cardId: 'card-1',
+      cliSessionId: 'sess-1',
+      blueprints: {
+        'e1': {
+          entryType: 'actorBlueprint',
+          title: 'Alpha',
+          actorBlueprint: { components: { Body: { widthScale: 0.3 } } },
+        },
+        'e2': {
+          entryType: 'actorBlueprint',
+          title: 'Beta',
+          actorBlueprint: { components: { Body: { widthScale: 0.3 } } },
+        },
+      },
+      actors: {},
+      variables: [],
+    };
+    await writeStateInternal(tmpDir, state1);
+
+    const bpDir = path.join(tmpDir, 'blueprints');
+
+    // Manually place .preview.png files (simulating generated previews)
+    fs.writeFileSync(path.join(bpDir, 'alpha.preview.png'), 'fake-png-alpha');
+    fs.writeFileSync(path.join(bpDir, 'beta.preview.png'), 'fake-png-beta');
+
+    // Second write: only Alpha — Beta should be cleaned up (including its .preview.png)
+    const state2: any = { ...state1, blueprints: { 'e1': state1.blueprints['e1'] } };
+    await writeStateInternal(tmpDir, state2);
+
+    expect(fs.existsSync(path.join(bpDir, 'alpha.preview.png'))).toBe(true);
+    expect(fs.existsSync(path.join(bpDir, 'beta.preview.png'))).toBe(false);
   });
 
   it('writes new .draw.json when draw hash changes', async () => {

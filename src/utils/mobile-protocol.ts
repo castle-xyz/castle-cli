@@ -6,17 +6,6 @@ export interface VariableData {
   lifetime: string;
 }
 
-// Messages from CLI -> app
-export interface EditMessage {
-  type: 'edit';
-  description: string;
-  editId?: number;          // incrementing ID; mobile should not echo state for this edit
-  blueprints?: Record<string, any>;
-  actors?: Record<string, any>;
-  variables?: Record<string, any>;
-  sceneProperties?: any;
-}
-
 export interface EditResultMessage {
   type: 'editResult';
   success: boolean;
@@ -43,7 +32,6 @@ export interface LogsMessage {
 export interface ScreenshotMessage {
   type: 'screenshot';
   data: string; // base64 PNG
-  requestId?: string;
 }
 
 export interface CLIScreenshotMessage {
@@ -52,17 +40,22 @@ export interface CLIScreenshotMessage {
   suffix?: string;
 }
 
-// Message sent by mobile with raw EDITOR_LIBRARY/EDITOR_ACTORS (internal format)
-// Blueprints: EDITOR_LIBRARY entries { entryType, title, actorBlueprint: { components: {...} } }
-// Actors: keyed by `a{actorId}`, each { actorId?, parentEntryId, bp: { components: { Body, ... } } }
+// Message sent by mobile with raw EDITOR_LIBRARY/EDITOR_ACTORS (internal format).
+// Also sent by CLI to mobile with full disk state (editId present).
+// Blueprints (from mobile): EDITOR_LIBRARY entries { entryType, title, actorBlueprint: { components: {...} } }
+// Blueprints (from CLI): { entryId, title, components: "yaml string", script?: [...], drawing? }
+// Actors (from mobile): keyed by `a{actorId}`, each { actorId?, parentEntryId, bp: { components: { Body, ... } } }
 //   with Body values in internal format (widthScale 0–1, angle radians)
+// Actors (from CLI): keyed by disk key (a0, a1...), flat { title, x, y, widthScale, persistentId }
+//   with Body values in external format (widthScale 0–10, angle degrees)
 export interface StateInternalMessage {
   type: 'state_internal';
   deckId: string;
   cardId: string;
   cliSessionId: string;
-  blueprints: Record<string, any>;  // raw EDITOR_LIBRARY entries
-  actors: Record<string, any>;      // raw EDITOR_ACTORS entries
+  editId?: number;          // set by CLI when sending; mobile suppresses echo when set
+  blueprints: Record<string, any>;
+  actors: Record<string, any>;
   variables: VariableData[];
   sceneProperties?: any;
   actorBlueprintInherit?: boolean;
@@ -81,4 +74,4 @@ export interface RequestDrawDataMessage {
   entryIds: string[];  // blueprints whose draw data CLI needs (hash mismatch detected)
 }
 
-export type CliToAppMessage = EditMessage | RequestStateMessage | RequestDrawDataMessage;
+export type CliToAppMessage = StateInternalMessage | RequestStateMessage | RequestDrawDataMessage;

@@ -82,9 +82,8 @@ The engine uses internal values (e.g. `Body.widthScale = 0.5`, 0–1 scale) whil
 
 ### Mobile Sync Protocol
 
-The mobile app sends state over WebSocket via two message types:
+The mobile app sends state over WebSocket via one message type:
 - `StateInternalMessage` — full state in raw internal format (requires WASM conversion via `getSnapshotExternalValues`). Optional fields: `sceneProperties`, `actorBlueprintInherit`, `linkTargetDeckIds` — written to `card.yaml` on receive.
-- `StateInternalDiffMessage` — incremental diff with only changed entries; deletions use `{ removed: true }`
 
 The CLI writes received state to YAML files on disk. A file watcher detects local changes → sends `EditMessage` back to the mobile app. Files are the single source of truth; WebSocket is the transport layer.
 
@@ -131,8 +130,7 @@ castle draw-preview blueprints/foo.draw.json -o out.png -s 512
 Mobile always assigns fresh entity IDs for new actors (e.g. CLI adds `a1`, mobile assigns `a1048576`). The CLI handles this via:
 
 - **`editId` on `EditMessage`**: incrementing ID sent with every CLI-originated edit. Mobile uses this to suppress the state echo that would otherwise overwrite CLI-assigned keys on disk.
-- **`_suppressDiffUntil` in `CLIConnection.js`**: timestamp-based suppression window (set to `Date.now() + DEBOUNCE_MS + 100` on each CLI edit). `sendStateInternalDiff` is a no-op while `Date.now() < _suppressDiffUntil`. Also extended inside `sendStateInternalDebounced` while suppression is active — this is critical because `toolEditScene` triggers multiple `UPDATE_SCENE` events, each resetting the 500ms debounce timer and potentially pushing it past the suppression window.
-- **Optimistic delete in `mobile.ts`**: when CLI sends `removeActor`, it immediately removes the key from `lastMobileActors` so a subsequent re-add of the same key is tracked in `pendingActors`.
+- **`_suppressDiffUntil` in `CLIConnection.js`**: timestamp-based suppression window (set to `Date.now() + DEBOUNCE_MS + 100` on each CLI edit). State sends are no-ops while `Date.now() < _suppressDiffUntil`. Also extended inside `sendStateInternalDebounced` while suppression is active — this is critical because `toolEditScene` triggers multiple `UPDATE_SCENE` events, each resetting the 500ms debounce timer and potentially pushing it past the suppression window.
 
 ### Mock Mobile Test (Sync Bug Reproduction)
 
@@ -153,10 +151,10 @@ Watch `.castle/logs.txt` in the deck dir for CLI-side events. Mock-mobile logs t
 
 **Relay protocol note:** Both CLI and mock-mobile send `{ type: 'cli_tunnel_start_listening' }` on WebSocket connect — this is how the relay at `wss://ws.castlexyz.com/ws` pairs the two connections. Without it, the relay does not route messages back to the sender.
 
-**Debugging state echo issues:** If mobile is still sending `state_internal_diff` after CLI edits, check:
-1. Is the `[CLIConnection] sendStateInternalDiff suppressed` log appearing? If not, either `_suppressDiffUntil` isn't being set or the timer fires after the window.
+**Debugging state echo issues:** If mobile is still sending `state_internal` after CLI edits, check:
+1. Is the `[CLIConnection] edit applied` suppression log appearing? If not, either `_suppressDiffUntil` isn't being set or the timer fires after the window.
 2. Multiple `UPDATE_SCENE` events after `toolEditScene` push the debounce timer past the suppression window — that's why `sendStateInternalDebounced` extends `_suppressDiffUntil` on each call while suppression is active.
-3. Check for stale JS bundles on device — React Native fast refresh can partially apply changes. If the new log format appears in `_applyEdit` but not in `sendStateInternalDiff`, the bundle is stale and needs a full reload.
+3. Check for stale JS bundles on device — React Native fast refresh can partially apply changes. If the new log format appears in `_applyEdit` but not in `sendStateInternalDebounced`, the bundle is stale and needs a full reload.
 
 ### Per-Actor Field Spec (castle-client Scene::writeActor)
 

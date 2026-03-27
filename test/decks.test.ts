@@ -86,26 +86,27 @@ describe('writeActorsAndVariablesAsync', () => {
     const actorsPath = path.join(cardDir, 'actors.yaml');
     expect(fs.existsSync(actorsPath)).toBe(true);
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
-    expect(actorsList).toBeDefined();
-    expect(Array.isArray(actorsList)).toBe(true);
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    expect(actorsMap).toBeDefined();
+    expect(Array.isArray(actorsMap)).toBe(false);
 
-    // Should have an entry with actorId '123'
-    const actor123 = actorsList.find(a => String(a.actorId) === '123');
-    expect(actor123).toBeDefined();
-    // Flat format: title instead of entryId
-    expect(actor123.title).toBe('Player');
-    expect(actor123.entryId).toBeUndefined();
-    expect(actor123.components).toBeUndefined();
+    // First actor gets key 'a0'
+    const actorEntry = actorsMap['a0'];
+    expect(actorEntry).toBeDefined();
+    // Flat format: title, no actorId/entryId/components keys
+    expect(actorEntry.title).toBe('Player');
+    expect(actorEntry.actorId).toBeUndefined();
+    expect(actorEntry.entryId).toBeUndefined();
+    expect(actorEntry.components).toBeUndefined();
 
     // Flat properties
-    expect(actor123.x).toBe(10);
-    expect(actor123.y).toBe(20);
+    expect(actorEntry.x).toBe(10);
+    expect(actorEntry.y).toBe(20);
     // Angle converted from radians (0.785) to degrees (~44.97)
-    expect(actor123.angle).toBeCloseTo(44.97, 1);
+    expect(actorEntry.angle).toBeCloseTo(44.97, 1);
     // widthScale ×10 (external format)
-    expect(actor123.widthScale).toBe(5.0);
-    expect(actor123.heightScale).toBe(5.0);
+    expect(actorEntry.widthScale).toBe(5.0);
+    expect(actorEntry.heightScale).toBe(5.0);
   });
 
   it('writes variables.yaml as empty array', async () => {
@@ -261,9 +262,9 @@ describe('newSceneDataForCardAsync round-trip', () => {
   });
 
   function writeActors() {
-    // Write actors.yaml in list format (actorId, title, degrees, ×10 widthScale)
-    const actorsList = [{ actorId: '1', title: 'Test', x: 0, y: 0, widthScale: 3.0, heightScale: 3.0 }];
-    fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsList));
+    // Write actors.yaml in map format (key = persistentId)
+    const actorsMap = { a0: { title: 'Test', x: 0, y: 0, widthScale: 3.0, heightScale: 3.0 } };
+    fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsMap));
   }
 
   it('preserves Drawing2.hash from draw.json companion file when blueprint omits it', async () => {
@@ -379,11 +380,11 @@ describe('newSceneDataForCardAsync round-trip', () => {
     );
 
     // actors.yaml stores angle in degrees (~44.97°)
-    const actorsList = [{ actorId: '1', title: 'Test', x: 5, y: 3, angle: 44.97, widthScale: 3.0 }];
-    fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsList));
+    const actorsMap = { a0: { title: 'Test', x: 5, y: 3, angle: 44.97, widthScale: 3.0 } };
+    fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsMap));
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
-    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    const actor = result.sceneData.snapshot.actors.find((a: any) => a.persistentId === 'a0');
     expect(actor).toBeDefined();
     expect(actor.bp.components.Body.x).toBe(5);
     expect(actor.bp.components.Body.y).toBe(3);
@@ -439,12 +440,12 @@ describe('newSceneDataForCardAsync round-trip', () => {
     });
 
     // Verify initialFrame is written (non-default value 3 != 1)
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').initialFrame).toBe(3);
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].initialFrame).toBe(3);
 
     // Verify round-trip read
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
-    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    const actor = result.sceneData.snapshot.actors.find((a: any) => a.persistentId === 'a0');
     expect(actor).toBeDefined();
     expect(actor.bp.components.Drawing2.initialFrame).toBe(3);
   });
@@ -472,8 +473,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').initialFrame).toBeUndefined();
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].initialFrame).toBeUndefined();
   });
 
   it('round-trips fontSizeScale: non-default value written to and read from actors.yaml', async () => {
@@ -499,11 +500,11 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').fontSizeScale).toBe(2.5);
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].fontSizeScale).toBe(2.5);
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
-    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    const actor = result.sceneData.snapshot.actors.find((a: any) => a.persistentId === 'a0');
     expect(actor).toBeDefined();
     expect(actor.bp.components.Text.fontSizeScale).toBe(2.5);
   });
@@ -531,8 +532,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').fontSizeScale).toBeUndefined();
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].fontSizeScale).toBeUndefined();
   });
 
   it('round-trips content: differs from blueprint default, written to and read from actors.yaml', async () => {
@@ -558,11 +559,11 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').content).toBe('Custom text');
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].content).toBe('Custom text');
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
-    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    const actor = result.sceneData.snapshot.actors.find((a: any) => a.persistentId === 'a0');
     expect(actor).toBeDefined();
     expect(actor.bp.components.Text.content).toBe('Custom text');
   });
@@ -590,8 +591,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').content).toBeUndefined();
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].content).toBeUndefined();
   });
 
   it('round-trips targetDeckId: differs from blueprint default, written to and read from actors.yaml', async () => {
@@ -617,11 +618,11 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').targetDeckId).toBe('customDeck');
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].targetDeckId).toBe('customDeck');
 
     const result = await newSceneDataForCardAsync({ cardId: 'rt', cardDir, deckDir });
-    const actor = result.sceneData.snapshot.actors.find((a: any) => String(a.actorId) === '1');
+    const actor = result.sceneData.snapshot.actors.find((a: any) => a.persistentId === 'a0');
     expect(actor).toBeDefined();
     expect(actor.bp.components.Link.targetDeckId).toBe('customDeck');
   });
@@ -649,8 +650,8 @@ describe('newSceneDataForCardAsync round-trip', () => {
       sceneData, cardDir, library: sceneData.snapshot.library, deckId: 'deck-1', cardId: 'rt',
     });
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
-    expect(actorsList.find(a => String(a.actorId) === '1').targetDeckId).toBeUndefined();
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(path.join(cardDir, 'actors.yaml'), 'utf-8'));
+    expect(actorsMap['a0'].targetDeckId).toBeUndefined();
   });
 
   it('reads actor by title from actors.yaml — title→entryId lookup', async () => {

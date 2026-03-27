@@ -1,7 +1,6 @@
 import express from 'express';
 import openBrowser from 'open';
 import portfinder from 'portfinder';
-import { glob } from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';
 import readline from 'readline';
@@ -280,13 +279,7 @@ export async function serve(
         }
       }
 
-      const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
-      for (let cardFile of cardFiles) {
-        try {
-          let cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
-          cardDirectories[cardData.cardId] = path.dirname(cardFile);
-        } catch (e) {}
-      }
+      Object.assign(cardDirectories, await Decks.buildCardIdToDirectoryMap(directory));
     }
   } catch (e) {
     if (debug) console.log('[serve] No deck.yaml found — running in mobile-first mode');
@@ -487,13 +480,7 @@ export async function serve(
 
       // Refresh card directories in case new cards arrived via mobile
       if (!cardDirectories[cardId]) {
-        const cardFiles = await glob('**/card.yaml', { cwd: deckDirForRoutes, ignore: ['node_modules/**'] });
-        for (let cardFile of cardFiles) {
-          try {
-            let cardData = yaml.parse(fs.readFileSync(path.join(deckDirForRoutes, cardFile), 'utf8'));
-            cardDirectories[cardData.cardId] = path.dirname(cardFile);
-          } catch (e) {}
-        }
+        Object.assign(cardDirectories, await Decks.buildCardIdToDirectoryMap(deckDirForRoutes));
       }
 
       if (!cardDirectories[cardId]) {

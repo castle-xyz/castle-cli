@@ -8,6 +8,7 @@ const GITIGNORE_CONTENT = `.castle/logs.txt
 .castle/serve.pid
 **/.castle/meta.json
 **/.DS_Store
+**/*.preview.png
 `;
 
 export function initializeDeckDir(deckDir: string, deckId: string): void {

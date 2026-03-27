@@ -82,18 +82,20 @@ describe('pull command', () => {
     vi.clearAllMocks();
   });
 
-  it('pulls updates and writes actors.yaml in flat format', async () => {
+  it('pulls updates and writes actors.yaml in map format', async () => {
     await pull({ directory: deckDir });
 
     const actorsPath = path.join(deckDir, 'card-card-xyz', 'actors.yaml');
     expect(fs.existsSync(actorsPath)).toBe(true);
 
-    const actorsList: any[] = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
-    expect(Array.isArray(actorsList)).toBe(true);
-    const actor123 = actorsList.find(a => String(a.actorId) === '123');
-    expect(actor123).toBeDefined();
-    expect(actor123.title).toBe('Player');
-    expect(actor123.entryId).toBeUndefined();
+    const actorsMap: Record<string, any> = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    expect(Array.isArray(actorsMap)).toBe(false);
+    // First actor gets key 'a0'
+    const actorEntry = actorsMap['a0'];
+    expect(actorEntry).toBeDefined();
+    expect(actorEntry.title).toBe('Player');
+    expect(actorEntry.actorId).toBeUndefined();
+    expect(actorEntry.entryId).toBeUndefined();
   });
 
   it('preserves local script files during pull', async () => {

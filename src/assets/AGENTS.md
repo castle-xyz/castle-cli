@@ -268,14 +268,14 @@ components:
 
 ### Actors
 
-`actors.yaml` is a list of actor instances placed in the scene. Each entry has an `actorId` field that uniquely identifies it.
+`actors.yaml` is a **map** of actor instances placed in the scene. The map key is the actor's stable identifier (a short alphanumeric string like `a0`, `a1`, `b3`). This key is assigned by the CLI and persists across serve sessions.
 
 ```yaml
-- actorId: 123
+a0:
   title: Player Ship      # Blueprint title this actor is an instance of
   x: 0                    # Position
   y: -3.5
-- actorId: 456
+a1:
   title: Wall
   x: 5
   y: 0
@@ -285,19 +285,19 @@ components:
 
 Only these per-actor properties can be set: `x`, `y`, `angle`, `widthScale`, `heightScale`, `initialFrame`, `content`, `fontSizeScale`, `targetDeckId`. All other properties must be set at the blueprint level.
 
-`actors.yaml` uses **full-list semantics**: the file represents the complete desired set of actors. If you remove an entry from the file, that actor will be removed from the scene. If you add a new entry, a new actor will be created.
+`actors.yaml` uses **full-map semantics**: the file represents the complete desired set of actors. If you remove a key from the map, that actor will be removed from the scene. If you add a new key, a new actor will be created.
 
-**Adding a new actor:** Add a new entry with a placeholder `actorId` (e.g., `new1`) and include `title` to specify which blueprint to instantiate. A real ID will be assigned after the engine processes the change:
+**Adding a new actor:** Add a new entry with a unique key and include `title` to specify which blueprint to instantiate. Use the next available key in sequence (if the map has `a0`, `a1`, use `a2`):
 ```yaml
-- actorId: new1
+a2:
   title: Bullet
   x: 0
   y: -5
 ```
 
-**Removing an actor:** Simply delete the entry from `actors.yaml`. Because the file is the full list, any actor missing from it will be removed from the scene.
+**Removing an actor:** Simply delete the key-value entry from `actors.yaml`. Because the file is the full map, any actor missing from it will be removed from the scene.
 
-**Moving/editing an actor:** Change its `x`, `y`, `angle`, etc. properties.
+**Moving/editing an actor:** Change its `x`, `y`, `angle`, etc. properties under its key.
 
 ### Variables
 

@@ -1,7 +1,4 @@
-import { glob } from 'glob';
-import * as fs from 'fs';
 import * as path from 'path';
-import yaml from 'yaml';
 
 import * as Decks from '../utils/decks.js';
 import { initMetadata } from '../utils/init.js';
@@ -16,19 +13,7 @@ export async function push(options: { directory?: string } = {}) {
     return;
   }
 
-  const cardIdToDirectory: any = {};
-
-  const cardFiles = await glob('**/card.yaml', { cwd: directory, ignore: ['node_modules/**'] });
-  for (let cardFile of cardFiles) {
-    try {
-      let cardData = yaml.parse(fs.readFileSync(path.join(directory, cardFile), 'utf8'));
-      if (cardData.cardId) {
-        cardIdToDirectory[cardData.cardId] = path.dirname(cardFile);
-      }
-    } catch (e) {
-      console.warn(`[push] failed to parse ${cardFile}:`, e);
-    }
-  }
+  const cardIdToDirectory = await Decks.buildCardIdToDirectoryMap(directory, 'push');
 
   let cardIds: string[] = [];
   for (let card of deck.cards) {
