@@ -112,21 +112,21 @@ describe('clone command', () => {
     const actorsYaml = path.join(deckDir, 'card-card-xyz', 'actors.yaml');
     expect(fs.existsSync(actorsYaml)).toBe(true);
 
-    const actors = yaml.parse(fs.readFileSync(actorsYaml, 'utf-8'));
-    // Should be object format, not array
-    expect(typeof actors).toBe('object');
-    expect(Array.isArray(actors)).toBe(false);
+    const actorsList: any[] = yaml.parse(fs.readFileSync(actorsYaml, 'utf-8'));
+    // Should be list format
+    expect(Array.isArray(actorsList)).toBe(true);
 
-    // Should have a-prefixed key with flat format
-    expect(actors['a123']).toBeDefined();
-    expect(actors['a123'].title).toBe('Player'); // title instead of entryId
-    expect(actors['a123'].entryId).toBeUndefined();
-    expect(actors['a123'].components).toBeUndefined(); // flat format, no nested components
-    expect(actors['a123'].x).toBe(10);
-    expect(actors['a123'].y).toBe(20);
+    // Should have an entry with actorId 123 in flat format
+    const actor123 = actorsList.find(a => String(a.actorId) === '123');
+    expect(actor123).toBeDefined();
+    expect(actor123.title).toBe('Player'); // title instead of entryId
+    expect(actor123.entryId).toBeUndefined();
+    expect(actor123.components).toBeUndefined(); // flat format, no nested components
+    expect(actor123.x).toBe(10);
+    expect(actor123.y).toBe(20);
     // Angle converted from radians (0.785) to degrees (~44.97)
-    expect(actors['a123'].angle).toBeCloseTo(44.97, 1);
-    expect(actors['a123'].widthScale).toBeCloseTo(5.0, 1); // ×10
+    expect(actor123.angle).toBeCloseTo(44.97, 1);
+    expect(actor123.widthScale).toBeCloseTo(5.0, 1); // ×10
   });
 
   it('creates blueprints directory with blueprint files', async () => {

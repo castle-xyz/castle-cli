@@ -33,6 +33,13 @@ const TEST_BLUEPRINTS: Record<string, any> = {
   'bp-001': { title: 'Player', components: { Body: { widthScale: 0.5, heightScale: 0.5 } } },
 };
 
+function actorsDictToList(actors: Record<string, any>): any[] {
+  return Object.entries(actors).map(([k, v]) => ({
+    actorId: k.startsWith('a') ? k.slice(1) : k,
+    ...(v as any),
+  }));
+}
+
 function writeTestState(cardDir: string, actors: Record<string, any>) {
   const bpDir = path.join(cardDir, 'blueprints');
   fs.mkdirSync(bpDir, { recursive: true });
@@ -47,7 +54,7 @@ function writeTestState(cardDir: string, actors: Record<string, any>) {
       yaml.stringify({ title: bp.title, entryId, components: bp.components }, { lineWidth: 120 })
     );
   }
-  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
+  fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actorsDictToList(actors), { lineWidth: 120 }));
 
   fs.writeFileSync(path.join(cardDir, '.castle', 'meta.json'), JSON.stringify({
     deckId: 'deck-1',
@@ -75,16 +82,16 @@ function reapplyPendingActors(
 ): boolean {
   const actorsPath = path.join(cardDir, 'actors.yaml');
   const raw = fs.existsSync(actorsPath) ? fs.readFileSync(actorsPath, 'utf-8') : '';
-  const current: Record<string, any> = (yaml.parse(raw) as any) || {};
-  const currentKeys = new Set(Object.keys(current));
+  const currentList: any[] = (yaml.parse(raw) as any[]) || [];
+  const currentIds = new Set(currentList.map((a: any) => `a${a.actorId}`));
 
   // Satisfied if every key we *added* is now present (mobile may have extra game actors).
-  if (addedKeys.every(k => currentKeys.has(k))) {
+  if (addedKeys.every(k => currentIds.has(k))) {
     return true; // satisfied
   }
 
   // Some added actors are missing from mobile's state — re-write and re-send.
-  fs.writeFileSync(actorsPath, yaml.stringify(desired, { lineWidth: 120 }));
+  fs.writeFileSync(actorsPath, yaml.stringify(actorsDictToList(desired), { lineWidth: 120 }));
   return false;
 }
 
@@ -103,7 +110,7 @@ describe('circular edit: delete actor then add it back', () => {
     // lastMobileActors = { a100: ... }
 
     // ── Phase 2: User deletes actor A ────────────────────────────────────────
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({}, { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify([], { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={}, lastMobile={a100} → addedKeys=[] (nothing added)
@@ -129,7 +136,7 @@ describe('circular edit: delete actor then add it back', () => {
 
     // ── Phase 5: User adds actor A BACK ──────────────────────────────────────
     const userActorA = { title: 'Player', x: 10, y: 20 };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify({ a100: userActorA }, { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify([{ actorId: '100', ...userActorA }], { lineWidth: 120 }));
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true);
 
     // Simulate _sendChanges: desired={a100}, lastMobile={} → addedKeys=['a100']
@@ -145,8 +152,8 @@ describe('circular edit: delete actor then add it back', () => {
     expect(satisfiedAfterAddRace).toBe(false); // must re-apply
 
     // actors.yaml was re-written with actor A
-    const actorsAfterReapply = yaml.parse(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as any;
-    expect(actorsAfterReapply?.a100).toBeDefined();
+    const actorsAfterReapply = yaml.parse(fs.readFileSync(path.join(tmpDir, 'actors.yaml'), 'utf-8')) as any[];
+    expect(actorsAfterReapply?.some((a: any) => String(a.actorId) === '100')).toBe(true);
 
     // detectChanges must find a change so FileWatcher re-sends the EditMessage
     expect(detectChanges(tmpDir)!.hasChanges).toBe(true); // ← critical re-send trigger
@@ -214,7 +221,7 @@ function writeDiskState(cardDir: string, options: {
 
   fs.writeFileSync(
     path.join(cardDir, 'actors.yaml'),
-    yaml.stringify(options.actors ?? {}, { lineWidth: 120 })
+    yaml.stringify(actorsDictToList(options.actors ?? {}), { lineWidth: 120 })
   );
   fs.writeFileSync(
     path.join(cardDir, 'variables.yaml'),
@@ -245,7 +252,7 @@ describe('circular edit: mobile has additional game actors beyond what user edit
 
     // User adds actor A (simulate the scenario where they deleted and re-added it)
     const userActors = { a100: { title: 'Player', x: 10, y: 20 } };
-    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify(userActors, { lineWidth: 120 }));
+    fs.writeFileSync(path.join(tmpDir, 'actors.yaml'), yaml.stringify(actorsDictToList(userActors), { lineWidth: 120 }));
 
     // Simulate _sendChanges: lastMobile had {a100}, desired has {a100}
     // addedKeys = [] because a100 was already in lastMobile. But let's say the

@@ -268,14 +268,14 @@ components:
 
 ### Actors
 
-`actors.yaml` contains all actor instances placed in the scene. Each actor is keyed by its ID (prefixed with `a`).
+`actors.yaml` is a list of actor instances placed in the scene. Each entry has an `actorId` field that uniquely identifies it.
 
 ```yaml
-a123:
+- actorId: 123
   title: Player Ship      # Blueprint title this actor is an instance of
   x: 0                    # Position
   y: -3.5
-a456:
+- actorId: 456
   title: Wall
   x: 5
   y: 0
@@ -285,11 +285,11 @@ a456:
 
 Only these per-actor properties can be set: `x`, `y`, `angle`, `widthScale`, `heightScale`, `initialFrame`, `content`, `fontSizeScale`, `targetDeckId`. All other properties must be set at the blueprint level.
 
-Unlike blueprints, `actors.yaml` uses **full-list semantics**: the file represents the complete desired set of actors. If you remove an entry from the file, that actor will be removed from the scene. If you add a new entry, a new actor will be created.
+`actors.yaml` uses **full-list semantics**: the file represents the complete desired set of actors. If you remove an entry from the file, that actor will be removed from the scene. If you add a new entry, a new actor will be created.
 
-**Adding a new actor:** Add a new entry with a unique key (e.g., `aNew1`) and include `title` to specify which blueprint to instantiate:
+**Adding a new actor:** Add a new entry with a placeholder `actorId` (e.g., `new1`) and include `title` to specify which blueprint to instantiate. A real ID will be assigned after the engine processes the change:
 ```yaml
-aNew1:
+- actorId: new1
   title: Bullet
   x: 0
   y: -5

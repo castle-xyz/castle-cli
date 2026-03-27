@@ -233,19 +233,18 @@ function newFilenameForTitle({ title, extension, blueprintsDir }: { title: strin
   return filename;
 }
 
-// Build the actors.yaml object from internal-format sceneData actors.
-// Writes flat format with title (not entryId), angle in degrees, widthScale ×10.
-function buildActorsYamlObj(actors: any[], library: any): any {
-  const actorsObj: any = {};
+// Build the actors.yaml list from internal-format sceneData actors.
+// Writes flat format with actorId, title (not entryId), angle in degrees, widthScale ×10.
+function buildActorsYamlObj(actors: any[], library: any): any[] {
+  const actorsList: any[] = [];
   for (const actor of actors) {
     const entry = library[actor.parentEntryId];
     if (!entry) continue;
 
-    const key = `a${actor.actorId}`;
     const body = actor.bp?.components?.Body ?? {};
     const drawing2 = actor.bp?.components?.Drawing2 ?? {};
 
-    const actorEntry: any = { title: entry.title };
+    const actorEntry: any = { actorId: actor.actorId, title: entry.title };
     actorEntry.x = body.x ?? 0;
     actorEntry.y = body.y ?? 0;
     if (body.angle) actorEntry.angle = Math.round(body.angle * (180 / Math.PI) * 1000) / 1000; // degrees
@@ -270,9 +269,9 @@ function buildActorsYamlObj(actors: any[], library: any): any {
       actorEntry.targetDeckId = link.targetDeckId;
     }
 
-    actorsObj[key] = actorEntry;
+    actorsList.push(actorEntry);
   }
-  return actorsObj;
+  return actorsList;
 }
 
 // Write actors.yaml (nested display-name format) and variables.yaml for a card.
@@ -841,17 +840,17 @@ export async function newSceneDataForCardAsync({
   }
 
   if (fs.existsSync(actorsFilePath)) {
-    const actorsObj = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
-    if (actorsObj && typeof actorsObj === 'object' && !Array.isArray(actorsObj)) {
+    const actorsData = yaml.parse(fs.readFileSync(actorsFilePath, 'utf8'));
+    if (Array.isArray(actorsData)) {
       actorsFileExists = true;
-      for (const [key, data] of Object.entries(actorsObj) as [string, any][]) {
-        const actorId = key.startsWith('a') ? key.slice(1) : key;
+      for (const data of actorsData as any[]) {
+        const actorId = String(data.actorId ?? '');
 
         // Support both title and entryId lookups
         const parentEntryId = data.entryId || (data.title && titleToEntryId[data.title]);
         if (!parentEntryId || !localLibrary[parentEntryId]) continue;
 
-        // Flat format: { title, x, y, angle (degrees), widthScale ×10, initialFrame }
+        // Flat format: { actorId, title, x, y, angle (degrees), widthScale ×10, initialFrame }
         const body: any = {
           x: data.x ?? 0,
           y: data.y ?? 0,

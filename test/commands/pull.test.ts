@@ -88,12 +88,12 @@ describe('pull command', () => {
     const actorsPath = path.join(deckDir, 'card-card-xyz', 'actors.yaml');
     expect(fs.existsSync(actorsPath)).toBe(true);
 
-    const actors = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
-    expect(typeof actors).toBe('object');
-    expect(Array.isArray(actors)).toBe(false);
-    expect(actors['a123']).toBeDefined();
-    expect(actors['a123'].title).toBe('Player');
-    expect(actors['a123'].entryId).toBeUndefined();
+    const actorsList: any[] = yaml.parse(fs.readFileSync(actorsPath, 'utf-8'));
+    expect(Array.isArray(actorsList)).toBe(true);
+    const actor123 = actorsList.find(a => String(a.actorId) === '123');
+    expect(actor123).toBeDefined();
+    expect(actor123.title).toBe('Player');
+    expect(actor123.entryId).toBeUndefined();
   });
 
   it('preserves local script files during pull', async () => {

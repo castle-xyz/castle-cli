@@ -26,7 +26,7 @@ function writeTestState(cardDir: string) {
   const bpData = { title: 'Player', entryId: 'entry-001', components: { Layout: { widthScale: 0.5, heightScale: 0.5 } } };
   fs.writeFileSync(path.join(bpDir, `${slug}.yaml`), yaml.stringify(bpData, { lineWidth: 120 }));
 
-  const actors = { a100: { title: 'Player', x: 10, y: 20 } };
+  const actors = [{ actorId: 100, title: 'Player', x: 10, y: 20 }];
   fs.writeFileSync(path.join(cardDir, 'actors.yaml'), yaml.stringify(actors, { lineWidth: 120 }));
 
   const variables = [{ variableId: 'var-1', name: 'score', initialValue: 0, lifetime: 'card' }];
