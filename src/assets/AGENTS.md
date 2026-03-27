@@ -120,6 +120,8 @@ Rules live under `components.Rules.rules`, keyed as `rule-0`, `rule-1`, etc. Edi
 
 To remove a rule: delete the entry from the file. Rules are applied idempotently — the full set of rules is cleared and reloaded on each sync, so removing a rule key and saving is sufficient.
 
+For the full list of available triggers, responses, and conditions with their params, read **`.castle/BEHAVIORS.md`**.
+
 #### Editing scripts
 
 Edit the `.lua` file directly. The `.yaml` file references it via `Script.file`. When the Lua file changes, the full new code is sent to the app.
@@ -203,7 +205,52 @@ Valid `lifetime` values:
 
 ### Examples
 
-Consult `.castle/EXAMPLES.md` for copy-paste YAML patterns (scoring, spawning, collisions, repeating actions, etc.).
+The most common rule patterns are shown here. Consult `.castle/EXAMPLES.md` for more (spawning, repeating actions, etc.).
+
+**Collision → destroy + score** (brick-hit, coin-collect):
+```yaml
+rule-0:
+  trigger:
+    name: collide
+    behaviorName: Layout
+    params:
+      tag: player
+  responses:
+    - name: set variable
+      behaviorName: Rules
+      params:
+        variableName: score
+        setToValue:
+          expression: variable + 1
+          variableName: score
+    - name: destroy
+      behaviorName: Rules
+      params: {}
+```
+
+**Display a variable as text** (score label):
+```yaml
+components:
+  Text:
+    content: "Score: 0"
+  Rules:
+    rules:
+      rule-0:
+        trigger:
+          name: variable changes
+          behaviorName: Rules
+          params:
+            variableName: score
+        responses:
+          - name: set behavior property
+            behaviorName: Rules
+            params:
+              behaviorName: Text
+              propertyName: content
+              value: "Score: $score"
+```
+
+For trigger/response/condition params not shown here, read **`.castle/BEHAVIORS.md`**.
 
 ### Physics
 
@@ -211,10 +258,13 @@ Castle uses **direct velocity control**, not force-based physics:
 
 - Set `Dynamic Motion.vx` / `Dynamic Motion.vy` in rules or Lua (`self.vx`, `self.vy`). There is no `applyForce` or `addImpulse`.
 - **`Dynamic Motion`** makes an actor physically simulated — responds to gravity, friction, and collisions; can push and be pushed by other dynamic actors. Add `Solid` to enable collision detection.
-- **`Fixed Motion`** moves at constant velocity. Its velocity cannot be changed by collisions or gravity — it blocks dynamic actors and triggers collision rules normally, but cannot be pushed. Useful for moving platforms, enemy patrols, or projectiles that should never be deflected.
+- **`Fixed Motion`** moves at constant velocity (`vx`, `vy` props). Its velocity cannot be changed by collisions or gravity — it blocks dynamic actors and triggers collision rules normally, but cannot be pushed. Useful for moving platforms, enemy patrols, or projectiles that should never be deflected.
 - **`Gravity`** pulls actors with `Dynamic Motion` downward (positive Y). Strength is scaled by 10 (e.g. a value of 4 = 40 units/s²).
 - **`Axis Lock`** with `rotates: false` prevents an actor from spinning. Actors won't rotate from physics unless you remove this behavior or set `rotates: true`.
 - **`Friction`** is placed on static actors (e.g. ground blocks) and slows down dynamic actors that touch them — not on the moving actor itself.
+- **`Bounce`** on a `Solid` + `Dynamic Motion` actor: `rebound: 1.0` (0–2; 1 = perfectly elastic, <1 = damped, >1 = hyperelastic).
+- **`Speed Limit`**: `maxSpeed: 8` — caps speed of a `Dynamic Motion` actor.
+- **`Tags`**: `tagsString: mytag` — tag this actor. Use `tag: mytag` in collide trigger `params` to filter by tag.
 
 ### Important notes
 

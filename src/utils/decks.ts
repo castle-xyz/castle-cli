@@ -455,8 +455,8 @@ export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
     fs.writeFileSync(agentsPath, cliDocs);
   }
 
-  // CLAUDE.md auto-loads AGENTS.md plus the reference files Claude reads on every task.
-  // Having them in CLAUDE.md eliminates the round-trip Read calls Claude would otherwise make.
+  // CLAUDE.md auto-loads only AGENTS.md — reference files (BEHAVIORS.md, EXAMPLES.md) are read
+  // on demand when needed. This keeps startup context small for fast first-response times.
   // Also include the card directory path so Claude doesn't need to glob for it.
   const claudePath = path.join(deckDir, 'CLAUDE.md');
   const cardDirs = fs.readdirSync(deckDir)
@@ -466,7 +466,7 @@ export async function writeDeckAgentFilesAsync(deckDir: string): Promise<void> {
     : cardDirs.length > 1
       ? `Card directories: ${cardDirs.map(d => `\`${d}/\``).join(', ')}\n\n`
       : '';
-  const claudeContent = `${cardLine}@AGENTS.md\n@.castle/BEHAVIORS.md\n@.castle/EXAMPLES.md\n`;
+  const claudeContent = `${cardLine}@AGENTS.md\n`;
   const existingClaude = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, 'utf8') : null;
   if (existingClaude !== claudeContent) {
     fs.writeFileSync(claudePath, claudeContent);
