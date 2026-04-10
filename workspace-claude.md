@@ -15,6 +15,12 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: There is NO `onCollide` callback handler for actor scripts. Detect collisions by polling `my:isColliding("tag")` or `my:getCollidingActors("tag")` inside `onUpdate(dt)`.
 - IMPORTANT: To destroy an actor, use `castle.destroyActor(my)` or `castle.destroyActor(otherActor)`. There is no `my:destroy()` method.
 - IMPORTANT: When you discover a misunderstanding about the Castle API or system (e.g. a function doesn't exist, a property name is wrong, a pattern doesn't work), add an IMPORTANT note to this CLAUDE.md file documenting the correct behavior so you remember it in future sessions.
+- IMPORTANT: `getCollidingActors` and `isColliding` only work with physics-based movement (Dynamic Motion / Moving behaviors). If actors move by setting `layout.x/y` directly, use manual distance checks instead: `local dx = a.layout.x - b.layout.x; local dy = a.layout.y - b.layout.y; if math.sqrt(dx*dx+dy*dy) < hitRadius then ...`
+- IMPORTANT: Camera follow is `my:followWithCamera()`, not `setCameraTarget` or any other name.
+- IMPORTANT: HUD actors that should stay on screen need `relativeToCamera: true` in their Layout. The camera follows the player so fixed-position actors will scroll off screen.
+- IMPORTANT: `onDraw` draws in actor-local coordinates where (-0.5,-0.5) to (0.5,0.5) is the actor's bounds. 1 unit = actor's width/height. So a `widthScale: 2` actor has 2 world units but still draws in -0.5 to 0.5 local coords.
+- IMPORTANT: Actors render in the order they were added (back to front). Use `layerName: back` or `layerName: front` to control layer, or `my:moveToFront()` / `my:moveToBack()` in scripts.
+- IMPORTANT: When using `node -e '...' | npx tsx src/index.ts edit` for edits, use single quotes for the outer shell string and escape carefully. For complex edits, build the JSON in JS and pipe with `process.stdout.write(JSON.stringify(edit))`.
 
 ## Structure
 
