@@ -8,10 +8,10 @@ Run `npm install` if `node_modules/` doesn't exist. Then start the CLI connectio
 
 ```bash
 npm install  # only if needed
-npx tsx src/index.ts &
+npx tsx src/index.ts
 ```
 
-Wait for it to log `[state]` — that means the app is connected and scene state has been synced to `workspace/`. Then read `workspace/CLAUDE.md` for the full workspace instructions.
+Run this in the background — it needs to stay running for the duration of the session. Wait for it to log `[state]` — that means the app is connected and scene state has been synced to `workspace/`. Then read `workspace/CLAUDE.md` for the full workspace instructions.
 
 ## Commands
 
