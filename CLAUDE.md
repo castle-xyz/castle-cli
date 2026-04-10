@@ -4,9 +4,10 @@ Bridge between the Castle app and a local workspace for AI-assisted game develop
 
 ## First thing to do
 
-Start the CLI connection in the background. The user should already have a deck open in the Castle editor.
+Run `npm install` if `node_modules/` doesn't exist. Then start the CLI connection in the background. The user should already have a deck open in the Castle editor.
 
 ```bash
+npm install  # only if needed
 npx tsx src/index.ts &
 ```
 

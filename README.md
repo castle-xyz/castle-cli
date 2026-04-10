@@ -1,21 +1,16 @@
 ## Setup
 
-### 1. Run the Castle app from the `@nikki/cli-4` branch
-
-Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch.
-
-### 2. Install the CLI
+### 1. Clone this repo as a sibling of castle-client
 
 ```bash
-cd castle-cli-4
-npm install
+git clone git@github.com:nikki93/castle-cli-4.git
 ```
 
-### 3. Open a deck in the Castle editor
+### 2. Run the Castle app from the `@nikki/cli-4` branch
 
-Open the Castle app, create or open a deck, and enter the editor.
+Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch. Open the editor on a deck.
 
-### 4. Run Claude
+### 3. Run Claude
 
 ```bash
 cd castle-cli-4
