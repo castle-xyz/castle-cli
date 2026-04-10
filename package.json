@@ -1,0 +1,23 @@
+{
+  "name": "castle-cli-4",
+  "version": "0.1.0",
+  "description": "Castle CLI — script editing bridge",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "axios": "^1.13.5",
+    "chokidar": "^4.0.3",
+    "open": "^11.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
