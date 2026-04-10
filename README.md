@@ -8,7 +8,7 @@ git clone git@github.com:nikki93/castle-cli-4.git
 
 ### 2. Run the Castle app from the `@nikki/cli-4` branch
 
-Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch. Open the editor on a deck.
+Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
 
 ### 3. Run Claude
 
