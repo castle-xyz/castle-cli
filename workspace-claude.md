@@ -68,7 +68,22 @@ IMPORTANT: When placing many actors with calculated positions (grids, patterns, 
 
 ## Scene Edit Format (`castle edit`)
 
-Pipe JSON to `npx tsx src/index.ts edit`. The JSON has three optional top-level keys: `blueprints`, `actors`, `variables`.
+Pipe JSON to `npx tsx src/index.ts edit`. Do NOT save edit JSON to persistent files — use one-off approaches:
+
+```bash
+# Option 1: here doc
+npx tsx src/index.ts edit <<'EDIT'
+{"description": "add enemy", "blueprints": {"new-enemy": {"forkBlueprintId": "default-blueprint-1", "title": "Enemy", "replaceDrawing": "red circle"}}}
+EDIT
+
+# Option 2: echo pipe
+echo '{"description": "remove actor", "actors": {"5": {"removeActor": true}}}' | npx tsx src/index.ts edit
+
+# Option 3: node script for complex/calculated edits
+node -e 'const e = {description:"add grid", actors:{}}; for(let i=0;i<5;i++) e.actors["a"+i]={title:"Block",components:"Layout:\n  x: "+(i*2-4)+"\n  y: 0"}; process.stdout.write(JSON.stringify(e))' | npx tsx src/index.ts edit
+```
+
+The JSON has three optional top-level keys: `blueprints`, `actors`, `variables`.
 
 ### Blueprints
 

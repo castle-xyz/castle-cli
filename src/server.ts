@@ -195,6 +195,16 @@ export class CLIServer {
       }
     }
 
+    const currentSlugs = new Set(Object.keys(state.scripts));
+
+    for (const slug of existingScripts) {
+      if (!currentSlugs.has(slug)) {
+        const filePath = path.join(scriptDir, `${slug}.lua`);
+        fs.unlinkSync(filePath);
+        log('scripts', `removed stale: ${slug}.lua`);
+      }
+    }
+
     for (const [slug, code] of Object.entries(state.scripts)) {
       const filePath = path.join('scripts', `${slug}.lua`);
       if (!existingScripts.has(slug)) {
