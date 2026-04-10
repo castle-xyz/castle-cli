@@ -1,64 +1,86 @@
-import * as fs from 'fs';
+import * as net from 'net';
 import * as path from 'path';
-import WebSocket from 'ws';
+import * as fs from 'fs';
 
-const WS_URL = 'wss://ws.castlexyz.com/ws';
+const SOCK_PATH = path.join('workspace', '.castle', 'cli.sock');
 
-export async function sendCommand(token: string, command: string, filename?: string) {
-  const ws = new WebSocket(`${WS_URL}?token=${token}`);
-
-  const send = (data: any) => {
-    ws.send(JSON.stringify({ type: 'cli_tunnel_send_message', ...data }));
-  };
-
-  return new Promise<void>((resolve, reject) => {
+function sendToServer(request: any): Promise<any> {
+  return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      console.error('timed out waiting for response');
-      ws.close();
-      reject(new Error('timeout'));
-    }, 10000);
+      client.destroy();
+      reject(new Error('timed out'));
+    }, 30000);
 
-    ws.on('open', () => {
-      ws.send(JSON.stringify({ type: 'cli_tunnel_start_listening' }));
+    const client = net.createConnection(SOCK_PATH, () => {
+      client.write(JSON.stringify(request) + '\n');
+    });
 
-      if (command === 'restart') {
-        send({ innerType: 'cli4_restart' });
-        console.log('restart sent');
+    let data = '';
+    client.on('data', (chunk) => {
+      data += chunk.toString();
+      if (data.includes('\n')) {
         clearTimeout(timeout);
-        ws.close();
-        resolve();
-      } else if (command === 'screenshot') {
-        send({ innerType: 'cli4_screenshot' });
-        console.log('screenshot requested, waiting...');
+        client.end();
+        try {
+          resolve(JSON.parse(data.trim()));
+        } catch {
+          resolve({ error: 'invalid response' });
+        }
       }
     });
 
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString());
-        if (msg.type === 'cli_tunnel_send_message' && msg.innerType === 'cli4_screenshot_data') {
-          const data = msg.data;
-          const outPath = filename || path.join('workspace', '.castle', 'screenshots', `${Date.now()}.png`);
-          const dir = path.dirname(outPath);
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(outPath, Buffer.from(data, 'base64'));
-
-          const latestDir = path.join('workspace', '.castle', 'screenshots');
-          if (!fs.existsSync(latestDir)) fs.mkdirSync(latestDir, { recursive: true });
-          fs.copyFileSync(outPath, path.join(latestDir, 'latest.png'));
-
-          console.log(`screenshot saved: ${outPath}`);
-          clearTimeout(timeout);
-          ws.close();
-          resolve();
-        }
-      } catch {}
-    });
-
-    ws.on('error', (err) => {
+    client.on('error', (err: any) => {
       clearTimeout(timeout);
-      console.error('connection error:', err.message);
-      reject(err);
+      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
+        reject(new Error('CLI server not running. Start it first: npx tsx src/index.ts'));
+      } else {
+        reject(err);
+      }
     });
   });
+}
+
+function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    let data = '';
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', (chunk) => (data += chunk));
+    process.stdin.on('end', () => resolve(data));
+  });
+}
+
+export async function sendCommand(command: string, arg?: string) {
+  if (command === 'restart') {
+    const result = await sendToServer({ command: 'restart' });
+    if (result.error) {
+      console.error('restart failed:', result.error);
+    } else {
+      console.log('restart sent');
+    }
+  } else if (command === 'screenshot') {
+    const result = await sendToServer({ command: 'screenshot', filename: arg });
+    if (result.error) {
+      console.error('screenshot failed:', result.error);
+    } else {
+      console.log(`screenshot saved: ${result.path}`);
+    }
+  } else if (command === 'edit') {
+    const input = await readStdin();
+    let args: any;
+    try {
+      args = JSON.parse(input);
+    } catch {
+      console.error('failed to parse JSON input');
+      process.exit(1);
+    }
+    const result = await sendToServer({ command: 'edit', args });
+    if (result.error) {
+      console.error('edit failed:', result.error);
+    } else {
+      console.log('edit applied successfully');
+      if (result.blueprintIdMapping && Object.keys(result.blueprintIdMapping).length > 0) {
+        console.log('blueprint ID mapping:', JSON.stringify(result.blueprintIdMapping, null, 2));
+      }
+    }
+  }
 }

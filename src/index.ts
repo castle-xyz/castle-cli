@@ -5,12 +5,12 @@ import { getToken, setToken } from './config.js';
 import * as API from './api.js';
 import { sendCommand } from './command.js';
 
-async function login(quiet = false): Promise<string> {
+async function login(): Promise<string> {
   const token = getToken();
   if (token) {
     const user = await API.me();
     if (user) {
-      if (!quiet) console.log(`logged in as ${user.username}`);
+      console.log(`logged in as ${user.username}`);
       return token;
     }
     console.log('saved token expired, logging in again...');
@@ -48,6 +48,7 @@ Commands:
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
+  edit                   Apply scene edits (reads JSON from stdin)
 
 Options:
   --help, -h             Show this help
@@ -55,10 +56,9 @@ Options:
     process.exit(0);
   }
 
-  if (command === 'restart' || command === 'screenshot') {
-    const token = await login(true);
-    const filename = command === 'screenshot' ? args[1] : undefined;
-    await sendCommand(token, command, filename);
+  if (command === 'restart' || command === 'screenshot' || command === 'edit') {
+    const arg = command === 'screenshot' ? args[1] : undefined;
+    await sendCommand(command, arg);
     return;
   }
 
