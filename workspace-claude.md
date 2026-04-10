@@ -11,7 +11,7 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: Check `workspace/scene/script-property-names.md` for property name differences between scripts and YAML.
 - IMPORTANT: Always check `workspace/.castle/logs.txt` after restarting to see script errors. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
 - IMPORTANT: After ANY script change, restart and immediately check logs for errors before doing anything else.
-- IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.body.x`. There is no `body` accessor.
+- IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.layout.x`. There is no `body` accessor.
 - IMPORTANT: There is NO `onCollide` callback handler for actor scripts. Detect collisions by polling `my:isColliding("tag")` or `my:getCollidingActors("tag")` inside `onUpdate(dt)`.
 - IMPORTANT: To destroy an actor, use `castle.destroyActor(my)` or `castle.destroyActor(otherActor)`. There is no `my:destroy()` method.
 - IMPORTANT: When you discover a misunderstanding about the Castle API or system (e.g. a function doesn't exist, a property name is wrong, a pattern doesn't work), add an IMPORTANT note to this CLAUDE.md file documenting the correct behavior so you remember it in future sessions.
@@ -286,7 +286,7 @@ Fork blueprints, add actors, create variables, all in one call:
       "forkBlueprintId": "default-blueprint-7",
       "title": "Player",
       "components": "Layout:\n  widthScale: 3\n  heightScale: 3\nTags:\n  tagsString: player",
-      "script": [{ "code": "function onUpdate(dt)\n  local tx, ty = castle.getTouchPosition()\n  if tx then\n    my.dynamicMotion.vx = (tx - my.body.x) * 5\n  end\nend" }]
+      "script": [{ "code": "function onUpdate(dt)\n  local tx, ty = castle.getTouchPosition()\n  if tx then\n    my.dynamicMotion.vx = (tx - my.layout.x) * 5\n  end\nend" }]
     },
     "new-block": {
       "forkBlueprintId": "default-blueprint-1",
@@ -313,7 +313,7 @@ Scripts use Luau (Lua 5.1 with types). Key handlers:
 - `onMessage(message, triggeringActor)` — called when actor receives a message
 - `onCollide(otherActor)` — called on collision
 
-Access actor properties: `my.body.x`, `my.body.y`, `my.layout.rotation`, `my.dynamicMotion.vx`, etc.
+Access actor properties: `my.layout.x`, `my.layout.y`, `my.layout.rotation`, `my.dynamicMotion.vx`, etc. Other actors: `otherActor.layout.x`, etc.
 Behavior names in scripts use camelCase without spaces: Layout→`layout`, Dynamic Motion→`dynamicMotion`, Slow Down→`slowDown`.
 
 Key functions (verify in scripting-reference.md before using):
