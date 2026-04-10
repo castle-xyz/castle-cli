@@ -331,7 +331,8 @@ export class CLIServer {
       const prefix = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'LOG';
       const blueprint = entry.blueprintTitle ? ` [${entry.blueprintTitle}]` : '';
       const count = entry.count > 1 ? ` (x${entry.count})` : '';
-      return `[${prefix}]${blueprint} ${entry.log}${count}`;
+      const ts = new Date().toISOString().substring(11, 23);
+      return `[${ts}] [${prefix}]${blueprint} ${entry.log}${count}`;
     });
 
     for (const entry of logs) {
@@ -421,6 +422,9 @@ export class CLIServer {
     log('ipc', 'command:', command);
 
     if (command === 'restart') {
+      const logsPath = path.join(this.dir, '.castle', 'logs.txt');
+      const ts = new Date().toISOString().substring(11, 23);
+      try { fs.appendFileSync(logsPath, `\n--- restart ${ts} ---\n`); } catch {}
       this._sendToApp({ innerType: 'cli4_restart' });
       respond({ ok: true });
     } else if (command === 'screenshot') {
