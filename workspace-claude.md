@@ -22,6 +22,15 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: Actors render in the order they were added (back to front). Use `layerName: back` or `layerName: front` to control layer, or `my:moveToFront()` / `my:moveToBack()` in scripts.
 - IMPORTANT: For HUD/UI actors that should stay fixed on screen, you MUST use `layerName: camera` (not just `relativeToCamera: true`). The `camera` layer is what actually makes actors follow the camera. Setting `relativeToCamera: true` alone does NOT work.
 - IMPORTANT: When using `node -e '...' | npx tsx src/index.ts edit` for edits, use single quotes for the outer shell string and escape carefully. For complex edits, build the JSON in JS and pipe with `process.stdout.write(JSON.stringify(edit))`.
+- IMPORTANT: Screenshots show whatever state the app is currently in — edit mode or play mode. If you want to see the running game, restart first. Don't assume a screenshot shows play state.
+- IMPORTANT: Physics collision shapes are 1x1 squares by default regardless of widthScale/heightScale. The visual size changes but the collision box stays 1x1. Work with this constraint.
+- IMPORTANT: When forking from Empty blueprint (`default-blueprint-1`) or Drawing (`default-blueprint-0`), you MUST provide `replaceDrawing`. If you forget, a random color is chosen.
+- IMPORTANT: Actors added in the same edit call are ordered back-to-front in the order they appear. Add background actors first, then game actors, then UI/HUD actors.
+- IMPORTANT: The `onDraw` handler completely replaces the actor's default sprite/drawing. If you define `onDraw`, the colored shape from `replaceDrawing` won't render — only your draw code.
+- IMPORTANT: Text behavior content renders independently from `onDraw`. If a blueprint has both Text and a Script with `onDraw`, the text will show on top of your custom drawing. Set `my.text.content = ""` in `onCreate()` to clear it.
+- IMPORTANT: `castle.getTouches()` returns a table of touch objects. Each has `x`, `y`, `pressed` (true only the frame it began), `released`, `id`, `deltaX`, `deltaY`. Use `touch.pressed` for tap detection, not just presence in the table.
+- IMPORTANT: `math.randomseed` with `os.clock()` alone may produce the same sequence across restarts. Combine with `castle.getTime()` and call `math.random()` a few times after seeding to get better randomness.
+- IMPORTANT: When editing scripts via the edit command (not file edits), the local `.lua` files won't be updated automatically. The app gets the new script but the workspace file keeps the old version. Prefer editing the `.lua` files directly for scripts.
 
 ## Structure
 
