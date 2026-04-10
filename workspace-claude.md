@@ -20,6 +20,7 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: HUD actors that should stay on screen need `relativeToCamera: true` in their Layout. The camera follows the player so fixed-position actors will scroll off screen.
 - IMPORTANT: `onDraw` draws in actor-local coordinates where (-0.5,-0.5) to (0.5,0.5) is the actor's bounds. 1 unit = actor's width/height. So a `widthScale: 2` actor has 2 world units but still draws in -0.5 to 0.5 local coords.
 - IMPORTANT: Actors render in the order they were added (back to front). Use `layerName: back` or `layerName: front` to control layer, or `my:moveToFront()` / `my:moveToBack()` in scripts.
+- IMPORTANT: For HUD/UI actors that should stay fixed on screen, you MUST use `layerName: camera` (not just `relativeToCamera: true`). The `camera` layer is what actually makes actors follow the camera. Setting `relativeToCamera: true` alone does NOT work.
 - IMPORTANT: When using `node -e '...' | npx tsx src/index.ts edit` for edits, use single quotes for the outer shell string and escape carefully. For complex edits, build the JSON in JS and pipe with `process.stdout.write(JSON.stringify(edit))`.
 
 ## Structure
