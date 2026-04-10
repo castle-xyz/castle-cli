@@ -6,11 +6,19 @@
 git clone git@github.com:nikki93/castle-cli-4.git
 ```
 
-### 2. Run the Castle app from the `@nikki/cli-4` branch
+### 2. Clone castle-docs as a sibling
+
+The CLI copies Castle's scripting documentation into the workspace for the AI to reference.
+
+```bash
+git clone git@github.com:castle-xyz/castle-docs.git
+```
+
+### 3. Run the Castle app from the `@nikki/cli-4` branch
 
 Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
 
-### 3. Run Claude
+### 4. Run Claude
 
 ```bash
 cd castle-cli-4
