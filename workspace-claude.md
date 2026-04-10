@@ -4,11 +4,11 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 
 ## IMPORTANT — Read Before Doing Anything
 
-- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Read `workspace/context/scripting-reference.md` and `workspace/context/docs/`. Do NOT guess function names.
+- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Read `workspace/scene/scripting-reference.md` and `workspace/scene/docs/`. Do NOT guess function names.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.
 - IMPORTANT: `castle.draw.*` functions ONLY work inside `onDraw()`. They do nothing elsewhere.
-- IMPORTANT: Check `workspace/context/script-property-names.md` for property name differences between scripts and YAML.
+- IMPORTANT: Check `workspace/scene/script-property-names.md` for property name differences between scripts and YAML.
 - IMPORTANT: Always check `workspace/.castle/logs.txt` after restarting to see script errors. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
 - IMPORTANT: After ANY script change, restart and immediately check logs for errors before doing anything else.
 - IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.body.x`. There is no `body` accessor.
@@ -19,7 +19,7 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 ## Structure
 
 - `workspace/scripts/*.lua` — Editable Lua scripts, one per blueprint. Changes auto-sync to the app.
-- `workspace/context/` — Read-only scene state, auto-updated by the app:
+- `workspace/scene/` — Read-only scene state, auto-updated by the app:
   - `blueprints.yaml` — All blueprints with behaviors, components, and properties
   - `actors.yaml` — Actor instances with positions
   - `variables.yaml` — Deck variables
@@ -48,10 +48,11 @@ npx tsx src/index.ts edit < edit.json           # apply scene edits (blueprints,
 ## Workflow
 
 1. Edit `workspace/scripts/*.lua` — changes auto-sync to the app
-2. `npx tsx src/index.ts restart` — restart to see changes running
-3. `npx tsx src/index.ts screenshot` — capture the result (check workspace/.castle/screenshots/latest.png)
-4. Check `workspace/.castle/logs.txt` for errors after restart
-5. Use `npx tsx src/index.ts edit` to add/edit/remove blueprints, actors, and variables
+2. Use `npx tsx src/index.ts edit` to add/edit/remove blueprints, actors, and variables
+3. `npx tsx src/index.ts restart` — restart to see changes running. Scripts only take effect after restart.
+4. Check `workspace/.castle/logs.txt` for errors — look AFTER the latest `--- restart ---` marker
+5. `npx tsx src/index.ts screenshot` — capture the result. NOTE: screenshots show whatever state the app is in. If you want to see the running scene, restart first. If the user is in the editor, the screenshot will show the editor view.
+6. Only use screenshots when you need to verify visual results — not every change needs one
 
 ## Coordinate System & Scale
 
@@ -61,6 +62,10 @@ npx tsx src/index.ts edit < edit.json           # apply scene edits (blueprints,
 - `widthScale` and `heightScale` are provided as normal values (e.g., 1.5 = 150%). The system handles internal conversion.
 - Gravity strength is scaled by 10 — 1 unit of gravity = 10 units/s².
 
+IMPORTANT: Before ANY coordinate-based positioning or logic, explicitly reason about the Castle coordinate system: positive Y is DOWN, X range is -5 to 5, Y range is -7 to 7. Top of screen is negative Y, bottom is positive Y.
+
+IMPORTANT: When placing many actors with calculated positions (grids, patterns, etc.) where the positions aren't obvious, prefer writing a small JS/Node script to generate the edit JSON rather than hand-computing coordinates. This avoids math errors. Example: `node -e "..." | npx tsx src/index.ts edit`
+
 ## Scene Edit Format (`castle edit`)
 
 Pipe JSON to `npx tsx src/index.ts edit`. The JSON has three optional top-level keys: `blueprints`, `actors`, `variables`.
@@ -68,7 +73,7 @@ Pipe JSON to `npx tsx src/index.ts edit`. The JSON has three optional top-level 
 ### Blueprints
 
 All new blueprints must be created by **forking** an existing one. You cannot create from scratch. Use `forkBlueprintId` with either:
-- A blueprint ID from the current deck (see `workspace/context/blueprints.yaml`)
+- A blueprint ID from the current deck (see `workspace/scene/blueprints.yaml`)
 - A default template ID: `default-blueprint-0` (Drawing), `default-blueprint-1` (Empty blueprint), `default-blueprint-2` (Text), `default-blueprint-3` (Portal), `default-blueprint-4` (Mirror), `default-blueprint-5` (Wall), `default-blueprint-6` (Ball), `default-blueprint-7` (Character), `default-blueprint-8` (Tracking Camera), `default-blueprint-9` (Creature), `default-blueprint-10` (Border), `default-blueprint-11` (Background), `default-blueprint-12` (Collectible), `default-blueprint-13` (Score Counter)
 
 The `components` field is a **YAML string** using **display names** for behaviors (e.g., "Layout", "Dynamic Motion", "Solid", "Tags", "Drawing", "Friction", "Bounce", "Gravity", "Slow Down", "Speed Limit", "Axis Lock").

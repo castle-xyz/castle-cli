@@ -56,7 +56,7 @@ export class CLIServer {
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
     this.sockPath = path.join(dir, '.castle', 'cli.sock');
 
-    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'context'), path.join(dir, '.castle'), this.screenshotsDir]) {
+    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     }
 
@@ -179,13 +179,13 @@ export class CLIServer {
 
     this.writingFiles = true;
 
-    this._writeFile('context/blueprints.yaml', state.blueprints);
-    this._writeFile('context/actors.yaml', state.actors);
-    this._writeFile('context/variables.yaml', state.variables);
-    this._writeFile('context/behaviors.yaml', state.behaviors);
-    this._writeFile('context/rules.yaml', state.rules);
-    this._writeFile('context/scripting-reference.md', state.scriptingReference);
-    this._writeFile('context/script-property-names.md', state.scriptPropertyNamePrompt);
+    this._writeFile('scene/blueprints.yaml', state.blueprints);
+    this._writeFile('scene/actors.yaml', state.actors);
+    this._writeFile('scene/variables.yaml', state.variables);
+    this._writeFile('scene/behaviors.yaml', state.behaviors);
+    this._writeFile('scene/rules.yaml', state.rules);
+    this._writeFile('scene/scripting-reference.md', state.scriptingReference);
+    this._writeFile('scene/script-property-names.md', state.scriptPropertyNamePrompt);
 
     const scriptDir = path.join(this.dir, 'scripts');
     const existingScripts = new Set<string>();
@@ -232,7 +232,7 @@ export class CLIServer {
 
   private _copyDocs() {
     const docsSource = path.resolve(this.dir, '../../castle-docs/docs/scripts');
-    const docsDest = path.join(this.dir, 'context', 'docs');
+    const docsDest = path.join(this.dir, 'scene', 'docs');
 
     if (!fs.existsSync(docsSource)) {
       log('docs', `castle-docs not found at ${docsSource}, skipping`);
@@ -255,7 +255,7 @@ export class CLIServer {
     };
 
     copyRecursive(docsSource, docsDest);
-    log('docs', 'copied castle docs to context/docs/');
+    log('docs', 'copied castle docs to scene/docs/');
   }
 
   private _writeGitignore() {
@@ -264,7 +264,7 @@ export class CLIServer {
     if (fs.existsSync(gitignorePath)) {
       content = fs.readFileSync(gitignorePath, 'utf-8');
     }
-    for (const entry of ['.castle/', 'context/', 'CLAUDE.md']) {
+    for (const entry of ['.castle/', 'scene/', 'CLAUDE.md']) {
       if (!content.includes(entry)) {
         content += (content.length > 0 && !content.endsWith('\n') ? '\n' : '') + entry + '\n';
       }

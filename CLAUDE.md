@@ -20,7 +20,7 @@ This connects to the Castle app via tunnel. Open a deck in the Castle editor fir
 
 The CLI writes to `workspace/`:
 - `scripts/*.lua` — one Lua file per blueprint that has a script (editable)
-- `context/` — read-only scene state (blueprints, actors, variables, behaviors, rules, docs)
+- `scene/` — read-only scene state (blueprints, actors, variables, behaviors, rules, docs)
 - `CLAUDE.md` — auto-generated instructions for the AI working in the workspace
 - `.castle/logs.txt` — script logs and errors from the running scene
 
@@ -49,7 +49,7 @@ Captures what's currently on screen. Saved to `workspace/.castle/screenshots/` b
 
 IMPORTANT: Run the CLI (`npx tsx src/index.ts`) in the background in a separate terminal. Use `restart` and `screenshot` subcommands from another terminal.
 
-IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Read `context/scripting-reference.md` and `context/docs/`. Do NOT guess function names — if it's not documented, it doesn't exist.
+IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Read `scene/scripting-reference.md` and `scene/docs/`. Do NOT guess function names — if it's not documented, it doesn't exist.
 
 IMPORTANT: After editing a script, run `npx tsx src/index.ts restart` to restart the scene, then `npx tsx src/index.ts screenshot` to see the result. Always check `.castle/logs.txt` for errors.
 
@@ -57,9 +57,9 @@ IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castl
 
 IMPORTANT: Only `scripts/` files are editable. If you need new blueprints, new actors, behavior changes, or property edits (e.g. making something solid, changing size, adding tags) — tell the user, as those must be done in the Castle app.
 
-IMPORTANT: Check `context/script-property-names.md` for name differences between YAML property names and script property names (e.g. `angle` in YAML is `rotation` in scripts).
+IMPORTANT: Check `scene/script-property-names.md` for name differences between YAML property names and script property names (e.g. `angle` in YAML is `rotation` in scripts).
 
-IMPORTANT: Context files in `context/` use display names for behaviors (e.g. "Layout", "Dynamic Motion", "Slow Down") not internal names. Scripts access behaviors using camelCase versions without spaces (e.g. `my.layout`, `my.dynamicMotion`, `my.slowDown`).
+IMPORTANT: Context files in `scene/` use display names for behaviors (e.g. "Layout", "Dynamic Motion", "Slow Down") not internal names. Scripts access behaviors using camelCase versions without spaces (e.g. `my.layout`, `my.dynamicMotion`, `my.slowDown`).
 
 ## Architecture
 
