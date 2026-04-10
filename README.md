@@ -1,14 +1,8 @@
 ## Setup
 
-### 1. Build the Castle app from the CLI branch
+### 1. Run the Castle app from the `@nikki/cli-4` branch
 
-In the [castle-client](https://github.com/castle-xyz/castle-client) repo:
-
-```bash
-git checkout @nikki/cli-4
-cd mobile && yarn
-# Build and run for your platform (iOS simulator, device, etc.)
-```
+Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch.
 
 ### 2. Install the CLI
 
