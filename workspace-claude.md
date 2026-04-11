@@ -25,7 +25,7 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: Actors render in the order they were added (back to front). Use `layerName: back` or `layerName: front` to control layer, or `my:moveToFront()` / `my:moveToBack()` in scripts.
 - IMPORTANT: For HUD/UI actors that should stay fixed on screen, you MUST use `layerName: camera` (not just `relativeToCamera: true`). The `camera` layer is what actually makes actors follow the camera. Setting `relativeToCamera: true` alone does NOT work.
 - IMPORTANT: When using `node -e '...' | npx tsx src/index.ts edit` for edits, use single quotes for the outer shell string and escape carefully. For complex edits, build the JSON in JS and pipe with `process.stdout.write(JSON.stringify(edit))`.
-- IMPORTANT: Screenshots show whatever state the app is currently in — edit mode or play mode. If you want to see the running game, restart first. Don't assume a screenshot shows play state.
+- IMPORTANT: Screenshots show whatever state the app is in — the user may be in the editor or in play mode. Both are useful: edit mode shows onDraw previews on actors, play mode shows the running game.
 - IMPORTANT: Physics collision shapes are 1x1 squares by default regardless of widthScale/heightScale. The visual size changes but the collision box stays 1x1. Work with this constraint.
 - IMPORTANT: When forking from Empty blueprint (`default-blueprint-1`) or Drawing (`default-blueprint-0`), you MUST provide `replaceDrawing`. If you forget, a random color is chosen.
 - IMPORTANT: Actors added in the same edit call are ordered back-to-front in the order they appear. Add background actors first, then game actors, then UI/HUD actors.
@@ -39,7 +39,7 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 
 - `workspace/scripts/*.lua` — Editable Lua scripts, one per blueprint. Changes auto-sync to the app.
 - `workspace/scene/` — Read-only scene state, auto-updated by the app:
-  - `blueprints.yaml` — All blueprints with behaviors, components, and properties
+  - `blueprints/<slug>.yaml` — One file per blueprint (same slugs as scripts). Each contains behaviors, components, and properties for that blueprint. ALWAYS read the relevant blueprint YAML files before making changes — don't guess at structure or properties.
   - `actors.yaml` — Actor instances with positions
   - `variables.yaml` — Deck variables
   - `behaviors.yaml` — Available behavior types and properties
@@ -49,6 +49,8 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
   - `docs/` — Castle documentation and tutorials
 - `workspace/.castle/logs.txt` — Script logs and errors from the running scene
 - `workspace/.castle/screenshots/` — Captured screenshots (latest.png is most recent)
+
+IMPORTANT: Blueprint files and script files use the same slug naming (based on blueprint title). For example, a blueprint titled "Obstacle Bumper" has `blueprints/obstacle-bumper.yaml` and `scripts/obstacle-bumper.lua`. Always read both the blueprint YAML and the script when working on a blueprint — bias toward reading more files than you think you need to understand how things fit together and whether changes could break something else.
 
 ## Commands
 
@@ -107,7 +109,7 @@ The JSON has three optional top-level keys: `blueprints`, `actors`, `variables`.
 ### Blueprints
 
 All new blueprints must be created by **forking** an existing one. You cannot create from scratch. Use `forkBlueprintId` with either:
-- A blueprint ID from the current deck (see `workspace/scene/blueprints.yaml`)
+- A blueprint ID from the current deck (see `workspace/scene/blueprints/*.yaml`)
 - A default template ID: `default-blueprint-0` (Drawing), `default-blueprint-1` (Empty blueprint), `default-blueprint-2` (Text), `default-blueprint-3` (Portal), `default-blueprint-4` (Mirror), `default-blueprint-5` (Wall), `default-blueprint-6` (Ball), `default-blueprint-7` (Character), `default-blueprint-8` (Tracking Camera), `default-blueprint-9` (Creature), `default-blueprint-10` (Border), `default-blueprint-11` (Background), `default-blueprint-12` (Collectible), `default-blueprint-13` (Score Counter)
 
 The `components` field is a **YAML string** using **display names** for behaviors (e.g., "Layout", "Dynamic Motion", "Solid", "Tags", "Drawing", "Friction", "Bounce", "Gravity", "Slow Down", "Speed Limit", "Axis Lock").
@@ -153,7 +155,7 @@ IMPORTANT: `components` values are YAML strings. Properties must be constants, n
 }
 ```
 
-#### Edit existing blueprint (use actual entryId from blueprints.yaml):
+#### Edit existing blueprint (use actual entryId from blueprints/*.yaml):
 ```json
 {
   "description": "make wall bouncy",

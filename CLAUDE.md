@@ -26,7 +26,8 @@ npx tsx src/index.ts edit         # apply scene edits (pipe JSON to stdin)
 
 The connection writes to `workspace/`:
 - `scripts/*.lua` — editable Lua scripts, one per blueprint. Changes auto-sync to the app.
-- `scene/` — read-only scene state (blueprints, actors, variables, behaviors, rules, docs)
+- `scene/blueprints/<slug>.yaml` — one file per blueprint (same slugs as scripts)
+- `scene/` — read-only scene state (actors, variables, behaviors, rules, docs)
 - `CLAUDE.md` — detailed instructions for working in the workspace (read this!)
 - `.castle/logs.txt` — script logs and errors
 - `.castle/screenshots/` — captured screenshots (latest.png)

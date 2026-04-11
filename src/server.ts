@@ -12,7 +12,7 @@ interface StateMessage {
   innerType: 'cli4_state';
   cardId: string;
   deckId: string;
-  blueprints: string;
+  blueprints: Record<string, string>;
   actors: string;
   variables: string;
   behaviors: string;
@@ -58,9 +58,15 @@ export class CLIServer {
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
     this.sockPath = path.join(dir, '.castle', 'cli.sock');
 
-    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
+    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, 'scene', 'blueprints'), path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     }
+
+    const contextDir = path.join(dir, 'context');
+    if (fs.existsSync(contextDir)) fs.rmSync(contextDir, { recursive: true });
+
+    const staleBlueprintsFile = path.join(dir, 'scene', 'blueprints.yaml');
+    if (fs.existsSync(staleBlueprintsFile)) fs.unlinkSync(staleBlueprintsFile);
 
     this._writeGitignore();
   }
@@ -183,10 +189,12 @@ export class CLIServer {
   }
 
   private _clearWorkspace() {
-    for (const sub of ['scripts', 'scene']) {
+    for (const sub of ['scripts', 'scene', 'context']) {
       const p = path.join(this.dir, sub);
       if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
-      fs.mkdirSync(p, { recursive: true });
+    }
+    for (const sub of ['scripts', 'scene', 'scene/blueprints']) {
+      fs.mkdirSync(path.join(this.dir, sub), { recursive: true });
     }
     log('workspace', 'cleared');
   }
@@ -208,7 +216,27 @@ export class CLIServer {
       log('state', 'full sync');
     }
 
-    this._writeFile('scene/blueprints.yaml', state.blueprints);
+    const blueprintsDir = path.join(this.dir, 'scene', 'blueprints');
+    if (!fs.existsSync(blueprintsDir)) fs.mkdirSync(blueprintsDir, { recursive: true });
+
+    if (isFullSync) {
+      for (const f of fs.readdirSync(blueprintsDir)) {
+        if (f.endsWith('.yaml')) fs.unlinkSync(path.join(blueprintsDir, f));
+      }
+    } else {
+      const currentSlugs = new Set(Object.keys(state.blueprints));
+      for (const f of fs.readdirSync(blueprintsDir)) {
+        if (f.endsWith('.yaml') && !currentSlugs.has(f.replace('.yaml', ''))) {
+          fs.unlinkSync(path.join(blueprintsDir, f));
+          log('blueprints', `removed stale: ${f}`);
+        }
+      }
+    }
+
+    for (const [slug, yaml] of Object.entries(state.blueprints)) {
+      this._writeFile(path.join('scene', 'blueprints', `${slug}.yaml`), yaml);
+    }
+
     this._writeFile('scene/actors.yaml', state.actors);
     this._writeFile('scene/variables.yaml', state.variables);
     this._writeFile('scene/behaviors.yaml', state.behaviors);
