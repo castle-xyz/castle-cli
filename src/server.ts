@@ -43,6 +43,7 @@ export class CLIServer {
   private entryIdToSlug: Record<string, string> = {};
   private writingFiles = false;
   private needsFullSync = true;
+  private lastSyncedScripts: Record<string, string> = {};
 
   private screenshotsDir: string;
   private screenshotCounter = 0;
@@ -224,9 +225,10 @@ export class CLIServer {
     }
 
     if (isFullSync) {
-      // Full sync: write all scripts fresh from app
+      this.lastSyncedScripts = {};
       for (const [slug, code] of Object.entries(state.scripts)) {
         this._writeFile(path.join('scripts', `${slug}.lua`), code);
+        this.lastSyncedScripts[slug] = code;
         log('scripts', `synced: ${slug}.lua`);
       }
     } else {
@@ -337,6 +339,9 @@ export class CLIServer {
       }
 
       const code = fs.readFileSync(filePath, 'utf-8');
+      if (this.lastSyncedScripts[slug] === code) {
+        return;
+      }
       this.pendingScriptChanges.set(entryId, code);
       log('watcher', `script changed: ${slug}.lua`);
 
@@ -354,6 +359,7 @@ export class CLIServer {
     for (const [entryId, code] of this.pendingScriptChanges) {
       edits[entryId] = code;
       const slug = this.entryIdToSlug[entryId] || entryId;
+      this.lastSyncedScripts[slug] = code;
       log('send', `script edit: ${slug}`);
     }
     this.pendingScriptChanges.clear();
