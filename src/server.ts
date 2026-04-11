@@ -173,6 +173,8 @@ export class CLIServer {
       case 'cli4_bridge_hello':
         log('recv', 'bridge hello — card:', msg.cardId || 'unknown');
         this.needsFullSync = true;
+        this._sendToApp({ innerType: 'cli4_hello' });
+        log('tunnel', 'sent hello in response to bridge');
         break;
       default:
         log('recv', 'unknown:', innerType);
