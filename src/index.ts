@@ -49,6 +49,8 @@ Commands:
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
   edit                   Apply scene edits (reads JSON from stdin)
+  logs                   Show script logs since last restart
+  status                 Show connection and scene info
 
 Options:
   --help, -h             Show this help
@@ -56,7 +58,7 @@ Options:
     process.exit(0);
   }
 
-  if (command === 'restart' || command === 'screenshot' || command === 'edit') {
+  if (command === 'restart' || command === 'screenshot' || command === 'edit' || command === 'logs' || command === 'status') {
     const arg = command === 'screenshot' ? args[1] : undefined;
     await sendCommand(command, arg);
     return;

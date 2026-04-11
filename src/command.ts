@@ -77,9 +77,40 @@ export async function sendCommand(command: string, arg?: string) {
     if (result.error) {
       console.error('edit failed:', result.error);
     } else {
-      console.log('edit applied successfully');
+      const msg = result.summary ? `edit applied: ${result.summary}` : 'edit applied successfully';
+      console.log(msg);
       if (result.blueprintIdMapping && Object.keys(result.blueprintIdMapping).length > 0) {
         console.log('blueprint ID mapping:', JSON.stringify(result.blueprintIdMapping, null, 2));
+      }
+    }
+  } else if (command === 'logs') {
+    const logsPath = path.join('workspace', '.castle', 'logs.txt');
+    let content = '';
+    try { content = fs.readFileSync(logsPath, 'utf-8'); } catch {}
+    const lines = content.split('\n');
+    const lastRestart = lines.reduce((idx: number, line: string, i: number) =>
+      line.includes('--- restart') || line.includes('--- play') ? i : idx, -1);
+    const recent = lastRestart >= 0 ? lines.slice(lastRestart).join('\n').trim() : content.trim();
+    if (recent) {
+      console.log(recent);
+    } else {
+      console.log('(no logs)');
+    }
+  } else if (command === 'status') {
+    const result = await sendToServer({ command: 'status' });
+    if (result.error) {
+      console.error('status failed:', result.error);
+    } else {
+      console.log(`connected: ${result.connected}`);
+      console.log(`blueprints: ${result.blueprints}`);
+      console.log(`scripts: ${result.scripts}`);
+      console.log(`workspace: ${result.workspace}`);
+      if (result.slugMap && Object.keys(result.slugMap).length > 0) {
+        console.log('blueprint mapping:');
+        for (const [slug, id] of Object.entries(result.slugMap)) {
+          const hasScript = fs.existsSync(path.join('workspace', 'scripts', `${slug}.lua`));
+          console.log(`  ${slug}${hasScript ? ' (script)' : ''} → ${id}`);
+        }
       }
     }
   }

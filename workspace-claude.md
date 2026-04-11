@@ -4,7 +4,9 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 
 ## IMPORTANT — Read Before Doing Anything
 
-- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Read `workspace/scene/scripting-reference.md` and `workspace/scene/docs/`. Do NOT guess function names.
+- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Grep `workspace/scene/scripting-reference.md` and read `workspace/scene/docs/`. Do NOT guess function names.
+- IMPORTANT: Before adding behaviors to blueprints, check `workspace/scene/behaviors.yaml` for available behavior names and their properties.
+- IMPORTANT: Before adding rules, check `workspace/scene/rules.yaml` for available triggers, responses, conditions, and expressions.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.
 - IMPORTANT: `castle.draw.*` functions ONLY work inside `onDraw()`. They do nothing elsewhere.

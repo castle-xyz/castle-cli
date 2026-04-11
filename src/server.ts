@@ -444,6 +444,16 @@ export class CLIServer {
       const requestId = `edit-${Date.now()}`;
       this.pendingEdit = { respond };
       this._sendToApp({ innerType: 'cli4_edit', args: request.args, requestId });
+    } else if (command === 'status') {
+      respond({
+        connected: this.connected,
+        blueprints: Object.keys(this.slugToEntryId).length,
+        scripts: Object.keys(this.slugToEntryId).filter(slug =>
+          fs.existsSync(path.join(this.dir, 'scripts', `${slug}.lua`))
+        ).length,
+        slugMap: this.slugToEntryId,
+        workspace: this.dir,
+      });
     } else {
       respond({ error: `unknown command: ${command}` });
     }
