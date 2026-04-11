@@ -56,6 +56,12 @@ export class CLIServer {
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
     this.sockPath = path.join(dir, '.castle', 'cli.sock');
 
+    // Clear workspace on startup so we always get fresh state
+    for (const sub of ['scripts', 'scene']) {
+      const p = path.join(dir, sub);
+      if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
+    }
+
     for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     }
