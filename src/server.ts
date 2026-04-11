@@ -42,6 +42,7 @@ export class CLIServer {
   private slugToEntryId: Record<string, string> = {};
   private entryIdToSlug: Record<string, string> = {};
   private writingFiles = false;
+  private needsFullSync = true;
 
   private screenshotsDir: string;
   private screenshotCounter = 0;
@@ -55,12 +56,6 @@ export class CLIServer {
     this.token = token;
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
     this.sockPath = path.join(dir, '.castle', 'cli.sock');
-
-    // Clear workspace on startup so we always get fresh state
-    for (const sub of ['scripts', 'scene']) {
-      const p = path.join(dir, sub);
-      if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
-    }
 
     for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -103,6 +98,7 @@ export class CLIServer {
 
     this.ws.on('open', () => {
       this.connected = true;
+      this.needsFullSync = true;
       log('tunnel', 'connected');
 
       this.ws!.send(JSON.stringify({
@@ -127,8 +123,11 @@ export class CLIServer {
     this.ws.on('close', () => {
       const wasConnected = this.connected;
       this.connected = false;
-      log('tunnel', wasConnected ? 'disconnected' : 'connection failed');
-      this._scheduleReconnect();
+      if (wasConnected) {
+        log('tunnel', 'disconnected — restart CLI to reconnect');
+      } else {
+        log('tunnel', 'connection failed — is the Castle app running?');
+      }
     });
 
     this.ws.on('error', (err) => {
@@ -171,12 +170,28 @@ export class CLIServer {
       case 'cli4_edit_result':
         this._onEditResult(msg);
         break;
+      case 'cli4_bridge_hello':
+        log('recv', 'bridge hello — card:', msg.cardId || 'unknown');
+        this.needsFullSync = true;
+        break;
       default:
         log('recv', 'unknown:', innerType);
     }
   }
 
+  private _clearWorkspace() {
+    for (const sub of ['scripts', 'scene']) {
+      const p = path.join(this.dir, sub);
+      if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
+      fs.mkdirSync(p, { recursive: true });
+    }
+    log('workspace', 'cleared');
+  }
+
   private _onState(state: StateMessage) {
+    const isFullSync = this.needsFullSync;
+    this.needsFullSync = false;
+
     this.slugToEntryId = state.slugToEntryId;
     this.entryIdToSlug = {};
     for (const [slug, entryId] of Object.entries(state.slugToEntryId)) {
@@ -184,6 +199,11 @@ export class CLIServer {
     }
 
     this.writingFiles = true;
+
+    if (isFullSync) {
+      this._clearWorkspace();
+      log('state', 'full sync');
+    }
 
     this._writeFile('scene/blueprints.yaml', state.blueprints);
     this._writeFile('scene/actors.yaml', state.actors);
@@ -201,23 +221,28 @@ export class CLIServer {
       }
     }
 
-    const currentSlugs = new Set(Object.keys(state.scripts));
-
-    for (const slug of existingScripts) {
-      if (!currentSlugs.has(slug)) {
-        const filePath = path.join(scriptDir, `${slug}.lua`);
-        fs.unlinkSync(filePath);
-        log('scripts', `removed stale: ${slug}.lua`);
+    if (isFullSync) {
+      // Full sync: write all scripts fresh from app
+      for (const [slug, code] of Object.entries(state.scripts)) {
+        this._writeFile(path.join('scripts', `${slug}.lua`), code);
+        log('scripts', `synced: ${slug}.lua`);
       }
-    }
-
-    for (const [slug, code] of Object.entries(state.scripts)) {
-      const filePath = path.join('scripts', `${slug}.lua`);
-      if (!existingScripts.has(slug)) {
-        this._writeFile(filePath, code);
-        log('scripts', `wrote new: ${slug}.lua`);
-      } else {
-        log('scripts', `keeping local: ${slug}.lua`);
+    } else {
+      // Incremental: remove stale, keep local, write new
+      const currentSlugs = new Set(Object.keys(state.scripts));
+      for (const slug of existingScripts) {
+        if (!currentSlugs.has(slug)) {
+          fs.unlinkSync(path.join(scriptDir, `${slug}.lua`));
+          log('scripts', `removed stale: ${slug}.lua`);
+        }
+      }
+      for (const [slug, code] of Object.entries(state.scripts)) {
+        if (!existingScripts.has(slug)) {
+          this._writeFile(path.join('scripts', `${slug}.lua`), code);
+          log('scripts', `wrote new: ${slug}.lua`);
+        } else {
+          log('scripts', `keeping local: ${slug}.lua`);
+        }
       }
     }
 
