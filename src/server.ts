@@ -533,6 +533,9 @@ export class CLIServer {
       try { fs.appendFileSync(logsPath, `\n--- restart ${ts} ---\n`); } catch {}
       this._sendToApp({ innerType: 'cli4_restart' });
       respond({ ok: true });
+    } else if (command === 'hot-reload-scripts') {
+      this._sendToApp({ innerType: 'cli4_hot_reload_scripts' });
+      respond({ ok: true });
     } else if (command === 'screenshot') {
       this.pendingScreenshot = { respond, filename: request.filename };
       this._sendToApp({ innerType: 'cli4_screenshot' });

@@ -57,6 +57,13 @@ export async function sendCommand(command: string, arg?: string) {
     } else {
       console.log('restart sent');
     }
+  } else if (command === 'hot-reload-scripts') {
+    const result = await sendToServer({ command: 'hot-reload-scripts' });
+    if (result.error) {
+      console.error('hot reload failed:', result.error);
+    } else {
+      console.log('hot reload sent');
+    }
   } else if (command === 'screenshot') {
     const result = await sendToServer({ command: 'screenshot', filename: arg });
     if (result.error) {

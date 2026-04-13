@@ -47,6 +47,7 @@ Usage:
 Commands:
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
+  hot-reload-scripts     Reload running scripts without restarting
   screenshot [filename]  Take a screenshot
   edit                   Apply scene edits (reads JSON from stdin)
   logs                   Show script logs since last restart
@@ -58,7 +59,14 @@ Options:
     process.exit(0);
   }
 
-  if (command === 'restart' || command === 'screenshot' || command === 'edit' || command === 'logs' || command === 'status') {
+  if (
+    command === 'restart'
+    || command === 'hot-reload-scripts'
+    || command === 'screenshot'
+    || command === 'edit'
+    || command === 'logs'
+    || command === 'status'
+  ) {
     const arg = command === 'screenshot' ? args[1] : undefined;
     await sendCommand(command, arg);
     return;
