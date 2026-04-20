@@ -6,13 +6,14 @@ import chokidar from 'chokidar';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
+const PING_INTERVAL_MS = 30_000;
 const SCRIPT_DEBOUNCE_MS = 500;
 
 interface StateMessage {
   innerType: 'cli4_state';
   cardId: string;
   deckId: string;
-  blueprints: Record<string, string>;
+  blueprints: string | Record<string, string>;
   actors: string;
   variables: string;
   behaviors: string;
@@ -35,6 +36,7 @@ export class CLIServer {
   private connected = false;
   private shouldReconnect = true;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
   private watcher: ReturnType<typeof chokidar.watch> | null = null;
   private scriptDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingScriptChanges = new Map<string, string>();
@@ -58,15 +60,15 @@ export class CLIServer {
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
     this.sockPath = path.join(dir, '.castle', 'cli.sock');
 
-    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, 'scene', 'blueprints'), path.join(dir, '.castle'), this.screenshotsDir]) {
+    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     }
 
     const contextDir = path.join(dir, 'context');
     if (fs.existsSync(contextDir)) fs.rmSync(contextDir, { recursive: true });
 
-    const staleBlueprintsFile = path.join(dir, 'scene', 'blueprints.yaml');
-    if (fs.existsSync(staleBlueprintsFile)) fs.unlinkSync(staleBlueprintsFile);
+    const staleBlueprintsDir = path.join(dir, 'scene', 'blueprints');
+    if (fs.existsSync(staleBlueprintsDir)) fs.rmSync(staleBlueprintsDir, { recursive: true });
 
     this._writeGitignore();
   }
@@ -82,6 +84,7 @@ export class CLIServer {
     this.shouldReconnect = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.scriptDebounceTimer) clearTimeout(this.scriptDebounceTimer);
+    this._stopPing();
     this.watcher?.close();
     this.ipcServer?.close();
     try { fs.unlinkSync(this.sockPath); } catch {}
@@ -114,6 +117,8 @@ export class CLIServer {
 
       this._sendToApp({ innerType: 'cli4_hello' });
       log('tunnel', 'sent hello');
+
+      this._startPing();
     });
 
     this.ws.on('message', (raw) => {
@@ -130,16 +135,34 @@ export class CLIServer {
     this.ws.on('close', () => {
       const wasConnected = this.connected;
       this.connected = false;
+      this._stopPing();
       if (wasConnected) {
-        log('tunnel', 'disconnected — restart CLI to reconnect');
+        log('tunnel', 'disconnected — reconnecting...');
       } else {
-        log('tunnel', 'connection failed — is the Castle app running?');
+        log('tunnel', 'connection failed — retrying...');
       }
+      this._scheduleReconnect();
     });
 
     this.ws.on('error', (err) => {
       log('tunnel', 'error:', err.message);
     });
+  }
+
+  private _startPing() {
+    this._stopPing();
+    this.pingTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.ping();
+      }
+    }, PING_INTERVAL_MS);
+  }
+
+  private _stopPing() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
   }
 
   private _scheduleReconnect() {
@@ -193,7 +216,7 @@ export class CLIServer {
       const p = path.join(this.dir, sub);
       if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
     }
-    for (const sub of ['scripts', 'scene', 'scene/blueprints']) {
+    for (const sub of ['scripts', 'scene']) {
       fs.mkdirSync(path.join(this.dir, sub), { recursive: true });
     }
     log('workspace', 'cleared');
@@ -216,25 +239,31 @@ export class CLIServer {
       log('state', 'full sync');
     }
 
-    const blueprintsDir = path.join(this.dir, 'scene', 'blueprints');
-    if (!fs.existsSync(blueprintsDir)) fs.mkdirSync(blueprintsDir, { recursive: true });
-
-    if (isFullSync) {
-      for (const f of fs.readdirSync(blueprintsDir)) {
-        if (f.endsWith('.yaml')) fs.unlinkSync(path.join(blueprintsDir, f));
-      }
+    if (typeof state.blueprints === 'string') {
+      this._writeFile('scene/blueprints.yaml', state.blueprints);
     } else {
-      const currentSlugs = new Set(Object.keys(state.blueprints));
-      for (const f of fs.readdirSync(blueprintsDir)) {
-        if (f.endsWith('.yaml') && !currentSlugs.has(f.replace('.yaml', ''))) {
-          fs.unlinkSync(path.join(blueprintsDir, f));
-          log('blueprints', `removed stale: ${f}`);
+      const blueprintsDir = path.join(this.dir, 'scene', 'blueprints');
+      if (!fs.existsSync(blueprintsDir)) fs.mkdirSync(blueprintsDir, { recursive: true });
+
+      if (isFullSync) {
+        for (const f of fs.readdirSync(blueprintsDir)) {
+          if (f.endsWith('.yaml')) fs.unlinkSync(path.join(blueprintsDir, f));
+        }
+      } else {
+        const currentSlugs = new Set(Object.keys(state.blueprints));
+        for (const f of fs.readdirSync(blueprintsDir)) {
+          if (f.endsWith('.yaml') && !currentSlugs.has(f.replace('.yaml', ''))) {
+            fs.unlinkSync(path.join(blueprintsDir, f));
+            log('blueprints', `removed stale: ${f}`);
+          }
         }
       }
-    }
 
-    for (const [slug, yaml] of Object.entries(state.blueprints)) {
-      this._writeFile(path.join('scene', 'blueprints', `${slug}.yaml`), yaml);
+      for (const [slug, yaml] of Object.entries(state.blueprints)) {
+        if (yaml && yaml.trim()) {
+          this._writeFile(path.join('scene', 'blueprints', `${slug}.yaml`), yaml);
+        }
+      }
     }
 
     this._writeFile('scene/actors.yaml', state.actors);
