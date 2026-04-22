@@ -193,6 +193,24 @@ IMPORTANT: `components` values are YAML strings. Properties must be constants, n
 }
 ```
 
+#### Assign a blueprint to a category:
+
+Blueprints have a `category` string (shown as "Folder" in the app UI) used to group them in the belt. Set `category` to a name to assign, or `""` to clear. There is no separate category object — any blueprints sharing the same string are grouped together.
+
+IMPORTANT: Don't add categories to simple decks. Only start using categories once a deck has enough blueprints that grouping genuinely helps (e.g. 16+ blueprints with clear sub-groups), or when the user explicitly asks to organize them. Don't impose structure on small decks.
+
+```json
+{
+  "description": "group enemies",
+  "blueprints": {
+    "enemy-id-1": { "category": "Enemies" },
+    "enemy-id-2": { "category": "Enemies" }
+  }
+}
+```
+
+To rename a category, update `category` on every blueprint currently using it. To delete a category, set `category: ""` on every blueprint in it. A category disappears when no blueprint has it.
+
 #### Add a script to a blueprint:
 ```json
 {
