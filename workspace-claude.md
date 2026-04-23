@@ -1,6 +1,6 @@
 # Castle CLI Workspace
 
-This workspace is synced with a Castle deck. The CLI runs in the background syncing scene state from the app. Use commands to restart, hot-reload scripts, screenshot, and edit the scene.
+This workspace is synced with a Castle deck. The CLI runs in the background syncing scene state from the app. Use commands to restart, screenshot, and edit the scene.
 
 ## IMPORTANT — Read Before Doing Anything
 
@@ -11,8 +11,8 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.
 - IMPORTANT: `castle.draw.*` functions ONLY work inside `onDraw()`. They do nothing elsewhere.
 - IMPORTANT: Check `workspace/scene/script-property-names.md` for property name differences between scripts and YAML.
-- IMPORTANT: Always check `workspace/.castle/logs.txt` after restarting or hot reloading scripts to see script errors. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
-- IMPORTANT: After changing a `.lua` file, it auto-syncs to the app but does NOT apply to the running scene by itself. Run `npx tsx src/index.ts hot-reload-scripts` to apply it in place, or `npx tsx src/index.ts restart` if you want a full scene reset.
+- IMPORTANT: Always check `workspace/.castle/logs.txt` after restarting to see script errors. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
+- IMPORTANT: After ANY script change, restart and immediately check logs for errors before doing anything else.
 - IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.layout.x`. There is no `body` accessor.
 - IMPORTANT: There is NO `onCollide` callback handler for actor scripts. Detect collisions by polling `my:isColliding("tag")` or `my:getCollidingActors("tag")` inside `onUpdate(dt)`.
 - IMPORTANT: To destroy an actor, use `castle.destroyActor(my)` or `castle.destroyActor(otherActor)`. There is no `my:destroy()` method.
@@ -34,10 +34,11 @@ This workspace is synced with a Castle deck. The CLI runs in the background sync
 - IMPORTANT: `castle.getTouches()` returns a table of touch objects. Each has `x`, `y`, `pressed` (true only the frame it began), `released`, `id`, `deltaX`, `deltaY`. Use `touch.pressed` for tap detection, not just presence in the table.
 - IMPORTANT: `math.randomseed` with `os.clock()` alone may produce the same sequence across restarts. Combine with `castle.getTime()` and call `math.random()` a few times after seeding to get better randomness.
 - IMPORTANT: When editing scripts via the edit command (not file edits), the local `.lua` files won't be updated automatically. The app gets the new script but the workspace file keeps the old version. Prefer editing the `.lua` files directly for scripts.
+- IMPORTANT: Script edits NEED TO HAPPEN by editing the actual files in `workspace/scripts/*.lua`. Do NOT send script code through `npx tsx src/index.ts edit`; that desynchronizes the local script file from the app and can later revert or confuse changes. Use `edit` for scene/actor/blueprint structure, then edit the script file and run `restart`.
 
 ## Structure
 
-- `workspace/scripts/*.lua` — Editable Lua scripts, one per blueprint. Changes auto-sync to the app; run `hot-reload-scripts` to apply them to the current running scene without a full restart.
+- `workspace/scripts/*.lua` — Editable Lua scripts, one per blueprint. Changes auto-sync to the app.
 - `workspace/scene/` — Read-only scene state, auto-updated by the app:
   - `blueprints/<slug>.yaml` — One file per blueprint (same slugs as scripts). Each contains behaviors, components, and properties for that blueprint. ALWAYS read the relevant blueprint YAML files before making changes — don't guess at structure or properties.
   - `actors.yaml` — Actor instances with positions
@@ -62,7 +63,6 @@ npx tsx src/index.ts &
 
 # Commands (run from castle-cli-4 directory):
 npx tsx src/index.ts restart                    # stop and restart the scene
-npx tsx src/index.ts hot-reload-scripts         # apply synced script changes without restarting
 npx tsx src/index.ts screenshot [filename]      # capture screenshot
 npx tsx src/index.ts edit < edit.json           # apply scene edits (blueprints, actors, variables)
 ```
@@ -70,12 +70,11 @@ npx tsx src/index.ts edit < edit.json           # apply scene edits (blueprints,
 ## Workflow
 
 1. Edit `workspace/scripts/*.lua` — changes auto-sync to the app
-2. Run `npx tsx src/index.ts hot-reload-scripts` to apply script edits to the current running scene without a full restart
-3. Use `npx tsx src/index.ts edit` to add/edit/remove blueprints, actors, and variables
-4. Use `npx tsx src/index.ts restart` when you need a full scene reset or want fresh `onCreate` / startup state
-5. Check `workspace/.castle/logs.txt` for errors — look AFTER the latest `--- restart ---` marker, or just inspect the newest lines after a hot reload
-6. `npx tsx src/index.ts screenshot` — capture the result. NOTE: screenshots show whatever state the app is in. If you want to see the running scene, hot reload or restart first. If the user is in the editor, the screenshot will show the editor view.
-7. Only use screenshots when you need to verify visual results — not every change needs one
+2. Use `npx tsx src/index.ts edit` to add/edit/remove blueprints, actors, and variables
+3. `npx tsx src/index.ts restart` — restart to see changes running. Scripts only take effect after restart.
+4. Check `workspace/.castle/logs.txt` for errors — look AFTER the latest `--- restart ---` marker
+5. `npx tsx src/index.ts screenshot` — capture the result. NOTE: screenshots show whatever state the app is in. If you want to see the running scene, restart first. If the user is in the editor, the screenshot will show the editor view.
+6. Only use screenshots when you need to verify visual results — not every change needs one
 
 ## Coordinate System & Scale
 

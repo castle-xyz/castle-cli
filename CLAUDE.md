@@ -18,7 +18,6 @@ Run this in the background — it needs to stay running for the duration of the 
 ```bash
 npx tsx src/index.ts              # connect to app (run in background)
 npx tsx src/index.ts restart      # stop and restart the scene
-npx tsx src/index.ts hot-reload-scripts  # apply synced script changes without restarting
 npx tsx src/index.ts screenshot   # capture what's on screen
 npx tsx src/index.ts edit         # apply scene edits (pipe JSON to stdin)
 ```
@@ -35,9 +34,9 @@ The connection writes to `workspace/`:
 
 ## Architecture
 
-- `src/index.ts` — entry point, routes to connect/restart/hot-reload-scripts/screenshot/edit
+- `src/index.ts` — entry point, routes to connect/restart/screenshot/edit
 - `src/server.ts` — persistent tunnel connection, file watching, IPC server, state management
-- `src/command.ts` — IPC client for subcommands (restart, hot-reload-scripts, screenshot, edit)
+- `src/command.ts` — IPC client for subcommands (restart, screenshot, edit)
 - `src/api.ts` — Castle GraphQL API for authentication
 - `src/config.ts` — token storage in ~/.castle/config.json
 
