@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import YAML from 'yaml';
+import { findDrawingBlueprint, getAvailableDrawingColors, getDefaultBlueprints } from './agent-data.js';
 import { getCastleMetadata } from './castle-core-node.js';
 import { materializeProjectCard, writeProjectCardFromSceneData } from './project.js';
 
@@ -21,9 +21,6 @@ interface AgentEditPayload {
   blueprintIdMapping: Record<string, string>;
 }
 
-const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CASTLE_CLIENT_ROOT = path.resolve(CLI_ROOT, '..', 'castle-client');
-
 const SCRIPT_PROPERTY_NAME_MAPPINGS = [
   ['Layout', 'angle', 'rotation'],
   ['Gravity', 'gravity', 'strength'],
@@ -35,9 +32,6 @@ const SCRIPT_PROPERTY_NAME_MAPPINGS = [
   ['Friction', 'friction', 'amount'],
   ['Axis Lock', 'isRotationAllowed', 'rotates'],
 ];
-
-let cachedDefaultBlueprints: Record<string, any> | null = null;
-let cachedDrawingBlueprintData: any | null = null;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -142,54 +136,6 @@ function applyScriptEdits(originalCode: string, edits: any[]): { result: string 
     }
   }
   return { result: currentCode, error: null };
-}
-
-function loadCastleClientJson(relativePath: string): any {
-  const filePath = path.join(CASTLE_CLIENT_ROOT, relativePath);
-  const json = readJsonIfExists(filePath);
-  if (!json) throw new Error(`Missing Castle client data file: ${filePath}`);
-  return json;
-}
-
-function getDefaultBlueprints(): Record<string, any> {
-  if (cachedDefaultBlueprints) return cachedDefaultBlueprints;
-  const data = loadCastleClientJson('mobile/js/scenecreator/library/LibraryDefaultBlueprintData.json');
-  const result: Record<string, any> = {};
-
-  for (let index = 0; index < (data.templates ?? []).length; index++) {
-    const template = data.templates[index];
-    if (!template?.title) continue;
-    const entryId = `default-blueprint-${index}`;
-    result[entryId] = {
-      entryId,
-      entryType: 'actorBlueprint',
-      title: template.title,
-      actorBlueprint: template.actorBlueprint,
-      base64Png: template.base64Png,
-      library: { blueprintAssetId: entryId },
-    };
-  }
-
-  cachedDefaultBlueprints = result;
-  return result;
-}
-
-function getDrawingBlueprintData(): any {
-  cachedDrawingBlueprintData ??= loadCastleClientJson('mobile/js/scenecreator/agent/AgentDrawingBlueprintData.json');
-  return cachedDrawingBlueprintData;
-}
-
-function getAvailableDrawingColors(): string[] {
-  const data = getDrawingBlueprintData();
-  return Object.values(data.snapshot?.library ?? {})
-    .map((entry: any) => entry.title)
-    .filter(Boolean)
-    .sort() as string[];
-}
-
-function findDrawingBlueprint(color: string): any | null {
-  const data = getDrawingBlueprintData();
-  return Object.values(data.snapshot?.library ?? {}).find((entry: any) => entry.title === color) ?? null;
 }
 
 function behaviorMaps(allBehaviors: Record<string, any>): {

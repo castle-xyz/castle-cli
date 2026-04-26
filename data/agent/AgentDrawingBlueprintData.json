@@ -1,0 +1,2603 @@
+{
+  "snapshot": {
+    "library": {
+      "b172a60e-8d49-4569-9fff-dabef882bf2b": {
+        "entryId": "b172a60e-8d49-4569-9fff-dabef882bf2b",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:2cc3dfea-a0ca-4191-a148-7a107a1cd058",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:4ab95651-ffbe-4208-b18e-522b40d20151",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "blue circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "4215432824102044178",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.14116, "g": 0.62352, "b": 0.87058, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.14116, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.14116, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.14116, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.14116, 0.62352, 0.87058, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAAAkn94NkT71AAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAAkn94NkT71AAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "f3102a67-b412-43f5-9337-11fdaa2403eb": {
+        "entryId": "f3102a67-b412-43f5-9337-11fdaa2403eb",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:4ab95651-ffbe-4208-b18e-522b40d20151",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:ac75d052-8709-43c3-aacf-2b4eccc5757a",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "blue square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "384743997214204715",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.93331, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.14115, "g": 0.62352, "b": 0.87058, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.14115, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.14115, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.14115, 0.62352, 0.87058, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.14115, 0.62352, 0.87058, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEUkn94PjLrgAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAAkn94NkT71AAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "689e2314-24df-41a8-aac8-cacbd48945e5": {
+        "entryId": "689e2314-24df-41a8-aac8-cacbd48945e5",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:8b81504e-8423-4dbf-970e-9766f06cd5c6",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:1f288767-bef9-4489-a137-60fcb6755633",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "brown circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "8231250843371080725",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.85882, "g": 0.64313, "b": 0.38822, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAADbpGM6ayoRAAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAADbpGM6ayoRAAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "4f1c7466-985a-4aef-85af-15b3577be1ee": {
+        "entryId": "4f1c7466-985a-4aef-85af-15b3577be1ee",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:c36b902c-8e95-403f-af46-bb0210c3b759",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:4cccb480-32b3-4bbf-892f-c89271998150",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "brown square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "5147073039948725170",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.85882, "g": 0.64313, "b": 0.38822, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.85882, 0.64313, 0.38822, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEXbpGM4dq4EAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAADbpGM6ayoRAAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "35080775-ad64-44cc-b3ca-47c5ec59ec3b": {
+        "entryId": "35080775-ad64-44cc-b3ca-47c5ec59ec3b",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:bfc6efda-73cb-4b75-b945-a7eef57a5a83",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:8b81504e-8423-4dbf-970e-9766f06cd5c6",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "gray circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "12233024470857026760",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.2, "g": 0.22351, "b": 0.2549, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.2, 0.22351, 0.2549, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.2, 0.22351, 0.2549, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.2, 0.22351, 0.2549, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.2, 0.22351, 0.2549, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAAAzOUGMFR66AAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAAzOUGMFR66AAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "51acee7d-b9bb-4791-b803-638f7e1878bc": {
+        "entryId": "51acee7d-b9bb-4791-b803-638f7e1878bc",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:7c95a164-31b7-4d07-99d5-09bfb3b1aee7",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:c36b902c-8e95-403f-af46-bb0210c3b759",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "gray square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "12613260008968291680",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.2, "g": 0.2235, "b": 0.2549, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          { "p": [5, 5, 5, -5], "s": 1, "f": false, "c": [0.2, 0.2235, 0.2549, 1] },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.2, 0.2235, 0.2549, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.2, 0.2235, 0.2549, 1]
+                          },
+                          { "p": [-5, 5, 5, 5], "s": 1, "f": false, "c": [0.2, 0.2235, 0.2549, 1] }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEUzOUGOCJqvAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAAzOUGMFR66AAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "75a5817f-a574-40fe-b04e-a41e262ed538": {
+        "entryId": "75a5817f-a574-40fe-b04e-a41e262ed538",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:d8f25f15-5397-448f-a5e6-6f3d8fa693f7",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:2208cc91-203b-409d-b874-081336ed8708",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "green circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "6526504985638070496",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.61176, "g": 0.85882, "b": 0.26273, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAACc20Pcd/SlAAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAACc20Pcd/SlAAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "3044742f-8106-4ef5-aee1-73348c95a88b": {
+        "entryId": "3044742f-8106-4ef5-aee1-73348c95a88b",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:ac75d052-8709-43c3-aacf-2b4eccc5757a",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:4cccb480-32b3-4bbf-892f-c89271998150",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "green square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "17473342383830600261",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.93331, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.61176, "g": 0.85882, "b": 0.26273, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.61176, 0.85882, 0.26273, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEWc20PeanCwAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAACc20Pcd/SlAAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "a61d9fc5-238b-484d-881d-f87974b6a676": {
+        "entryId": "a61d9fc5-238b-484d-881d-f87974b6a676",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:df09f29e-5d96-493b-99c4-6f208a8976af",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:1f288767-bef9-4489-a137-60fcb6755633",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "orange circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "4780933043293209118",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99992, "maxX": 4.99992, "minY": -4.99992, "maxY": 4.99992 }
+                ],
+                "colors": [
+                  { "r": 0.90979, "g": 0.41567, "b": 0.45098, "a": 1 },
+                  { "r": 0.98039, "g": 0.41567, "b": 0.0392, "a": 1 }
+                ],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99992, 4.99992, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [4.99992, 0, 0, 4.99992],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [0, 4.99992, -4.99992, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [-4.99992, 0, 0, -4.99992],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AgMAAAAuxSH0AAAACVBMVEUAAAD6agroanN6un6EAAAAAXRSTlMAQObYZgAAAmxJREFUeJztm0tSAzEMRJMFCw6g++QILMZ7jsLRqSGE+dmypJcqJcRe87DUcqhgd59O7XUu13VRfkZZZVkB+lzWy13CW9muD7K7u4Ij7vsFFdwjolT5iVTv6aCBWzvYj25ZtiE2cVsB7e1tBSi4pQBte0sBKt4vQN++X4B0+M4hbB29ZV3Q9r0CuriuYE+9eWkK9svXGzDgWgOW8rUGLOVrDZjwUr5Q+e0GbOW3GzDirQn0z/5tXVD5rQbMeL0Be/n1BqzTm1dtguLgawI48JoAnvZrAnjarwkgLv4ogAs/CuBr/ygA5X3yHQUUJ78X0InvBfS2vxfgHfJe+fYCipvfCujGdwJC3i//VkC/fFsBJcBPd+QD+FrAiHxrASkfkX89AMpLiF8GEMJXA4B8TP5lAJSPyb8MgPIS5Kc78UH8b4CQj47vNkDKR8d3GyDlJcxPD8GH8d8DAPn4+K8HIJuPH5/rAcrmBfDTP+AB/nOAk3lyfOcD/Oo8+fjMH6BX5wXx0+BT+cL+/Ax+8IMf/OAHP/gEPvv7w+Czv38/O5/9/9+z89n3D5gXgD/C/RHls+//KJ99/0r57Pvv9Pt/yme/v2S/P2W/v6W/P2a/v2a/P2e/v2P/QLb/Idv/Qf0r6f4b6h+i/qVs/xX2j1H/mt8/97nhqX+P+gexf5H6J7P9n9S/iv2z1L9L/cPUv4z909S/Tf3j1L+O/fPUv0/zAzi/QPMT1gZaOM6P0PwKzc/g/A7ND9H8Es5P0fwWzY/h/BrNz+H8Hs0P4vwizU/i/CbNj+L8Ks3P4vwuzg/T/DLOT+P89onmx1claJt/A5LGU9AiKzX0AAAAAElFTkSuQmCC"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAD6agpi8yX6AAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "b1df2e60-6f16-4446-a178-8241db499365": {
+        "entryId": "b1df2e60-6f16-4446-a178-8241db499365",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:a8c9c01d-bbda-42f7-bafe-7aea9930ca6e",
+          "parentBlueprintAssetId": "LmRhdofcj9RO:eec9a42d-bc4a-4953-845e-24547151f7e1",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "orange square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "11938686949942156029",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.98039, "g": 0.41567, "b": 0.0392, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.98039, 0.41567, 0.0392, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEX6agpg7qHvAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAD6agpi8yX6AAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "7156e5a5-22f8-4cd8-9695-1ebf244b0cc6": {
+        "entryId": "7156e5a5-22f8-4cd8-9695-1ebf244b0cc6",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:1f288767-bef9-4489-a137-60fcb6755633",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:d8f25f15-5397-448f-a5e6-6f3d8fa693f7",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "pink circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "15483053265757223698",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.90979, "g": 0.41567, "b": 0.45098, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.90979, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.90979, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.90979, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.90979, 0.41567, 0.45098, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAADoanNUiJt8AAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAADoanNUiJt8AAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "5b8baa39-0bb9-40d9-be21-4910d9c36e54": {
+        "entryId": "5b8baa39-0bb9-40d9-be21-4910d9c36e54",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:10123251-0414-421c-a5ab-e9cb535e027a",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:4ab95651-ffbe-4208-b18e-522b40d20151",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "pink square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "1800409472269015669",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.93331, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.90978, "g": 0.41567, "b": 0.45098, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.90978, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.90978, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.90978, 0.41567, 0.45098, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.90978, 0.41567, 0.45098, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEXoanNWlR9pAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAADoanNUiJt8AAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "44a0e1ea-d7cb-406a-a904-35c27e9126c7": {
+        "entryId": "44a0e1ea-d7cb-406a-a904-35c27e9126c7",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:77788523-bd54-4314-9149-5468bb4edd08",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:2208cc91-203b-409d-b874-081336ed8708",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "purple circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "159416448960069602",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99992, "maxX": 4.99992, "minY": -4.99992, "maxY": 4.99992 }
+                ],
+                "colors": [
+                  { "r": 0.70587, "g": 0.12548, "b": 0.1647, "a": 1 },
+                  { "r": 0.4745, "g": 0.22744, "b": 0.50195, "a": 1 }
+                ],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99992, 4.99992, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [4.99992, 0, 0, 4.99992],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [0, 4.99992, -4.99992, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [-4.99992, 0, 0, -4.99992],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AgMAAAAuxSH0AAAACVBMVEUAAAB5OoC0ICol7hhtAAAAAXRSTlMAQObYZgAAAmxJREFUeJztm0tSAzEMRJMFCw6g++QILMZ7jsLRqSGE+dmypJcqJcRe87DUcqhgd59O7XUu13VRfkZZZVkB+lzWy13CW9muD7K7u4Ij7vsFFdwjolT5iVTv6aCBWzvYj25ZtiE2cVsB7e1tBSi4pQBte0sBKt4vQN++X4B0+M4hbB29ZV3Q9r0CuriuYE+9eWkK9svXGzDgWgOW8rUGLOVrDZjwUr5Q+e0GbOW3GzDirQn0z/5tXVD5rQbMeL0Be/n1BqzTm1dtguLgawI48JoAnvZrAnjarwkgLv4ogAs/CuBr/ygA5X3yHQUUJ78X0InvBfS2vxfgHfJe+fYCipvfCujGdwJC3i//VkC/fFsBJcBPd+QD+FrAiHxrASkfkX89AMpLiF8GEMJXA4B8TP5lAJSPyb8MgPIS5Kc78UH8b4CQj47vNkDKR8d3GyDlJcxPD8GH8d8DAPn4+K8HIJuPH5/rAcrmBfDTP+AB/nOAk3lyfOcD/Oo8+fjMH6BX5wXx0+BT+cL+/Ax+8IMf/OAHP/gEPvv7w+Czv38/O5/9/9+z89n3D5gXgD/C/RHls+//KJ99/0r57Pvv9Pt/yme/v2S/P2W/v6W/P2a/v2a/P2e/v2P/QLb/Idv/Qf0r6f4b6h+i/qVs/xX2j1H/mt8/97nhqX+P+gexf5H6J7P9n9S/iv2z1L9L/cPUv4z909S/Tf3j1L+O/fPUv0/zAzi/QPMT1gZaOM6P0PwKzc/g/A7ND9H8Es5P0fwWzY/h/BrNz+H8Hs0P4vwizU/i/CbNj+L8Ks3P4vwuzg/T/DLOT+P89onmx1claJt/A5LGU9AiKzX0AAAAAElFTkSuQmCC"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAB5OoA2VrdJAAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "ce859107-26f8-4c4e-a9d1-97dff45e734e": {
+        "entryId": "ce859107-26f8-4c4e-a9d1-97dff45e734e",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:708f04d9-ff64-48bb-b6e1-e68d2b93862a",
+          "parentBlueprintAssetId": "LmRhdofcj9RO:eec9a42d-bc4a-4953-845e-24547151f7e1",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "purple square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "11990409001365688956",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.4745, "g": 0.22744, "b": 0.50195, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.4745, 0.22744, 0.50195, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEV5OoA0SzNcAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAB5OoA2VrdJAAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "655d8d32-4bc1-4155-afcf-68db84829f8d": {
+        "entryId": "655d8d32-4bc1-4155-afcf-68db84829f8d",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:2208cc91-203b-409d-b874-081336ed8708",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:2cc3dfea-a0ca-4191-a148-7a107a1cd058",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "red circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "5962492347920488025",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.70587, "g": 0.12548, "b": 0.1647, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.70587, 0.12548, 0.1647, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.70587, 0.12548, 0.1647, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.70587, 0.12548, 0.1647, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.70587, 0.12548, 0.1647, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAAC0ICopDwJ3AAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAC0ICopDwJ3AAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "2bff1c0a-2c41-47af-b8ed-0399c3c7de29": {
+        "entryId": "2bff1c0a-2c41-47af-b8ed-0399c3c7de29",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:4cccb480-32b3-4bbf-892f-c89271998150",
+          "parentBlueprintAssetId": "",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "red square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "15621664040478040063",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.93331, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.70586, "g": 0.12547, "b": 0.1647, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.70586, 0.12547, 0.1647, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.70586, 0.12547, 0.1647, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.70586, 0.12547, 0.1647, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.70586, 0.12547, 0.1647, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEW0ICorEoZiAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAC0ICopDwJ3AAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "b3a7429d-6231-44d5-a87e-146e24e4cc2d": {
+        "entryId": "b3a7429d-6231-44d5-a87e-146e24e4cc2d",
+        "library": {
+          "blueprintAssetId": "Nf9f7xMXF0O4:61c64e3d-e640-40a5-918c-b5ed1775dfe6",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:bfc6efda-73cb-4b75-b945-a7eef57a5a83",
+          "originCardId": "Nf9f7xMXF0O4",
+          "originDeckId": "ScbCJWpY3toz"
+        },
+        "entryType": "actorBlueprint",
+        "title": "slate circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "8745962862561513895",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99994, "maxX": 4.99994, "minY": -4.99994, "maxY": 4.99994 }
+                ],
+                "colors": [{ "r": 0.51763, "g": 0.60784, "b": 0.89411, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99994, 4.99994, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.51763, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [4.99994, 0, 0, 4.99994],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.51763, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [0, 4.99994, -4.99994, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [0.51763, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [-4.99994, 0, 0, -4.99994],
+                            "s": 2,
+                            "f": false,
+                            "c": [0.51763, 0.60784, 0.89411, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAABlBMVEUAAACEm+R2iX8jAAAAAXRSTlMAQObYZgAAAlhJREFUeJztms1twzAMhWP40GNG4CgczRpNo3iEHHsoqiKOLeuH5BOqwDAC+8oPMfnINhJfbrf0GUII3zfjCc/nocdpAYLT4uMrHn7AB6gfMWxxLc97BIIMTDsw229Q3pG8QX4Hp4AXgDQuqTlmgKBVloKUBOdAnUQer5MYC6BK4qsAfkuACqDq6FQCs51jlWWZY5VlmWOV5b0CCi25BrxdRFlGHc+nqi6iKKMuoihDKCIvgyTA2UXkZUjxtBuDCCR1SlVmdUpVZnWKVaZ1kgzsdbIMeFuGVAg5vgshy5AIAQFZp0QpWadEKUWnXSnSgE0p/jewSTlpwCalFo9SIkATMkqpCRml1ISMUkJAVXrTmnTAtQGsA74NmHRgtpXetEaA3oq1GRDQe7V2CwJ6r9ZuQcBo5qudECALcC0AW4BvASYLmN8CWPFlIBBgjcMyEP2ANS/LxPQD1kAtI3UAYI7kcyj7AbIBdwqAbcCfAphsYP4I4GH/9V/ABVzA5wJn+Bf0DoBt4BxfKGQD5/hqPuCIcoaT2AEHzgOOzf1n+yMuIGwBTbcksoCmm1r/bbH/xtp/a+6/ufdvD/CCgnWgcQdCOtC4h4Grnv5tElxYwZVX/1YNL+5YA3wrQBrgVgAuMOEKFC5R+/e0cBWMl8ksAz4CJAMuAnAlDpfqcC0PF/vQGsDmAkmASwBocECLBJosUhm52ySUMWcA14DPAGg2QbsKGl7QMsOmG5WAKwBo/EHrEJqP2L6EBii0UKEJi21caARDKxma0djOhoY4tNSxKQ9tffzDAOmnBX8wAorpJD0ctwAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAACEm+R2iX8jAAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "9c814ea6-7027-4394-aad9-d18710aba3c2": {
+        "entryId": "9c814ea6-7027-4394-aad9-d18710aba3c2",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:29fd18a8-cc33-4b65-b37e-4a0c5994ea3d",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:0233d60a-a3e6-4623-bb09-71e0df17e8c4",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "slate square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "5286281136577940343",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 0.51762, "g": 0.60784, "b": 0.89411, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [5, 5, 5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.51762, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.51762, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.51762, 0.60784, 0.89411, 1]
+                          },
+                          {
+                            "p": [-5, 5, 5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [0.51762, 0.60784, 0.89411, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEWEm+R0lPs2AAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAACEm+R2iX8jAAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      },
+      "832dddc9-b0da-4c6b-b621-608612e31a90": {
+        "entryId": "832dddc9-b0da-4c6b-b621-608612e31a90",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:1cef78b9-35bb-4b9e-b4b3-c72d55d08932",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:61c64e3d-e640-40a5-918c-b5ed1775dfe6",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "yellow circle",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "2432423873381857557",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [
+                  { "minX": -4.99991, "maxX": 4.99991, "minY": -4.99991, "maxY": 4.99991 }
+                ],
+                "colors": [
+                  { "r": 0.51763, "g": 0.60784, "b": 0.89411, "a": 1 },
+                  { "r": 1, "g": 0.98822, "b": 0.25097, "a": 1 }
+                ],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          {
+                            "p": [0, -4.99991, 4.99991, 0],
+                            "s": 2,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          },
+                          {
+                            "p": [4.99991, 0, 0, 4.99991],
+                            "s": 3,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          },
+                          {
+                            "p": [0, 4.99991, -4.99991, 0],
+                            "s": 3,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          },
+                          {
+                            "p": [-4.99991, 0, 0, -4.99991],
+                            "s": 2,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AgMAAAAuxSH0AAAACVBMVEUAAAD//ECEm+SimWGBAAAAAXRSTlMAQObYZgAAAmxJREFUeJztm0tSAzEMRJMFCw6g++QILMZ7jsLRqSGE+dmypJcqJcRe87DUcqhgd59O7XUu13VRfkZZZVkB+lzWy13CW9muD7K7u4Ij7vsFFdwjolT5iVTv6aCBWzvYj25ZtiE2cVsB7e1tBSi4pQBte0sBKt4vQN++X4B0+M4hbB29ZV3Q9r0CuriuYE+9eWkK9svXGzDgWgOW8rUGLOVrDZjwUr5Q+e0GbOW3GzDirQn0z/5tXVD5rQbMeL0Be/n1BqzTm1dtguLgawI48JoAnvZrAnjarwkgLv4ogAs/CuBr/ygA5X3yHQUUJ78X0InvBfS2vxfgHfJe+fYCipvfCujGdwJC3i//VkC/fFsBJcBPd+QD+FrAiHxrASkfkX89AMpLiF8GEMJXA4B8TP5lAJSPyb8MgPIS5Kc78UH8b4CQj47vNkDKR8d3GyDlJcxPD8GH8d8DAPn4+K8HIJuPH5/rAcrmBfDTP+AB/nOAk3lyfOcD/Oo8+fjMH6BX5wXx0+BT+cL+/Ax+8IMf/OAHP/gEPvv7w+Czv38/O5/9/9+z89n3D5gXgD/C/RHls+//KJ99/0r57Pvv9Pt/yme/v2S/P2W/v6W/P2a/v2a/P2e/v2P/QLb/Idv/Qf0r6f4b6h+i/qVs/xX2j1H/mt8/97nhqX+P+gexf5H6J7P9n9S/iv2z1L9L/cPUv4z909S/Tf3j1L+O/fPUv0/zAzi/QPMT1gZaOM6P0PwKzc/g/A7ND9H8Es5P0fwWzY/h/BrNz+H8Hs0P4vwizU/i/CbNj+L8Ks3P4vwuzg/T/DLOT+P89onmx1claJt/A5LGU9AiKzX0AAAAAElFTkSuQmCC"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAD//EDVKmIDAAAAAXRSTlMAQObYZgAAAQ1JREFUeJztlrENxCAMRYNSUGYERmG0MFpGYYSUFCjc5ZAPm48OhFKeuzwJ+0sx/7Msg6VScgLYlCL/XtO7DgbMDQID6VPVCX5my+DkM+6KVYvSRBEgbZqAlz1LV0uAuu4ErmoIjVEFOC68iNcFeDmV5poCgpRBQvYCrkpGFqI4cFJGFgJAc+ClrqwMgOEgSKFZKoCdg6sFkqgGUBI4BKsExwDQEvgBsElwzgAjQXgEWAniH/SAkeCZ3/DEfkys5cTy929U/1YO3GzLQdMdDAdhyIPAtvpOB+YI9okGy6TGtkmDjYPRQxRAWECcYOB8hVAkQWhBrEHwQTRieEK8QgBDRGOIQ8zDQwCfCj/qBYpZ5BR6xmbNAAAAAElFTkSuQmCC"
+      },
+      "1ece81e6-4cb1-40d4-93c5-b103ef6c596b": {
+        "entryId": "1ece81e6-4cb1-40d4-93c5-b103ef6c596b",
+        "library": {
+          "blueprintAssetId": "LmRhdofcj9RO:eec9a42d-bc4a-4953-845e-24547151f7e1",
+          "parentBlueprintAssetId": "Nf9f7xMXF0O4:0233d60a-a3e6-4623-bb09-71e0df17e8c4",
+          "originCardId": "LmRhdofcj9RO",
+          "originDeckId": "ctZ3sjIqtALL"
+        },
+        "entryType": "actorBlueprint",
+        "title": "yellow square",
+        "titleEdited": true,
+        "actorBlueprint": {
+          "components": {
+            "Body": {
+              "x": 0,
+              "y": 0,
+              "angle": 0,
+              "width": 0.98995,
+              "height": 0.98995,
+              "widthScale": 0.1,
+              "heightScale": 0.1,
+              "visible": true,
+              "relativeToCamera": false,
+              "relativeToCameraFix": true,
+              "layerName": "main",
+              "fixtures": [
+                {
+                  "shapeType": "polygon",
+                  "points": [-5, -5, -5, 5, 5, 5, 5, -5],
+                  "x": 0,
+                  "y": 0,
+                  "radius": 0
+                }
+              ],
+              "paddingTop": 0,
+              "paddingRight": 0,
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "editorBounds": { "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 },
+              "disabled": false
+            },
+            "Tags": { "tagsString": "", "disabled": false },
+            "Drawing2": {
+              "initialFrame": 1,
+              "currentFrame": 1,
+              "framesPerSecond": 4,
+              "playMode": "still",
+              "loopStartFrame": -1,
+              "loopEndFrame": -1,
+              "opacity": 1,
+              "hash": "811922065859657076",
+              "playing": false,
+              "loop": false,
+              "drawData": {
+                "color": [0.97263, 0.63669, 0.10546, 1],
+                "lineColor": [0.66035, 0.4, 0.9333, 1],
+                "gridSize": 0.71428,
+                "scale": 10,
+                "version": 3,
+                "fillPixelsPerUnit": 25.6,
+                "numTotalLayers": 1,
+                "framesBounds": [{ "minX": -5, "maxX": 5, "minY": -5, "maxY": 5 }],
+                "colors": [{ "r": 1, "g": 0.98822, "b": 0.25097, "a": 1 }],
+                "selectedFrame": 1,
+                "layers": [
+                  {
+                    "title": "Layer 1",
+                    "id": "layer1",
+                    "isVisible": true,
+                    "isBitmap": false,
+                    "frames": [
+                      {
+                        "isLinked": false,
+                        "pathDataList": [
+                          { "p": [5, 5, 5, -5], "s": 1, "f": false, "c": [1, 0.98822, 0.25097, 1] },
+                          {
+                            "p": [5, -5, -5, -5],
+                            "s": 1,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          },
+                          {
+                            "p": [-5, -5, -5, 5],
+                            "s": 1,
+                            "f": false,
+                            "c": [1, 0.98822, 0.25097, 1]
+                          },
+                          { "p": [-5, 5, 5, 5], "s": 1, "f": false, "c": [1, 0.98822, 0.25097, 1] }
+                        ],
+                        "fillImageBounds": { "minX": -126, "maxX": 126, "minY": -126, "maxY": 126 },
+                        "fillPng": "iVBORw0KGgoAAAANSUhEUgAAAPwAAAD8AQMAAABpZVskAAAAA1BMVEX//EDXN+YWAAAAH0lEQVR4nO3BMQEAAADCoPVPbQdvoAAAAAAAAAAAfgMgfAABN/qUjQAAAABJRU5ErkJggg=="
+                      }
+                    ]
+                  }
+                ]
+              },
+              "physicsBodyData": {
+                "shapes": [
+                  {
+                    "p1": { "x": 5, "y": 5 },
+                    "p2": { "x": -5, "y": -5 },
+                    "p3": { "x": 0, "y": 0 },
+                    "radius": 0,
+                    "x": 0,
+                    "y": 0,
+                    "type": "rectangle"
+                  }
+                ],
+                "scale": 10,
+                "version": 2,
+                "zeroShapesInV1": false
+              },
+              "disabled": false
+            },
+            "Camera": { "zoom": 1, "angle": 0, "disabled": true }
+          }
+        },
+        "base64Png": "iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAD//EDVKmIDAAAAAXRSTlMAQObYZgAAACRJREFUeJxjYCAI7P+jgD+jAqMCowKjAqMCowKjAqMC+AQIAgDRalo2xJxjOAAAAABJRU5ErkJggg=="
+      }
+    },
+    "actors": [],
+    "actorBlueprintInherit": true,
+    "sceneProperties": {
+      "backgroundColor": { "r": 0.85882, "g": 0.64313, "b": 0.38822, "a": 1 },
+      "coordinateSystemVersion": 2,
+      "clock": { "tempo": 120, "beatsPerBar": 4, "stepsPerBeat": 4 }
+    },
+    "linkTargetDeckIds": []
+  }
+}
