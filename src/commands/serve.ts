@@ -3,10 +3,12 @@ import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { URL, fileURLToPath } from 'url';
 import chokidar from 'chokidar';
 import openBrowser from 'open';
 import * as API from '../api.js';
+import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
@@ -46,7 +48,14 @@ interface LocalDeck {
 
 interface PendingScreenshot {
   filename?: string;
+  targetClientId?: string;
   respond: (result: any) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+interface PendingScreenshotPoll {
+  clientId: string;
+  res: http.ServerResponse;
   timeout: ReturnType<typeof setTimeout>;
 }
 
@@ -257,12 +266,13 @@ async function getCardSceneDataText(card: CardFile): Promise<string> {
   return fs.readFileSync(card.sceneDataPath, 'utf8');
 }
 
-function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any): string {
+function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string): string {
   const deckId = JSON.stringify(deck.deckId || '');
   const cardId = JSON.stringify(initialCard?.cardId || '');
   const cardTitle = JSON.stringify(initialCard?.title || '');
   const creatorUsername = JSON.stringify(meInfo?.username || '');
   const featureFlags = JSON.stringify(JSON.stringify({ scriptDraw: true }));
+  const previewRunIdJson = JSON.stringify(previewRunId);
   const showUserInfo = meInfo?.username && !meInfo?.isAnonymous;
   const avatarUrl = meInfo?.photo?.url || meInfo?.photo?.avatarUrl || '';
   const frameUrl = meInfo?.photoFrame?.frameUrl || '';
@@ -341,6 +351,8 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
 
       var hasSetCurrentVersion = false;
       var currentVersion = 0;
+      var previewRunId = ${previewRunIdJson};
+      var previewClientId = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
 
       async function getVersion() {
         var response = await fetch('/version?version=' + currentVersion + '&returnImmediate=' + (hasSetCurrentVersion ? 'false' : 'true'));
@@ -417,10 +429,12 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
+                    previewRunId: previewRunId,
+                    previewClientId: previewClientId,
                     requestId: event.params.requestId,
                     data: event.params.data,
                   }),
-                });
+                }).catch(function() {});
               }
             } catch (e) {
               console.error('bridgeEvent error', e);
@@ -479,7 +493,18 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
 
       async function pollScreenshotRequests(lastRequestId) {
         try {
-          var response = await fetch('/screenshot-request?last=' + encodeURIComponent(lastRequestId || ''));
+          var response = await fetch(
+            '/screenshot-request?previewRunId=' + encodeURIComponent(previewRunId) +
+              '&previewClientId=' + encodeURIComponent(previewClientId) +
+              '&last=' + encodeURIComponent(lastRequestId || '')
+          );
+          if (response.status === 409) {
+            location.reload();
+            return;
+          }
+          if (!response.ok) {
+            throw new Error('screenshot poll failed: ' + response.status);
+          }
           var body = await response.json();
           if (body.requestId) {
             requestCastleScreenshot(body.requestId);
@@ -622,21 +647,59 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     API.me(),
   ]);
 
+  const previewRunId = crypto.randomUUID();
+  const previewClients = new Map<string, number>();
   let version = 0;
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
-  const pendingScreenshotPolls = new Set<http.ServerResponse>();
+  const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
   const sockPath = path.join(deck.dir, '.castle', 'cli.sock');
   fs.mkdirSync(path.dirname(sockPath), { recursive: true });
 
-  const currentScreenshotRequestId = () => Array.from(pendingScreenshots.keys()).at(-1) || '';
-  const flushScreenshotPolls = () => {
-    const requestId = currentScreenshotRequestId();
-    if (!requestId) return;
-    for (const pending of pendingScreenshotPolls) {
-      sendJson(pending, 200, { requestId });
+  const prunePreviewClients = () => {
+    const cutoff = Date.now() - 60_000;
+    for (const [clientId, lastSeen] of previewClients) {
+      if (lastSeen < cutoff) previewClients.delete(clientId);
     }
-    pendingScreenshotPolls.clear();
+  };
+
+  const registerPreviewClient = (clientId: string) => {
+    if (!clientId) return;
+    previewClients.set(clientId, Date.now());
+    prunePreviewClients();
+  };
+
+  const choosePreviewClient = () => {
+    prunePreviewClients();
+    let bestClientId: string | undefined;
+    let bestSeen = 0;
+    for (const [clientId, lastSeen] of previewClients) {
+      if (lastSeen > bestSeen) {
+        bestClientId = clientId;
+        bestSeen = lastSeen;
+      }
+    }
+    return bestClientId;
+  };
+
+  const pendingScreenshotForClient = (clientId: string, lastRequestId = ''): [string, PendingScreenshot] | null => {
+    for (const [requestId, pending] of pendingScreenshots) {
+      if (requestId === lastRequestId) continue;
+      if (!pending.targetClientId || pending.targetClientId === clientId) return [requestId, pending];
+    }
+    return null;
+  };
+
+  const flushScreenshotPolls = () => {
+    for (const poll of Array.from(pendingScreenshotPolls)) {
+      const request = pendingScreenshotForClient(poll.clientId);
+      if (!request) continue;
+      const [requestId, pending] = request;
+      pending.targetClientId ??= poll.clientId;
+      pendingScreenshotPolls.delete(poll);
+      clearTimeout(poll.timeout);
+      sendJson(poll.res, 200, { requestId });
+    }
   };
 
   const watcher = chokidar.watch(deck.dir, {
@@ -683,6 +746,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
         }, 15_000);
         pendingScreenshots.set(requestId, {
+          targetClientId: choosePreviewClient(),
           filename: request.filename,
           respond,
           timeout,
@@ -693,6 +757,21 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         let content = '';
         try { content = fs.readFileSync(logsPath, 'utf8'); } catch {}
         respond({ logs: content });
+      } else if (request.command === 'edit') {
+        const cardId = request.card || initialCard.cardId;
+        const card = deck.cards.get(cardId);
+        if (!card?.projectCardDir) {
+          respond({ error: `Card ${cardId} is not a project-format card.` });
+          return;
+        }
+        applyLocalEdit({ cardDir: card.projectCardDir, args: request.args })
+          .then((result) => {
+            bumpVersion();
+            respond({ success: true, summary: result.summary });
+          })
+          .catch((error: any) => {
+            respond({ error: error?.message || String(error) });
+          });
       } else if (request.command === 'status') {
         respond({
           connected: true,
@@ -717,7 +796,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       const reqPath = decodeURIComponent(requestUrl.pathname);
 
       if (req.method === 'GET' && reqPath === '/') {
-        sendText(res, 200, getHTML(deck, initialCard, meInfo), 'text/html; charset=utf-8');
+        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId), 'text/html; charset=utf-8');
         return;
       }
 
@@ -769,20 +848,44 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       }
 
       if (req.method === 'GET' && reqPath === '/screenshot-request') {
+        const requestPreviewRunId = requestUrl.searchParams.get('previewRunId');
+        if (!requestPreviewRunId) {
+          const timeout = setTimeout(() => sendJson(res, 200, { requestId: null }), 30_000);
+          res.on('close', () => clearTimeout(timeout));
+          return;
+        }
+        if (requestPreviewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+
+        const previewClientId = requestUrl.searchParams.get('previewClientId') || '';
+        if (!previewClientId) {
+          sendJson(res, 400, { error: 'missing preview client id' });
+          return;
+        }
+
+        registerPreviewClient(previewClientId);
         const lastRequestId = requestUrl.searchParams.get('last') || '';
-        const requestId = currentScreenshotRequestId();
-        if (requestId && requestId !== lastRequestId) {
+        const screenshotRequest = pendingScreenshotForClient(previewClientId, lastRequestId);
+        if (screenshotRequest) {
+          const [requestId, pending] = screenshotRequest;
+          pending.targetClientId ??= previewClientId;
           sendJson(res, 200, { requestId });
           return;
         }
 
-        pendingScreenshotPolls.add(res);
-        const timeout = setTimeout(() => {
-          if (pendingScreenshotPolls.delete(res)) sendJson(res, 200, { requestId: null });
-        }, 30_000);
+        const poll: PendingScreenshotPoll = {
+          clientId: previewClientId,
+          res,
+          timeout: setTimeout(() => {
+            if (pendingScreenshotPolls.delete(poll)) sendJson(res, 200, { requestId: null });
+          }, 30_000),
+        };
+        pendingScreenshotPolls.add(poll);
         res.on('close', () => {
-          clearTimeout(timeout);
-          pendingScreenshotPolls.delete(res);
+          clearTimeout(poll.timeout);
+          pendingScreenshotPolls.delete(poll);
         });
         return;
       }
@@ -790,11 +893,23 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       if (req.method === 'POST' && reqPath === '/screenshot-data') {
         const raw = await readRequestBody(req);
         const body = JSON.parse(raw);
+        if (body.previewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+
         const pending = pendingScreenshots.get(body.requestId);
         if (!pending) {
           sendJson(res, 404, { error: `Screenshot request not found: ${body.requestId}` });
           return;
         }
+        if (pending.targetClientId && pending.targetClientId !== body.previewClientId) {
+          sendJson(res, 409, { error: 'screenshot request targeted another preview client' });
+          return;
+        }
+
+        if (body.previewClientId) registerPreviewClient(body.previewClientId);
+        pending.targetClientId ??= body.previewClientId;
         pendingScreenshots.delete(body.requestId);
         clearTimeout(pending.timeout);
         screenshotCounter++;

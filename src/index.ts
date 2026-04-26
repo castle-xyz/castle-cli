@@ -69,7 +69,7 @@ Usage:
   castle [command] [options]
 
 Commands:
-  serve [dir]            Serve local saved scene-data JSON with the bundled player
+  serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene

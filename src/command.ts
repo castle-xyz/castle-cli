@@ -6,11 +6,11 @@ const SOCK_PATH = path.join('workspace', '.castle', 'cli.sock');
 const SERVE_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-serve.json');
 
 function getSocketPath(): string {
-  if (fs.existsSync(SOCK_PATH)) return SOCK_PATH;
   try {
     const registry = JSON.parse(fs.readFileSync(SERVE_REGISTRY_PATH, 'utf8'));
     if (registry.sockPath && fs.existsSync(registry.sockPath)) return registry.sockPath;
   } catch {}
+  if (fs.existsSync(SOCK_PATH)) return SOCK_PATH;
   return SOCK_PATH;
 }
 
@@ -42,7 +42,7 @@ function sendToServer(request: any, timeoutMs = 30000): Promise<any> {
     client.on('error', (err: any) => {
       clearTimeout(timeout);
       if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
-        reject(new Error('CLI server not running. Start it first: npx tsx src/index.ts'));
+        reject(new Error('CLI server not running. Start serve or connect first.'));
       } else {
         reject(err);
       }
@@ -115,6 +115,12 @@ export async function sendCommand(command: string, arg?: string) {
     const result = await sendToServer({ command: 'status' });
     if (result.error) {
       console.error('status failed:', result.error);
+    } else if (result.mode === 'serve') {
+      console.log(`connected: ${result.connected}`);
+      console.log('mode: serve');
+      console.log(`deck: ${result.deckId || '(local)'}`);
+      console.log(`cards: ${result.cards}`);
+      console.log(`workspace: ${result.workspace}`);
     } else {
       console.log(`connected: ${result.connected}`);
       console.log(`blueprints: ${result.blueprints}`);
