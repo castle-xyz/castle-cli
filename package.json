@@ -12,7 +12,8 @@
     "axios": "^1.13.5",
     "chokidar": "^4.0.3",
     "open": "^11.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

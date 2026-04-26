@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as http from 'http';
+import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { URL, fileURLToPath } from 'url';
 import chokidar from 'chokidar';
 import openBrowser from 'open';
 import * as API from '../api.js';
+import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -30,7 +32,8 @@ interface ServeOptions {
 interface CardFile {
   cardId: string;
   title?: string;
-  sceneDataPath: string;
+  sceneDataPath?: string;
+  projectCardDir?: string;
 }
 
 interface LocalDeck {
@@ -41,8 +44,18 @@ interface LocalDeck {
   cards: Map<string, CardFile>;
 }
 
+interface PendingScreenshot {
+  filename?: string;
+  respond: (result: any) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
 function getCacheDir(): string {
   return path.join(os.homedir(), '.castle', 'cache');
+}
+
+function getServeRegistryPath(): string {
+  return path.join(os.homedir(), '.castle', 'cli4-serve.json');
 }
 
 function readCache(relativePath: string): string | null {
@@ -130,6 +143,36 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
+function appendServeLog(deckDir: string, entry: any): void {
+  const level = entry.level || 'log';
+  const prefix = level.includes('error') ? 'ERROR' : level.includes('warn') ? 'WARN' : 'LOG';
+  const blueprint = entry.blueprintTitle ? ` [${entry.blueprintTitle}]` : '';
+  const ts = new Date().toISOString().substring(11, 23);
+  const line = `[${ts}] [${prefix}]${blueprint} ${entry.log ?? ''}\n`;
+  const logsPath = path.join(deckDir, '.castle', 'logs.txt');
+  fs.mkdirSync(path.dirname(logsPath), { recursive: true });
+  fs.appendFileSync(logsPath, line, 'utf8');
+}
+
+function saveScreenshot(deckDir: string, request: PendingScreenshot, base64Data: string, counter: number): string {
+  const screenshotsDir = path.join(deckDir, '.castle', 'screenshots');
+  const defaultFilename = `${String(counter).padStart(3, '0')}.png`;
+  const outPath = request.filename || path.join(screenshotsDir, defaultFilename);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, Buffer.from(base64Data, 'base64'));
+  const latestPath = path.join(screenshotsDir, 'latest.png');
+  fs.copyFileSync(outPath, latestPath);
+  return outPath;
+}
+
+function readCardJson(cardDir: string): any {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(cardDir, 'card.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
 function readLocalDeck(dir: string): LocalDeck {
   const resolvedDir = path.resolve(dir);
   const cards = new Map<string, CardFile>();
@@ -146,8 +189,16 @@ function readLocalDeck(dir: string): LocalDeck {
 
     for (const card of deck.cards || []) {
       if (!card?.cardId) continue;
+      const cardDir = path.join(resolvedDir, 'cards', card.cardId);
       const sceneDataPath = path.join(resolvedDir, 'cards', card.cardId, 'scene-data.json');
-      if (fs.existsSync(sceneDataPath)) {
+      if (isProjectCardDir(cardDir)) {
+        cards.set(card.cardId, {
+          cardId: card.cardId,
+          title: card.title,
+          projectCardDir: cardDir,
+          sceneDataPath: fs.existsSync(sceneDataPath) ? sceneDataPath : undefined,
+        });
+      } else if (fs.existsSync(sceneDataPath)) {
         cards.set(card.cardId, {
           cardId: card.cardId,
           title: card.title,
@@ -161,10 +212,20 @@ function readLocalDeck(dir: string): LocalDeck {
   if (fs.existsSync(cardsDir)) {
     for (const entry of fs.readdirSync(cardsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const sceneDataPath = path.join(cardsDir, entry.name, 'scene-data.json');
-      if (fs.existsSync(sceneDataPath) && !cards.has(entry.name)) {
+      const cardDir = path.join(cardsDir, entry.name);
+      const sceneDataPath = path.join(cardDir, 'scene-data.json');
+      const cardJson = readCardJson(cardDir);
+      if (isProjectCardDir(cardDir) && !cards.has(entry.name)) {
         cards.set(entry.name, {
           cardId: entry.name,
+          title: cardJson.title,
+          projectCardDir: cardDir,
+          sceneDataPath: fs.existsSync(sceneDataPath) ? sceneDataPath : undefined,
+        });
+      } else if (fs.existsSync(sceneDataPath) && !cards.has(entry.name)) {
+        cards.set(entry.name, {
+          cardId: entry.name,
+          title: cardJson.title,
           sceneDataPath,
         });
       }
@@ -184,6 +245,16 @@ function readLocalDeck(dir: string): LocalDeck {
   initialCardId ??= cards.keys().next().value;
 
   return { dir: resolvedDir, deckId, title, initialCardId, cards };
+}
+
+async function getCardSceneDataText(card: CardFile): Promise<string> {
+  if (card.projectCardDir) {
+    return JSON.stringify(await materializeProjectCard(card.projectCardDir));
+  }
+  if (!card.sceneDataPath) {
+    throw new Error(`Card ${card.cardId} has no scene-data.json or project files.`);
+  }
+  return fs.readFileSync(card.sceneDataPath, 'utf8');
 }
 
 function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any): string {
@@ -238,6 +309,36 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
       }
     </div>
     <script>
+      function postLocalLog(level, args) {
+        try {
+          fetch('/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              level: level,
+              log: Array.prototype.slice.call(args).map(function(arg) {
+                if (arg instanceof Error) return arg.stack || arg.message;
+                if (typeof arg === 'string') return arg;
+                try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+              }).join(' ')
+            }),
+          });
+        } catch (e) {}
+      }
+      ['log', 'warn', 'error'].forEach(function(level) {
+        var original = console[level].bind(console);
+        console[level] = function() {
+          original.apply(console, arguments);
+          postLocalLog('browser-' + level, arguments);
+        };
+      });
+      window.addEventListener('error', function(event) {
+        postLocalLog('browser-error', [event.error || event.message]);
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        postLocalLog('browser-error', [event.reason]);
+      });
+
       var hasSetCurrentVersion = false;
       var currentVersion = 0;
 
@@ -294,6 +395,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
           isFocused: true,
           coreViews: coreViewsText,
           authToken: '',
+          localScreenshotRequests: {},
           scriptLog: function(log, level, blueprintTitle) {
             fetch('/log', {
               method: 'POST',
@@ -307,7 +409,23 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
           },
           navigateToDeckId: function() {},
           openDownloadAppLink: function() {},
-          bridgeEvent: function() {},
+          bridgeEvent: function(eventString) {
+            try {
+              var event = JSON.parse(eventString);
+              if (event.name === 'SCREENSHOT_DATA' && event.params && event.params.requestId) {
+                fetch('/screenshot-data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    requestId: event.params.requestId,
+                    data: event.params.data,
+                  }),
+                });
+              }
+            } catch (e) {
+              console.error('bridgeEvent error', e);
+            }
+          },
           dataRequest: async function(requestId, url) {
             var arrayBuffer = new ArrayBuffer(0);
             var success = 1;
@@ -342,6 +460,36 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
         script.src = '/player/' + variant + '/castle-core.js';
         document.head.appendChild(script);
         canvas.focus();
+        pollScreenshotRequests('');
+      }
+
+      async function requestCastleScreenshot(requestId) {
+        try {
+          if (!window.Module || !window.Module.ccall) {
+            setTimeout(function() { requestCastleScreenshot(requestId); }, 250);
+            return;
+          }
+          window.Module.ccall('jsNativeEventSend', 'void', ['string'], [
+            JSON.stringify({ name: 'REQUEST_SCREENSHOT', params: { requestId: requestId } })
+          ]);
+        } catch (e) {
+          console.error('request screenshot failed', e);
+        }
+      }
+
+      async function pollScreenshotRequests(lastRequestId) {
+        try {
+          var response = await fetch('/screenshot-request?last=' + encodeURIComponent(lastRequestId || ''));
+          var body = await response.json();
+          if (body.requestId) {
+            requestCastleScreenshot(body.requestId);
+            lastRequestId = body.requestId;
+          }
+        } catch (e) {
+          console.error('screenshot poll failed', e);
+          await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+        }
+        pollScreenshotRequests(lastRequestId);
       }
 
       function resizeCard() {
@@ -448,13 +596,16 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   const deck = readLocalDeck(directory);
 
   if (deck.cards.size === 0) {
-    console.error(`No scene-data.json files found in ${deck.dir}.`);
+    console.error(`No local card data found in ${deck.dir}.`);
     console.error(
-      'Expected a local saved scene-data directory shaped like:\n' +
+      'Expected either project files shaped like:\n' +
+        '  <dir>/deck.json\n' +
+        '  <dir>/cards/<cardId>/scene/blueprints/<slug>.yaml\n' +
+        '  <dir>/cards/<cardId>/scene/blueprints/<slug>.json\n' +
+        'or a saved scene-data directory shaped like:\n' +
         '  <dir>/deck.json\n' +
         '  <dir>/cards/<cardId>/scene-data.json\n' +
-        'or a direct <dir>/scene-data.json file.\n' +
-        'CLI4 does not have a pull command yet; populate decks/ manually for now.'
+        'or a direct <dir>/scene-data.json file.'
     );
     return;
   }
@@ -472,6 +623,22 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   ]);
 
   let version = 0;
+  let screenshotCounter = 0;
+  const pendingScreenshots = new Map<string, PendingScreenshot>();
+  const pendingScreenshotPolls = new Set<http.ServerResponse>();
+  const sockPath = path.join(deck.dir, '.castle', 'cli.sock');
+  fs.mkdirSync(path.dirname(sockPath), { recursive: true });
+
+  const currentScreenshotRequestId = () => Array.from(pendingScreenshots.keys()).at(-1) || '';
+  const flushScreenshotPolls = () => {
+    const requestId = currentScreenshotRequestId();
+    if (!requestId) return;
+    for (const pending of pendingScreenshotPolls) {
+      sendJson(pending, 200, { requestId });
+    }
+    pendingScreenshotPolls.clear();
+  };
+
   const watcher = chokidar.watch(deck.dir, {
     ignored: (name) => name.split(path.sep).includes('.castle'),
     ignoreInitial: true,
@@ -487,6 +654,59 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     pendingVersionResponses.clear();
   };
   watcher.on('all', (_event, filePath) => bumpVersion(filePath));
+
+  try { fs.unlinkSync(sockPath); } catch {}
+  const ipcServer = net.createServer((conn) => {
+    let data = '';
+    conn.on('data', (chunk) => {
+      data += chunk.toString();
+      if (!data.includes('\n')) return;
+
+      let request: any;
+      try {
+        request = JSON.parse(data.trim());
+      } catch {
+        conn.write(`${JSON.stringify({ error: 'invalid request' })}\n`);
+        conn.end();
+        return;
+      }
+
+      const respond = (result: any) => {
+        conn.write(`${JSON.stringify(result)}\n`);
+        conn.end();
+      };
+
+      if (request.command === 'screenshot') {
+        const requestId = `cli4-local-screenshot-${Date.now()}`;
+        const timeout = setTimeout(() => {
+          if (!pendingScreenshots.delete(requestId)) return;
+          respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
+        }, 15_000);
+        pendingScreenshots.set(requestId, {
+          filename: request.filename,
+          respond,
+          timeout,
+        });
+        flushScreenshotPolls();
+      } else if (request.command === 'logs') {
+        const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
+        let content = '';
+        try { content = fs.readFileSync(logsPath, 'utf8'); } catch {}
+        respond({ logs: content });
+      } else if (request.command === 'status') {
+        respond({
+          connected: true,
+          mode: 'serve',
+          deckId: deck.deckId,
+          cards: deck.cards.size,
+          workspace: deck.dir,
+        });
+      } else {
+        respond({ error: `serve does not support command: ${request.command}` });
+      }
+    });
+  });
+  ipcServer.listen(sockPath);
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -514,7 +734,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           sendJson(res, 404, { error: `Card ${cardId} not found.` });
           return;
         }
-        const body = fs.readFileSync(card.sceneDataPath, 'utf8');
+        const body = await getCardSceneDataText(card);
         sendText(res, 200, body, 'application/json; charset=utf-8');
         return;
       }
@@ -548,6 +768,43 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         return;
       }
 
+      if (req.method === 'GET' && reqPath === '/screenshot-request') {
+        const lastRequestId = requestUrl.searchParams.get('last') || '';
+        const requestId = currentScreenshotRequestId();
+        if (requestId && requestId !== lastRequestId) {
+          sendJson(res, 200, { requestId });
+          return;
+        }
+
+        pendingScreenshotPolls.add(res);
+        const timeout = setTimeout(() => {
+          if (pendingScreenshotPolls.delete(res)) sendJson(res, 200, { requestId: null });
+        }, 30_000);
+        res.on('close', () => {
+          clearTimeout(timeout);
+          pendingScreenshotPolls.delete(res);
+        });
+        return;
+      }
+
+      if (req.method === 'POST' && reqPath === '/screenshot-data') {
+        const raw = await readRequestBody(req);
+        const body = JSON.parse(raw);
+        const pending = pendingScreenshots.get(body.requestId);
+        if (!pending) {
+          sendJson(res, 404, { error: `Screenshot request not found: ${body.requestId}` });
+          return;
+        }
+        pendingScreenshots.delete(body.requestId);
+        clearTimeout(pending.timeout);
+        screenshotCounter++;
+        const outPath = saveScreenshot(deck.dir, pending, body.data, screenshotCounter);
+        pending.respond({ path: outPath });
+        console.log(`[screenshot] saved: ${outPath}`);
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
       if (req.method === 'GET' && reqPath.startsWith('/player/')) {
         sendLocalPlayerFile(reqPath, res);
         return;
@@ -559,8 +816,10 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           const log = JSON.parse(raw);
           const prefix = log.blueprintTitle ? `${log.blueprintTitle}: ` : '';
           console.log(`${prefix}${log.log}`);
+          appendServeLog(deck.dir, log);
         } catch {
           if (raw.trim()) console.log(raw.trim());
+          appendServeLog(deck.dir, { log: raw.trim() });
         }
         sendJson(res, 200, { ok: true });
         return;
@@ -576,6 +835,9 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   const url = `http://localhost:${actualPort}`;
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
   console.log(`Initial card: ${initialCard.cardId}`);
+  console.log(`Command socket: ${sockPath}`);
+  fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
+  fs.writeFileSync(getServeRegistryPath(), JSON.stringify({ sockPath, deckDir: deck.dir, url }, null, 2), 'utf8');
 
   if (options.open) {
     await openBrowser(url);
@@ -584,6 +846,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   const shutdown = async () => {
     await watcher.close();
     server.close();
+    ipcServer.close();
+    try { fs.unlinkSync(sockPath); } catch {}
   };
 
   process.on('SIGINT', () => {

@@ -3,15 +3,25 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const SOCK_PATH = path.join('workspace', '.castle', 'cli.sock');
+const SERVE_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-serve.json');
 
-function sendToServer(request: any): Promise<any> {
+function getSocketPath(): string {
+  if (fs.existsSync(SOCK_PATH)) return SOCK_PATH;
+  try {
+    const registry = JSON.parse(fs.readFileSync(SERVE_REGISTRY_PATH, 'utf8'));
+    if (registry.sockPath && fs.existsSync(registry.sockPath)) return registry.sockPath;
+  } catch {}
+  return SOCK_PATH;
+}
+
+function sendToServer(request: any, timeoutMs = 30000): Promise<any> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       client.destroy();
       reject(new Error('timed out'));
-    }, 30000);
+    }, timeoutMs);
 
-    const client = net.createConnection(SOCK_PATH, () => {
+    const client = net.createConnection(getSocketPath(), () => {
       client.write(JSON.stringify(request) + '\n');
     });
 
@@ -58,7 +68,7 @@ export async function sendCommand(command: string, arg?: string) {
       console.log('restart sent');
     }
   } else if (command === 'screenshot') {
-    const result = await sendToServer({ command: 'screenshot', filename: arg });
+    const result = await sendToServer({ command: 'screenshot', filename: arg }, 20000);
     if (result.error) {
       console.error('screenshot failed:', result.error);
     } else {
@@ -84,9 +94,14 @@ export async function sendCommand(command: string, arg?: string) {
       }
     }
   } else if (command === 'logs') {
-    const logsPath = path.join('workspace', '.castle', 'logs.txt');
     let content = '';
-    try { content = fs.readFileSync(logsPath, 'utf-8'); } catch {}
+    try {
+      const result = await sendToServer({ command: 'logs' }, 5000);
+      content = result.logs || '';
+    } catch {
+      const logsPath = path.join('workspace', '.castle', 'logs.txt');
+      try { content = fs.readFileSync(logsPath, 'utf-8'); } catch {}
+    }
     const lines = content.split('\n');
     const lastRestart = lines.reduce((idx: number, line: string, i: number) =>
       line.includes('--- restart') || line.includes('--- play') ? i : idx, -1);

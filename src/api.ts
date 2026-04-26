@@ -68,3 +68,46 @@ export async function pollForCLILogin(pollToken: string) {
   handleAPIError(response);
   return response.data.pollForCLILogin;
 }
+
+export async function deck(deckId: string) {
+  const response = await API(
+    `query($deckId: ID!) {
+      deck(deckId: $deckId) {
+        deckId
+        title
+        visibility
+        variables
+        initialCard {
+          cardId
+          title
+          sceneDataUrl
+          backgroundColor
+          backgroundImage {
+            url
+            smallUrl
+            largeCardUrl
+          }
+        }
+        cards {
+          cardId
+          title
+          sceneDataUrl
+          backgroundColor
+          backgroundImage {
+            url
+            smallUrl
+            largeCardUrl
+          }
+        }
+      }
+    }`,
+    { deckId }
+  );
+  handleAPIError(response);
+  return response.data.deck;
+}
+
+export async function downloadSceneData(sceneDataUrl: string) {
+  const response = await Axios.get(sceneDataUrl, { timeout: 30_000 });
+  return response.data;
+}
