@@ -764,7 +764,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           respond({ error: `Card ${cardId} is not a project-format card.` });
           return;
         }
-        applyLocalEdit({ cardDir: card.projectCardDir, args: request.args })
+        applyLocalEdit({ cardDir: card.projectCardDir, args: request.args, deckId: deck.deckId, cardId })
           .then((result) => {
             bumpVersion();
             respond({ success: true, summary: result.summary });

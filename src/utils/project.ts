@@ -24,6 +24,7 @@ export interface WriteProjectCardOptions {
   card: ProjectCardInfo;
   cardDir: string;
   sceneData: any;
+  replace?: boolean;
 }
 
 function clone<T>(value: T): T {
@@ -249,6 +250,7 @@ export async function writeProjectCardFromSceneData({
   card,
   cardDir,
   sceneData,
+  replace = false,
 }: WriteProjectCardOptions): Promise<void> {
   const snapshot = sceneData.snapshot ?? {};
   const internalLibrary = snapshot.library ?? {};
@@ -261,6 +263,12 @@ export async function writeProjectCardFromSceneData({
   const externalActors = externalSnapshot.actors ?? [];
   const displayByInternal = await getInternalDisplayNameMap();
   const usedSlugs = new Set<string>();
+
+  if (replace) {
+    fs.rmSync(path.join(cardDir, 'scene', 'blueprints'), { recursive: true, force: true });
+    fs.rmSync(path.join(cardDir, 'scripts'), { recursive: true, force: true });
+    fs.rmSync(path.join(cardDir, '.castle', 'slug-map.json'), { force: true });
+  }
 
   fs.mkdirSync(path.join(cardDir, 'scene', 'blueprints'), { recursive: true });
   fs.mkdirSync(path.join(cardDir, 'scripts'), { recursive: true });
@@ -369,6 +377,7 @@ export async function materializeProjectCard(cardDir: string): Promise<any> {
   }
 
   const actorsYaml = readYamlIfExists(path.join(cardDir, 'scene', 'actors.yaml')) ?? {};
+  const variablesYaml = readYamlIfExists(path.join(cardDir, 'scene', 'variables.yaml')) ?? [];
   const actorEntries: Array<[string, any]> = Array.isArray(actorsYaml)
     ? actorsYaml.map((actor, index) => [`a${index}`, actor])
     : Object.entries(actorsYaml);
@@ -423,6 +432,7 @@ export async function materializeProjectCard(cardDir: string): Promise<any> {
     snapshot: {
       library: processedLibrary,
       actors: (processed.actors ?? []).map(stripActorComponents),
+      variables: variablesYaml,
       sceneProperties: cardJson.sceneProperties,
       actorBlueprintInherit: cardJson.actorBlueprintInherit,
       linkTargetDeckIds: cardJson.linkTargetDeckIds ?? [],
