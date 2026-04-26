@@ -107,6 +107,9 @@ function componentsForYaml(components: Record<string, any>): Record<string, any>
   if (result.Body) {
     delete result.Body.fixtures;
   }
+  if (result.Script) {
+    delete result.Script.code;
+  }
   if (result.Drawing2) {
     delete result.Drawing2.drawData;
     delete result.Drawing2.physicsBodyData;
@@ -269,9 +272,10 @@ export async function writeProjectCardFromSceneData({
     const slug = uniqueSlug(slugify(externalEntry.title || internalEntry.title || entryId, entryId), usedSlugs);
     slugToEntryId[slug] = entryId;
 
-    const externalComponents = componentsForYaml(externalEntry.actorBlueprint?.components ?? {});
+    const originalExternalComponents = externalEntry.actorBlueprint?.components ?? {};
+    const scriptCode = originalExternalComponents.Script?.code;
+    const externalComponents = componentsForYaml(originalExternalComponents);
     const yamlComponents = mapComponentKeys(externalComponents, (name) => componentNameForYaml(name, displayByInternal));
-    const scriptCode = yamlComponents.Script?.code;
     if (typeof scriptCode === 'string') {
       fs.writeFileSync(path.join(cardDir, 'scripts', `${slug}.lua`), scriptCode, 'utf8');
     }

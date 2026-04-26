@@ -322,7 +322,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
                 try { return JSON.stringify(arg); } catch (e) { return String(arg); }
               }).join(' ')
             }),
-          });
+          }).catch(function() {});
         } catch (e) {}
       }
       ['log', 'warn', 'error'].forEach(function(level) {
@@ -401,7 +401,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ log: log, level: level, blueprintTitle: blueprintTitle }),
-            });
+            }).catch(function() {});
           },
           navigateToCardId: async function(nextCardId) {
             var res = await fetch('/scene-data?cardId=' + encodeURIComponent(nextCardId));
