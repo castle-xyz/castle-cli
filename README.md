@@ -14,9 +14,9 @@ The CLI copies Castle's scripting documentation into the workspace for the AI to
 git clone git@github.com:castle-xyz/castle-docs.git
 ```
 
-### 3. Run the Castle app from the `@nikki/cli-4` branch
+### 3. Open the Castle app
 
-Build and run [castle-client](https://github.com/castle-xyz/castle-client) on the `@nikki/cli-4` branch. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
+Use either the main branch of [castle-client](https://github.com/castle-xyz/castle-client) or a TestFlight beta build. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
 
 ### 4. Run Claude
 
