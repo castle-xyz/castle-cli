@@ -4,6 +4,29 @@ import { CLIServer } from './server.js';
 import { getToken, setToken } from './config.js';
 import * as API from './api.js';
 import { sendCommand } from './command.js';
+import { serve } from './commands/serve.js';
+
+function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
+  const positional: string[] = [];
+  const options: Record<string, any> = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--open') {
+      options.open = true;
+    } else if (arg === '--debug') {
+      options.debug = true;
+    } else if (arg === '-p' || arg === '--port') {
+      options.port = args[++i];
+    } else if (arg === '-c' || arg === '--card') {
+      options.card = args[++i];
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  return { positional, options };
+}
 
 async function login(): Promise<string> {
   const token = getToken();
@@ -45,6 +68,7 @@ Usage:
   castle [command] [options]
 
 Commands:
+  serve [dir]            Serve local saved scene-data JSON with the bundled player
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
@@ -52,7 +76,13 @@ Commands:
   logs                   Show script logs since last restart
   status                 Show connection and scene info
 
-Options:
+Serve options:
+  --open                 Open browser for serve
+  --port, -p             Port for serve
+  --card, -c             Card ID for serve
+  --debug                Verbose serve logging
+
+Global options:
   --help, -h             Show this help
 `);
     process.exit(0);
@@ -61,6 +91,12 @@ Options:
   if (command === 'restart' || command === 'screenshot' || command === 'edit' || command === 'logs' || command === 'status') {
     const arg = command === 'screenshot' ? args[1] : undefined;
     await sendCommand(command, arg);
+    return;
+  }
+
+  if (command === 'serve') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await serve(positional[0] || '.', options);
     return;
   }
 

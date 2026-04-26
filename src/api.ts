@@ -7,6 +7,14 @@ const USER_FIELDS = `
   userId
   username
   token
+  isAnonymous
+  photo {
+    url
+    avatarUrl
+  }
+  photoFrame {
+    frameUrl
+  }
 `;
 
 async function API(query: string, variables: any = {}) {

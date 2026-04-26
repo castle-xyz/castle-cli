@@ -37,10 +37,11 @@ The connection writes to `workspace/`:
 - `src/index.ts` — entry point, routes to connect/restart/screenshot/edit
 - `src/server.ts` — persistent tunnel connection, file watching, IPC server, state management
 - `src/command.ts` — IPC client for subcommands (restart, screenshot, edit)
+- `src/commands/serve.ts` — local saved scene-data preview through bundled browser player
 - `src/api.ts` — Castle GraphQL API for authentication
 - `src/config.ts` — token storage in ~/.castle/config.json
 
-Client-side code lives in the castle-client repo on the `@nikki/cli-4` branch:
+Client-side bridge code lives in the castle-client repo; use current main or a TestFlight beta build:
 - `mobile/js/scenecreator/cli/CLIBridge.js` — WebSocket bridge
 - `mobile/js/scenecreator/agent/AgentUtils.js` — shared context-gathering functions
 - `mobile/js/scenecreator/agent/AgentSheet.js` — toolEditScene (scene edit processing)
