@@ -31,7 +31,11 @@ async function API(query: string, variables: any = {}) {
     headers['X-Auth-Token'] = token;
   }
 
-  const response = await Axios.post(API_HOST, { query, variables }, { headers });
+  const response = await Axios.post(API_HOST, { query, variables }, {
+    headers,
+    maxContentLength: 100_000_000,
+    maxBodyLength: 1_000_000_000,
+  });
   return response.data;
 }
 
@@ -110,4 +114,39 @@ export async function deck(deckId: string) {
 export async function downloadSceneData(sceneDataUrl: string) {
   const response = await Axios.get(sceneDataUrl, { timeout: 30_000 });
   return response.data;
+}
+
+export async function createSceneDataUploadConfig(cardIds: string[]) {
+  const response = await API(
+    `mutation($cardIds: [ID!]!) {
+      createSceneDataUploadConfig(cardIds: $cardIds) {
+        cardId
+        uploadId
+        postUrl
+        postFields
+      }
+    }`,
+    { cardIds }
+  );
+  handleAPIError(response);
+  return response.data.createSceneDataUploadConfig;
+}
+
+export async function updateCardAndDeckV2(deck: any, card: any) {
+  const response = await API(
+    `mutation($deck: DeckInput!, $card: CardInput!) {
+      updateCardAndDeckV2(deck: $deck, card: $card) {
+        deck {
+          deckId
+          visibility
+        }
+        card {
+          cardId
+        }
+      }
+    }`,
+    { deck, card }
+  );
+  handleAPIError(response);
+  return response.data.updateCardAndDeckV2;
 }

@@ -6,6 +6,7 @@ import * as API from './api.js';
 import { sendCommand } from './command.js';
 import { serve } from './commands/serve.js';
 import { pull } from './commands/pull.js';
+import { push } from './commands/push.js';
 
 function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
   const positional: string[] = [];
@@ -71,6 +72,7 @@ Usage:
 Commands:
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
+  push [dir]             Push local project files as an unlisted deck
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
@@ -106,6 +108,13 @@ Global options:
     const { positional } = parseOptions(args.slice(1));
     await login();
     await pull(positional[0], { output: positional[1] });
+    return;
+  }
+
+  if (command === 'push') {
+    const { positional } = parseOptions(args.slice(1));
+    await login();
+    await push({ directory: positional[0] || '.' });
     return;
   }
 
