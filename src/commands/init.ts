@@ -15,11 +15,12 @@ const STARTER_SCRIPT = `function onCreate()
 end
 
 function onDraw()
-  castle.draw.setColor(0.035, 0.055, 0.09, 1)
-  castle.draw.rectangle("fill", -0.5, -0.5, 1, 1)
-
   castle.draw.setColor(0.25, 0.9, 0.62, 1)
-  castle.draw.circle("fill", 0, 0, 0.08)
+  castle.draw.circle("fill", 0, 0, 0.28)
+
+  castle.draw.setLineWidth(0.035)
+  castle.draw.setColor(1, 1, 1, 0.45)
+  castle.draw.rectangle("line", -0.42, -0.42, 0.84, 0.84)
 end
 `;
 
@@ -115,8 +116,8 @@ export async function init(options: InitOptions = {}): Promise<void> {
           title: 'Main',
           replaceDrawing: 'blue square',
           components: `Layout:
-  widthScale: 10
-  heightScale: 14
+  widthScale: 1
+  heightScale: 1
 Tags:
   tagsString: main starter
 Script:
@@ -130,8 +131,8 @@ Script:
           components: `Layout:
   x: 0
   y: 0
-  widthScale: 10
-  heightScale: 14`,
+  widthScale: 1
+  heightScale: 1`,
         },
       },
       variables: {},

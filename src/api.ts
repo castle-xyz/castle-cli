@@ -150,3 +150,28 @@ export async function updateCardAndDeckV2(deck: any, card: any) {
   handleAPIError(response);
   return response.data.updateCardAndDeckV2;
 }
+
+export async function uploadBase64(data: string, filename: string, mimetype = 'image/png') {
+  const response = await API(
+    `mutation($data: String!, $filename: String, $mimetype: String) {
+      uploadBase64(data: $data, filename: $filename, mimetype: $mimetype) {
+        fileId
+        url
+      }
+    }`,
+    { data, filename, mimetype }
+  );
+  handleAPIError(response);
+  return response.data.uploadBase64;
+}
+
+export async function updateCardCustomBackgroundImage(cardId: string, backgroundImageFileId: string) {
+  const response = await API(
+    `mutation($cardId: ID!, $backgroundImageFileId: ID) {
+      updateCardCustomBackgroundImage(cardId: $cardId, backgroundImageFileId: $backgroundImageFileId)
+    }`,
+    { cardId, backgroundImageFileId }
+  );
+  handleAPIError(response);
+  return response.data.updateCardCustomBackgroundImage;
+}

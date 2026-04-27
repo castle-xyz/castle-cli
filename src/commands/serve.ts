@@ -58,6 +58,16 @@ interface PendingScreenshotPoll {
   timeout: ReturnType<typeof setTimeout>;
 }
 
+interface PreviewClientState {
+  seenAt: number;
+  readyVersion?: number;
+  readyAt?: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getCacheDir(): string {
   return path.join(os.homedir(), '.castle', 'cache');
 }
@@ -270,13 +280,14 @@ async function getCardSceneDataText(card: CardFile): Promise<string> {
   return fs.readFileSync(card.sceneDataPath, 'utf8');
 }
 
-function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, debug: boolean): string {
+function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, servedVersion: number, debug: boolean): string {
   const deckId = JSON.stringify(deck.deckId || '');
   const cardId = JSON.stringify(initialCard?.cardId || '');
   const cardTitle = JSON.stringify(initialCard?.title || '');
   const creatorUsername = JSON.stringify(meInfo?.username || '');
   const featureFlags = JSON.stringify(JSON.stringify({ scriptDraw: true }));
   const previewRunIdJson = JSON.stringify(previewRunId);
+  const servedVersionJson = JSON.stringify(servedVersion);
   const debugLogsJson = JSON.stringify(debug);
   const showUserInfo = meInfo?.username && !meInfo?.isAnonymous;
   const avatarUrl = meInfo?.photo?.url || meInfo?.photo?.avatarUrl || '';
@@ -355,7 +366,8 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
       });
 
       var hasSetCurrentVersion = false;
-      var currentVersion = 0;
+      var currentVersion = ${servedVersionJson};
+      var servedVersion = ${servedVersionJson};
       var previewRunId = ${previewRunIdJson};
       var debugLogs = ${debugLogsJson};
       var previewClientId = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -380,6 +392,20 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
           return;
         }
         setTimeout(checkForUpdate, 100);
+      }
+
+      function postPreviewReady() {
+        try {
+          fetch('/preview-ready', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              previewRunId: previewRunId,
+              previewClientId: previewClientId,
+              version: servedVersion,
+            }),
+          }).catch(function() {});
+        } catch (e) {}
       }
 
       async function loadDeck() {
@@ -483,6 +509,9 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
 
         var script = document.createElement('script');
         script.src = '/player/' + variant + '/castle-core.js';
+        script.addEventListener('load', function() {
+          setTimeout(postPreviewReady, 500);
+        });
         document.head.appendChild(script);
         canvas.focus();
         pollScreenshotRequests('');
@@ -670,7 +699,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   ]);
 
   const previewRunId = crypto.randomUUID();
-  const previewClients = new Map<string, number>();
+  const previewClients = new Map<string, PreviewClientState>();
   let version = 0;
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
@@ -682,28 +711,67 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
   const prunePreviewClients = () => {
     const cutoff = Date.now() - 60_000;
-    for (const [clientId, lastSeen] of previewClients) {
-      if (lastSeen < cutoff) previewClients.delete(clientId);
+    for (const [clientId, state] of previewClients) {
+      if (state.seenAt < cutoff) previewClients.delete(clientId);
     }
   };
 
   const registerPreviewClient = (clientId: string) => {
     if (!clientId) return;
-    previewClients.set(clientId, Date.now());
+    const state = previewClients.get(clientId) || { seenAt: 0 };
+    state.seenAt = Date.now();
+    previewClients.set(clientId, state);
     prunePreviewClients();
   };
 
-  const choosePreviewClient = () => {
+  const markPreviewClientReady = (clientId: string, readyVersion: number) => {
+    if (!clientId) return;
+    const now = Date.now();
+    const state = previewClients.get(clientId) || { seenAt: now };
+    state.seenAt = now;
+    state.readyVersion = readyVersion;
+    state.readyAt = now;
+    previewClients.set(clientId, state);
+    prunePreviewClients();
+  };
+
+  const choosePreviewClient = (requireReady = false) => {
     prunePreviewClients();
     let bestClientId: string | undefined;
     let bestSeen = 0;
-    for (const [clientId, lastSeen] of previewClients) {
+    for (const [clientId, state] of previewClients) {
+      if (requireReady && (state.readyVersion ?? -1) < version) continue;
+      const lastSeen = requireReady ? (state.readyAt || state.seenAt) : state.seenAt;
       if (lastSeen > bestSeen) {
         bestClientId = clientId;
         bestSeen = lastSeen;
       }
     }
     return bestClientId;
+  };
+
+  const readyPreviewClientCount = () => {
+    prunePreviewClients();
+    let count = 0;
+    for (const state of previewClients.values()) {
+      if ((state.readyVersion ?? -1) >= version) count++;
+    }
+    return count;
+  };
+
+  const waitForReadyPreviewClient = async (timeoutMs = 10_000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const clientId = choosePreviewClient(true);
+      if (clientId) {
+        const state = previewClients.get(clientId);
+        const settleMs = Math.max(0, 500 - (Date.now() - (state?.readyAt || 0)));
+        if (settleMs > 0) await sleep(settleMs);
+        return clientId;
+      }
+      await sleep(100);
+    }
+    return undefined;
   };
 
   const pendingScreenshotForClient = (clientId: string, lastRequestId = ''): [string, PendingScreenshot] | null => {
@@ -764,20 +832,29 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       };
 
       if (request.command === 'screenshot') {
-        const requestId = `cli4-local-screenshot-${Date.now()}`;
-        const targetClientId = choosePreviewClient();
-        const timeout = setTimeout(() => {
-          if (!pendingScreenshots.delete(requestId)) return;
-          respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
-        }, 30_000);
-        pendingScreenshots.set(requestId, {
-          targetClientId,
-          filename: request.filename,
-          respond,
-          timeout,
+        void (async () => {
+          const targetClientId = await waitForReadyPreviewClient();
+          if (!targetClientId) {
+            respond({ error: 'no ready browser preview; open the serve URL and wait for it to load' });
+            return;
+          }
+
+          const requestId = `cli4-local-screenshot-${Date.now()}`;
+          const timeout = setTimeout(() => {
+            if (!pendingScreenshots.delete(requestId)) return;
+            respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
+          }, 30_000);
+          pendingScreenshots.set(requestId, {
+            targetClientId,
+            filename: request.filename,
+            respond,
+            timeout,
+          });
+          if (debug) console.log(`[screenshot] queued ${requestId} target ${targetClientId}`);
+          flushScreenshotPolls();
+        })().catch((error: any) => {
+          respond({ error: error?.message || String(error) });
         });
-        if (debug) console.log(`[screenshot] queued ${requestId} target ${targetClientId || 'any'}`);
-        flushScreenshotPolls();
       } else if (request.command === 'logs') {
         const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
         let content = '';
@@ -803,10 +880,14 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           connected: true,
           mode: 'serve',
           deckId: deck.deckId,
+          initialCardId: initialCard.cardId,
           cards: deck.cards.size,
           workspace: deck.dir,
           port: actualPort,
           url,
+          version,
+          previewClients: previewClients.size,
+          readyPreviewClients: readyPreviewClientCount(),
         });
       } else {
         respond({ error: `serve does not support command: ${request.command}` });
@@ -824,7 +905,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       const reqPath = decodeURIComponent(requestUrl.pathname);
 
       if (req.method === 'GET' && reqPath === '/') {
-        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, debug), 'text/html; charset=utf-8');
+        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, version, debug), 'text/html; charset=utf-8');
         return;
       }
 
@@ -916,6 +997,25 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           clearTimeout(poll.timeout);
           pendingScreenshotPolls.delete(poll);
         });
+        return;
+      }
+
+      if (req.method === 'POST' && reqPath === '/preview-ready') {
+        const raw = await readRequestBody(req);
+        const body = JSON.parse(raw);
+        if (body.previewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+        if (!body.previewClientId) {
+          sendJson(res, 400, { error: 'missing preview client id' });
+          return;
+        }
+
+        const readyVersion = Number(body.version);
+        markPreviewClientReady(body.previewClientId, Number.isFinite(readyVersion) ? readyVersion : version);
+        if (debug) console.log(`[preview] ready ${body.previewClientId} version ${Number.isFinite(readyVersion) ? readyVersion : version}`);
+        sendJson(res, 200, { ok: true, version });
         return;
       }
 

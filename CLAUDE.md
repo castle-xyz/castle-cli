@@ -26,6 +26,7 @@ npx tsx src/index.ts pull <deck-id> [dir]       # pull a deck into local project
 npx tsx src/index.ts serve [dir] --open         # serve local project files with bundled player
 npx tsx src/index.ts restart                    # stop and restart the active scene
 npx tsx src/index.ts screenshot [filename]      # capture through Castle bridge
+npx tsx src/index.ts save-preview-image         # capture a screenshot and set the deck preview image
 npx tsx src/index.ts edit < edit.json           # apply scene edits (pipe JSON to stdin)
 npx tsx src/index.ts logs                       # show script logs since last restart
 npx tsx src/index.ts status                     # show connection/preview status
@@ -61,7 +62,9 @@ The connection writes to `workspace/`:
 
 `edit` on a served local project follows the app AgentSheet/toolEditScene semantics as closely as possible, then rewrites the project files. Default blueprint templates and drawing replacements are bundled in this repo under `data/agent/`, so local edits do not depend on a sibling `castle-client` checkout.
 
-`push` uploads the materialized local project as an unlisted deck and applies the required content moderation flag payload. Use unlisted pushes while testing.
+`push` uploads the materialized local project as an unlisted deck and applies the required content moderation flag payload. It does not update preview images. Use unlisted pushes while testing.
+
+`save-preview-image` requires an active local `serve` browser preview. It waits for the served browser player to load the latest local edit, captures a live Castle-runtime screenshot, uploads it, and sets it as the card/deck preview image. Use it explicitly when the preview should change; do not rely on `push` to overwrite previews.
 
 ## Architecture
 
@@ -77,6 +80,7 @@ The connection writes to `workspace/`:
 - `src/utils/project.ts` — local project read/write and materialization helpers
 - `src/utils/edit.ts` — local AgentSheet-style scene edit implementation
 - `src/utils/agent-data.ts` — bundled default blueprint and drawing replacement data
+- `src/utils/preview.ts` — uploads screenshot PNGs as card preview images
 
 Client-side bridge code lives in the castle-client repo; use current main or a TestFlight beta build:
 - `mobile/js/scenecreator/cli/CLIBridge.js` — WebSocket bridge
@@ -106,7 +110,7 @@ The following rules apply when editing Castle deck YAML/Lua in either app-synced
 - IMPORTANT: `getCollidingActors` and `isColliding` only work with physics-based movement (Dynamic Motion / Moving behaviors). If actors move by setting `layout.x/y` directly, use manual distance checks instead: `local dx = a.layout.x - b.layout.x; local dy = a.layout.y - b.layout.y; if math.sqrt(dx*dx+dy*dy) < hitRadius then ...`
 - IMPORTANT: Camera follow is `my:followWithCamera()`, not `setCameraTarget` or any other name.
 - IMPORTANT: HUD actors that should stay on screen need `relativeToCamera: true` in their Layout. The camera follows the player so fixed-position actors will scroll off screen.
-- IMPORTANT: `onDraw` draws in actor-local coordinates where (-0.5,-0.5) to (0.5,0.5) is the actor's bounds. 1 unit = actor's width/height. So a `widthScale: 2` actor has 2 world units but still draws in -0.5 to 0.5 local coords.
+- IMPORTANT: `onDraw` draws in actor-local coordinates, and the result is scaled by the actor's `widthScale` and `heightScale`. Non-uniform actor scale stretches all `castle.draw` output. Prefer a centered `widthScale: 1`, `heightScale: 1` draw actor and draw larger than the actor bounds when needed.
 - IMPORTANT: Actors render in the order they were added (back to front). Use `layerName: back` or `layerName: front` to control layer, or `my:moveToFront()` / `my:moveToBack()` in scripts.
 - IMPORTANT: For HUD/UI actors that should stay fixed on screen, you MUST use `layerName: camera` (not just `relativeToCamera: true`). The `camera` layer is what actually makes actors follow the camera. Setting `relativeToCamera: true` alone does NOT work.
 - IMPORTANT: When using `node -e '...' | npx tsx src/index.ts edit` for edits, use single quotes for the outer shell string and escape carefully. For complex edits, build the JSON in JS and pipe with `process.stdout.write(JSON.stringify(edit))`.

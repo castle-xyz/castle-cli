@@ -82,6 +82,7 @@ Commands:
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
+  save-preview-image     Capture screenshot and set deck preview image
   edit                   Apply scene edits (reads JSON from stdin)
   logs                   Show script logs since last restart
   status                 Show connection and scene info
@@ -101,8 +102,9 @@ Global options:
     process.exit(0);
   }
 
-  if (command === 'restart' || command === 'screenshot' || command === 'edit' || command === 'logs' || command === 'status') {
-    const arg = command === 'screenshot' ? args[1] : undefined;
+  if (command === 'restart' || command === 'screenshot' || command === 'save-preview-image' || command === 'edit' || command === 'logs' || command === 'status') {
+    if (command === 'save-preview-image') await login();
+    const arg = command === 'screenshot' || command === 'save-preview-image' ? args[1] : undefined;
     await sendCommand(command, arg);
     return;
   }

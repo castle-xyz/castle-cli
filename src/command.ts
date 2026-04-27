@@ -1,6 +1,7 @@
 import * as net from 'net';
 import * as path from 'path';
 import * as fs from 'fs';
+import { setCardPreviewImageFromPng } from './utils/preview.js';
 
 const SOCK_PATH = path.join('workspace', '.castle', 'cli.sock');
 const SERVE_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-serve.json');
@@ -74,6 +75,26 @@ export async function sendCommand(command: string, arg?: string) {
     } else {
       console.log(`screenshot saved: ${result.path}`);
     }
+  } else if (command === 'save-preview-image') {
+    const status = await sendToServer({ command: 'status' }, 5000);
+    if (status.error) {
+      console.error('preview image failed:', status.error);
+      return;
+    }
+    if (status.mode !== 'serve' || !status.initialCardId) {
+      console.error('preview image failed: start local serve for a project deck first');
+      return;
+    }
+
+    const result = await sendToServer({ command: 'screenshot', filename: arg }, 35000);
+    if (result.error) {
+      console.error('preview image failed:', result.error);
+      return;
+    }
+
+    const file = await setCardPreviewImageFromPng(status.initialCardId, result.path);
+    console.log(`screenshot saved: ${result.path}`);
+    console.log(`preview image set for card ${status.initialCardId}: ${file.fileId}`);
   } else if (command === 'edit') {
     const input = await readStdin();
     let args: any;
@@ -119,10 +140,12 @@ export async function sendCommand(command: string, arg?: string) {
       console.log(`connected: ${result.connected}`);
       console.log('mode: serve');
       console.log(`deck: ${result.deckId || '(local)'}`);
+      if (result.initialCardId) console.log(`initial card: ${result.initialCardId}`);
       console.log(`cards: ${result.cards}`);
       console.log(`workspace: ${result.workspace}`);
       if (result.url) console.log(`url: ${result.url}`);
       if (result.port) console.log(`port: ${result.port}`);
+      if (typeof result.readyPreviewClients === 'number') console.log(`ready previews: ${result.readyPreviewClients}/${result.previewClients || 0}`);
     } else {
       console.log(`connected: ${result.connected}`);
       console.log(`blueprints: ${result.blueprints}`);
