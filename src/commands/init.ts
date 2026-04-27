@@ -10,40 +10,16 @@ interface InitOptions {
   force?: boolean;
 }
 
-const STARTER_SCRIPT = `local t = 0
-
-function onCreate()
-  print("castle cli starter deck ready")
-end
-
-function onUpdate(dt)
-  t = t + dt
+const STARTER_SCRIPT = `function onCreate()
+  print("ready")
 end
 
 function onDraw()
   castle.draw.setColor(0.035, 0.055, 0.09, 1)
   castle.draw.rectangle("fill", -0.5, -0.5, 1, 1)
 
-  castle.draw.setLineWidth(0.006)
-  castle.draw.setColor(0.2, 0.85, 1.0, 0.22)
-  for i = 1, 7 do
-    local y = -0.34 + i * 0.085
-    castle.draw.line(-0.42, y, 0.42, y)
-  end
-
-  castle.draw.push()
-  castle.draw.rotate(t * 38)
-  castle.draw.setColor(0.25, 0.9, 0.62, 0.9)
-  castle.draw.roundedRectangle("fill", -0.12, -0.12, 0.24, 0.24, 0.035, 0.035)
-  castle.draw.setColor(1, 1, 1, 0.42)
-  castle.draw.roundedRectangle("line", -0.16, -0.16, 0.32, 0.32, 0.045, 0.045)
-  castle.draw.pop()
-
-  local pulse = 0.025 + 0.01 * math.sin(t * 4)
-  castle.draw.setColor(1, 0.86, 0.32, 0.95)
-  castle.draw.circle("fill", -0.28, -0.22, pulse)
-  castle.draw.setColor(1, 0.28, 0.48, 0.95)
-  castle.draw.circle("fill", 0.28, 0.22, pulse * 0.85)
+  castle.draw.setColor(0.25, 0.9, 0.62, 1)
+  castle.draw.circle("fill", 0, 0, 0.08)
 end
 `;
 
