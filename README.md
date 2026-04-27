@@ -1,27 +1,22 @@
 ## Setup
 
-### 1. Clone this repo as a sibling of castle-client
+### 1. Clone and install
 
 ```bash
-git clone git@github.com:nikki93/castle-cli-4.git
-```
-
-### 2. Clone castle-docs as a sibling
-
-The CLI copies Castle's scripting documentation into the workspace for the AI to reference.
-
-```bash
-git clone git@github.com:castle-xyz/castle-docs.git
-```
-
-### 3. Open the Castle app
-
-Use either the main branch of [castle-client](https://github.com/castle-xyz/castle-client) or a TestFlight beta build. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
-
-### 4. Run Claude
-
-```bash
+git clone git@github.com:castle-xyz/castle-cli-4.git
 cd castle-cli-4
+npm install
+```
+
+No sibling `castle-client` or `castle-docs` checkout is required for normal CLI usage.
+
+### 2. Open the Castle app when using app-connected mode
+
+Use either the main Castle app build or a TestFlight beta build. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
+
+### 3. Run Claude
+
+```bash
 claude
 ```
 
