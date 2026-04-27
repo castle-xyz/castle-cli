@@ -32,6 +32,8 @@ npx tsx src/index.ts status                     # show connection/preview status
 npx tsx src/index.ts push [dir]                 # push local project files as an unlisted deck
 ```
 
+`serve` dynamically picks an available port and prints the actual URL. Use `status` or `<deck-dir>/.castle/serve.json` if another command needs to discover the URL/socket; do not guess or hard-code ports.
+
 ## App Workspace
 
 The connection writes to `workspace/`:

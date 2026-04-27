@@ -121,6 +121,8 @@ export async function sendCommand(command: string, arg?: string) {
       console.log(`deck: ${result.deckId || '(local)'}`);
       console.log(`cards: ${result.cards}`);
       console.log(`workspace: ${result.workspace}`);
+      if (result.url) console.log(`url: ${result.url}`);
+      if (result.port) console.log(`port: ${result.port}`);
     } else {
       console.log(`connected: ${result.connected}`);
       console.log(`blueprints: ${result.blueprints}`);

@@ -23,10 +23,10 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
       options.force = true;
     } else if (arg === '--title') {
       options.title = args[++i];
-    } else if (arg === '-p' || arg === '--port') {
-      options.port = args[++i];
     } else if (arg === '-c' || arg === '--card') {
       options.card = args[++i];
+    } else if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`);
     } else {
       positional.push(arg);
     }
@@ -88,7 +88,6 @@ Commands:
 
 Serve options:
   --open                 Open browser for serve
-  --port, -p             Port for serve
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
 
@@ -150,6 +149,6 @@ Global options:
 }
 
 main().catch((err) => {
-  console.error('fatal:', err);
+  console.error('fatal:', err instanceof Error ? err.message : err);
   process.exit(1);
 });
