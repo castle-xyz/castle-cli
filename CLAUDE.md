@@ -62,8 +62,6 @@ The connection writes to `workspace/`:
 
 `push` uploads the materialized local project as an unlisted deck and applies the required content moderation flag payload. Use unlisted pushes while testing.
 
-For Lua script logs, use `print(...)`. There is no `castle.log(...)` script API.
-
 ## Architecture
 
 - `src/index.ts` — entry point, routes to connect/restart/screenshot/edit
@@ -83,3 +81,7 @@ Client-side bridge code lives in the castle-client repo; use current main or a T
 - `mobile/js/scenecreator/cli/CLIBridge.js` — WebSocket bridge
 - `mobile/js/scenecreator/agent/AgentUtils.js` — shared context-gathering functions
 - `mobile/js/scenecreator/agent/AgentSheet.js` — toolEditScene (scene edit processing)
+
+## Miscellaneous tips
+
+- For Lua script logs, use `print(...)`. There is no `castle.log(...)` script API.
