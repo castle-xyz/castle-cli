@@ -61,19 +61,9 @@ export async function push(options: PushOptions = {}): Promise<void> {
 
   for (let index = 0; index < cards.length; index++) {
     const card = cards[index];
-    const oldCardId = card.cardId;
-    card.cardId = wasNewDeck ? makeId() : card.cardId || makeId();
+    card.cardId ||= makeId();
 
-    let cardDir = path.join(directory, 'cards', oldCardId || card.cardId);
-    if (oldCardId && oldCardId !== card.cardId && isProjectCardDir(cardDir)) {
-      const newCardDir = path.join(directory, 'cards', card.cardId);
-      if (fs.existsSync(newCardDir)) throw new Error(`Generated card directory already exists: ${newCardDir}`);
-      fs.renameSync(cardDir, newCardDir);
-      cardDir = newCardDir;
-    }
-    if (!isProjectCardDir(cardDir)) {
-      cardDir = path.join(directory, 'cards', card.cardId);
-    }
+    const cardDir = path.join(directory, 'cards', card.cardId);
     if (!isProjectCardDir(cardDir)) {
       throw new Error(`Card ${card.cardId} is not a project-format card.`);
     }
@@ -104,8 +94,13 @@ export async function push(options: PushOptions = {}): Promise<void> {
       }
     );
 
-    deck.deckId = result.deck.deckId;
-    card.cardId = result.card.cardId;
+    if (result.deck.deckId !== deck.deckId) {
+      throw new Error(`Server returned unexpected deck id ${result.deck.deckId}; expected ${deck.deckId}.`);
+    }
+    if (result.card.cardId !== card.cardId) {
+      throw new Error(`Server returned unexpected card id ${result.card.cardId}; expected ${card.cardId}.`);
+    }
+
     card.sceneDataUrl = undefined;
     if (index === 0) deck.initialCard = card;
     console.log(`Pushed card ${card.cardId}.`);
