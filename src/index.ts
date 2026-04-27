@@ -7,6 +7,7 @@ import { sendCommand } from './command.js';
 import { serve } from './commands/serve.js';
 import { pull } from './commands/pull.js';
 import { push } from './commands/push.js';
+import { init } from './commands/init.js';
 
 function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
   const positional: string[] = [];
@@ -18,6 +19,10 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
       options.open = true;
     } else if (arg === '--debug') {
       options.debug = true;
+    } else if (arg === '--force') {
+      options.force = true;
+    } else if (arg === '--title') {
+      options.title = args[++i];
     } else if (arg === '-p' || arg === '--port') {
       options.port = args[++i];
     } else if (arg === '-c' || arg === '--card') {
@@ -70,6 +75,7 @@ Usage:
   castle [command] [options]
 
 Commands:
+  init [dir]             Create a new local project deck
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   push [dir]             Push local project files as an unlisted deck
@@ -86,6 +92,10 @@ Serve options:
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
 
+Init options:
+  --title                Deck title
+  --force                Replace target directory if it already contains files
+
 Global options:
   --help, -h             Show this help
 `);
@@ -101,6 +111,12 @@ Global options:
   if (command === 'serve') {
     const { positional, options } = parseOptions(args.slice(1));
     await serve(positional[0] || '.', options);
+    return;
+  }
+
+  if (command === 'init') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await init({ directory: positional[0], title: options.title, force: options.force });
     return;
   }
 

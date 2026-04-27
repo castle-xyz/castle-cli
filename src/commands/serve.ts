@@ -167,6 +167,7 @@ function saveScreenshot(deckDir: string, request: PendingScreenshot, base64Data:
   const screenshotsDir = path.join(deckDir, '.castle', 'screenshots');
   const defaultFilename = `${String(counter).padStart(3, '0')}.png`;
   const outPath = request.filename || path.join(screenshotsDir, defaultFilename);
+  fs.mkdirSync(screenshotsDir, { recursive: true });
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, Buffer.from(base64Data, 'base64'));
   const latestPath = path.join(screenshotsDir, 'latest.png');
@@ -266,13 +267,14 @@ async function getCardSceneDataText(card: CardFile): Promise<string> {
   return fs.readFileSync(card.sceneDataPath, 'utf8');
 }
 
-function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string): string {
+function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, debug: boolean): string {
   const deckId = JSON.stringify(deck.deckId || '');
   const cardId = JSON.stringify(initialCard?.cardId || '');
   const cardTitle = JSON.stringify(initialCard?.title || '');
   const creatorUsername = JSON.stringify(meInfo?.username || '');
   const featureFlags = JSON.stringify(JSON.stringify({ scriptDraw: true }));
   const previewRunIdJson = JSON.stringify(previewRunId);
+  const debugLogsJson = JSON.stringify(debug);
   const showUserInfo = meInfo?.username && !meInfo?.isAnonymous;
   const avatarUrl = meInfo?.photo?.url || meInfo?.photo?.avatarUrl || '';
   const frameUrl = meInfo?.photoFrame?.frameUrl || '';
@@ -352,6 +354,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
       var hasSetCurrentVersion = false;
       var currentVersion = 0;
       var previewRunId = ${previewRunIdJson};
+      var debugLogs = ${debugLogsJson};
       var previewClientId = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
 
       async function getVersion() {
@@ -425,6 +428,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
             try {
               var event = JSON.parse(eventString);
               if (event.name === 'SCREENSHOT_DATA' && event.params && event.params.requestId) {
+                if (debugLogs) console.log('[cli screenshot] received data', event.params.requestId);
                 fetch('/screenshot-data', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -483,9 +487,11 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
             setTimeout(function() { requestCastleScreenshot(requestId); }, 250);
             return;
           }
+          if (debugLogs) console.log('[cli screenshot] requesting', requestId);
           window.Module.ccall('jsNativeEventSend', 'void', ['string'], [
             JSON.stringify({ name: 'REQUEST_SCREENSHOT', params: { requestId: requestId } })
           ]);
+          if (debugLogs) console.log('[cli screenshot] sent', requestId);
         } catch (e) {
           console.error('request screenshot failed', e);
         }
@@ -741,16 +747,18 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
       if (request.command === 'screenshot') {
         const requestId = `cli4-local-screenshot-${Date.now()}`;
+        const targetClientId = choosePreviewClient();
         const timeout = setTimeout(() => {
           if (!pendingScreenshots.delete(requestId)) return;
           respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
-        }, 15_000);
+        }, 30_000);
         pendingScreenshots.set(requestId, {
-          targetClientId: choosePreviewClient(),
+          targetClientId,
           filename: request.filename,
           respond,
           timeout,
         });
+        if (debug) console.log(`[screenshot] queued ${requestId} target ${targetClientId || 'any'}`);
         flushScreenshotPolls();
       } else if (request.command === 'logs') {
         const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
@@ -796,7 +804,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       const reqPath = decodeURIComponent(requestUrl.pathname);
 
       if (req.method === 'GET' && reqPath === '/') {
-        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId), 'text/html; charset=utf-8');
+        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, debug), 'text/html; charset=utf-8');
         return;
       }
 
@@ -871,6 +879,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         if (screenshotRequest) {
           const [requestId, pending] = screenshotRequest;
           pending.targetClientId ??= previewClientId;
+          if (debug) console.log(`[screenshot] delivering ${requestId} to ${previewClientId}`);
           sendJson(res, 200, { requestId });
           return;
         }

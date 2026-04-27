@@ -68,7 +68,7 @@ export async function sendCommand(command: string, arg?: string) {
       console.log('restart sent');
     }
   } else if (command === 'screenshot') {
-    const result = await sendToServer({ command: 'screenshot', filename: arg }, 20000);
+    const result = await sendToServer({ command: 'screenshot', filename: arg }, 35000);
     if (result.error) {
       console.error('screenshot failed:', result.error);
     } else {
