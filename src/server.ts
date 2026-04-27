@@ -309,7 +309,6 @@ export class CLIServer {
 
     this._writeFile('.castle/slug-map.json', JSON.stringify(state.slugToEntryId, null, 2));
     this._copyDocs();
-    this._writeCLAUDEmd();
 
     log('state', `${Object.keys(state.scripts).length} scripts, ${Object.keys(state.slugToEntryId).length} blueprints`);
 
@@ -323,13 +322,6 @@ export class CLIServer {
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(fullPath, content);
-  }
-
-  private _writeCLAUDEmd() {
-    const templatePath = path.resolve(this.dir, '../workspace-claude.md');
-    if (fs.existsSync(templatePath)) {
-      fs.copyFileSync(templatePath, path.join(this.dir, 'CLAUDE.md'));
-    }
   }
 
   private _copyDocs() {
@@ -366,7 +358,7 @@ export class CLIServer {
     if (fs.existsSync(gitignorePath)) {
       content = fs.readFileSync(gitignorePath, 'utf-8');
     }
-    for (const entry of ['.castle/', 'scene/', 'CLAUDE.md']) {
+    for (const entry of ['.castle/', 'scene/']) {
       if (!content.includes(entry)) {
         content += (content.length > 0 && !content.endsWith('\n') ? '\n' : '') + entry + '\n';
       }
