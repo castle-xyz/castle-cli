@@ -8,8 +8,6 @@ cd castle-cli-4
 npm install
 ```
 
-No sibling `castle-client` or `castle-docs` checkout is required for normal CLI usage.
-
 ### 2. Open the Castle app when using app-connected mode
 
 Use either the main Castle app build or a TestFlight beta build. Open the editor on a deck. When the CLI connects, a terminal icon will appear in the editor header.
