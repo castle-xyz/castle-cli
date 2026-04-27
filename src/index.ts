@@ -8,6 +8,7 @@ import { serve } from './commands/serve.js';
 import { pull } from './commands/pull.js';
 import { push } from './commands/push.js';
 import { init } from './commands/init.js';
+import { listDecks } from './commands/list.js';
 
 function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
   const positional: string[] = [];
@@ -21,8 +22,12 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
       options.debug = true;
     } else if (arg === '--force') {
       options.force = true;
+    } else if (arg === '--json') {
+      options.json = true;
     } else if (arg === '--title') {
       options.title = args[++i];
+    } else if (arg === '--limit') {
+      options.limit = Number(args[++i]);
     } else if (arg === '-c' || arg === '--card') {
       options.card = args[++i];
     } else if (arg.startsWith('-')) {
@@ -35,19 +40,20 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
   return { positional, options };
 }
 
-async function login(): Promise<string> {
+async function login(options: { quiet?: boolean } = {}): Promise<string> {
+  const log = options.quiet ? console.error : console.log;
   const token = getToken();
   if (token) {
     const user = await API.me();
     if (user) {
-      console.log(`logged in as ${user.username}`);
+      log(`logged in as ${user.username}`);
       return token;
     }
-    console.log('saved token expired, logging in again...');
+    log('saved token expired, logging in again...');
   }
 
   const { pollToken, url } = await API.startCLILogin();
-  console.log(`open this URL to log in:\n${url}`);
+  log(`open this URL to log in:\n${url}`);
   await open(url);
 
   while (true) {
@@ -55,7 +61,7 @@ async function login(): Promise<string> {
     try {
       const user = await API.pollForCLILogin(pollToken);
       setToken(user.token);
-      console.log(`logged in as ${user.username}`);
+      log(`logged in as ${user.username}`);
       return user.token;
     } catch {
       // keep polling
@@ -78,6 +84,7 @@ Commands:
   init [dir]             Create a new local project deck
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
+  list                   List your recently edited decks
   push [dir]             Push local project files as an unlisted deck
   connect [dir]          Connect to Castle app and sync scripts (default)
   restart                Stop and restart the scene
@@ -95,6 +102,10 @@ Serve options:
 Init options:
   --title                Deck title
   --force                Replace target directory if it already contains files
+
+List options:
+  --limit                Number of decks to show (default: 20)
+  --json                 Print machine-readable JSON
 
 Global options:
   --help, -h             Show this help
@@ -125,6 +136,15 @@ Global options:
     const { positional } = parseOptions(args.slice(1));
     await login();
     await pull(positional[0], { output: positional[1] });
+    return;
+  }
+
+  if (command === 'list') {
+    const { options } = parseOptions(args.slice(1));
+    await login({ quiet: options.json === true });
+    const user = await API.me();
+    if (!user?.userId) throw new Error('Unable to load current user.');
+    await listDecks(user.userId, { limit: options.limit, json: options.json === true });
     return;
   }
 

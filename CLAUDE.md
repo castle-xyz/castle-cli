@@ -22,6 +22,7 @@ For app-independent project work, use `pull`, `serve`, `edit`, `screenshot`, and
 ```bash
 npx tsx src/index.ts                            # connect to app (run in background)
 npx tsx src/index.ts init [dir] --title "Game"  # create a new local project deck
+npx tsx src/index.ts list                       # list your 20 most recently edited decks
 npx tsx src/index.ts pull <deck-id> [dir]       # pull a deck into local project files
 npx tsx src/index.ts serve [dir] --open         # serve local project files with bundled player
 npx tsx src/index.ts restart                    # stop and restart the active scene

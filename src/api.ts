@@ -111,6 +111,36 @@ export async function deck(deckId: string) {
   return response.data.deck;
 }
 
+export async function decksForUser(userId: string, options: { limit?: number } = {}) {
+  const response = await API(
+    `query($userId: ID!, $limit: Int) {
+      decksForUser(userId: $userId, limit: $limit, filter: recent_edited) {
+        deckId
+        title
+        visibility
+        caption
+        lastModified
+        playCount
+        playTime
+        initialCard {
+          cardId
+          title
+          backgroundImage {
+            url
+          }
+        }
+        cards {
+          cardId
+          title
+        }
+      }
+    }`,
+    { userId, limit: options.limit }
+  );
+  handleAPIError(response);
+  return response.data.decksForUser;
+}
+
 export async function downloadSceneData(sceneDataUrl: string) {
   const response = await Axios.get(sceneDataUrl, { timeout: 30_000 });
   return response.data;
