@@ -4,12 +4,11 @@ Bridge between Castle and local project directories for AI-assisted game develop
 
 ## First thing to do
 
-Run `npm install` if `node_modules/` doesn't exist.
+If `node_modules/` is missing, run `npm install` before using CLI commands. The agent should handle this when needed; the user does not need to install dependencies manually.
 
 For app-backed editing, start the CLI connection in the background. The user should already have a deck open in the Castle editor and a matching local project under `decks/` (usually from `init` + `push`, or from `pull`).
 
 ```bash
-npm install  # only if needed
 npx tsx src/index.ts
 ```
 
