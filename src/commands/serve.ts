@@ -15,6 +15,7 @@ import { shortSocketPath } from '../utils/socket.js';
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LOCAL_PLAYER_DIR = path.join(CLI_ROOT, 'bundles', 'player');
+const SCREENSHOT_SERVER_TIMEOUT_MS = 60_000;
 const REQUIRED_PLAYER_FILES = [
   path.join('main', 'castle-core.js'),
   path.join('main', 'castle-core.wasm'),
@@ -843,7 +844,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           const timeout = setTimeout(() => {
             if (!pendingScreenshots.delete(requestId)) return;
             respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
-          }, 30_000);
+          }, SCREENSHOT_SERVER_TIMEOUT_MS);
           pendingScreenshots.set(requestId, {
             targetClientId,
             filename: request.filename,

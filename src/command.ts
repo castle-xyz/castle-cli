@@ -2,9 +2,10 @@ import * as net from 'net';
 import * as path from 'path';
 import * as fs from 'fs';
 import { setCardPreviewImageFromPng } from './utils/preview.js';
+import { sendToServe, SERVE_REGISTRY_PATH } from './utils/serveClient.js';
 
-const SERVE_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-serve.json');
 const CONNECT_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-connect.json');
+const SCREENSHOT_COMMAND_TIMEOUT_MS = 75_000;
 
 function readJson(filePath: string): any | null {
   try {
@@ -90,14 +91,14 @@ export async function sendCommand(command: string, arg?: string) {
       console.log('restart sent');
     }
   } else if (command === 'screenshot') {
-    const result = await sendToServer({ command: 'screenshot', filename: arg }, 35000);
+    const result = await sendToServer({ command: 'screenshot', filename: arg }, SCREENSHOT_COMMAND_TIMEOUT_MS);
     if (result.error) {
       console.error('screenshot failed:', result.error);
     } else {
       console.log(`screenshot saved: ${result.path}`);
     }
   } else if (command === 'save-preview-image') {
-    const status = await sendToServer({ command: 'status' }, 5000, 'serve');
+    const status = await sendToServe({ command: 'status' }, 5000);
     if (status.error) {
       console.error('preview image failed:', status.error);
       return;
@@ -107,7 +108,7 @@ export async function sendCommand(command: string, arg?: string) {
       return;
     }
 
-    const result = await sendToServer({ command: 'screenshot', filename: arg }, 35000, 'serve');
+    const result = await sendToServe({ command: 'screenshot', filename: arg }, SCREENSHOT_COMMAND_TIMEOUT_MS);
     if (result.error) {
       console.error('preview image failed:', result.error);
       return;

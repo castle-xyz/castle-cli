@@ -31,6 +31,7 @@ Claude will start the CLI connection automatically and manage the active project
 - **Place actors** — add/move/remove actors in the scene
 - **Manage variables** — create score counters, game state, etc.
 - **Restart & screenshot** — test changes and see results
+- **Push & cover** — publish an unlisted deck and capture a new-deck cover from local serve
 - **Read scene state** — understand what's in the deck to make informed edits
 
 ## How it works

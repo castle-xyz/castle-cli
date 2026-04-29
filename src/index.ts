@@ -85,7 +85,7 @@ Commands:
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   list                   List your recently edited decks
-  push [dir]             Push local project files as an unlisted deck
+  push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
   connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot

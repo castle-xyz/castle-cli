@@ -59,13 +59,13 @@ The connection finds a local project whose `deck.json` has the app-provided `dec
 
 `init` creates this structure from scratch, forks a bundled default blueprint, applies bundled drawing data, and places one starter actor with a Lua script. Use `--title` for the deck title and `--force` only when replacing a throwaway local project directory.
 
-`serve` materializes these files into scene data and runs them through the bundled web player in `bundles/player`. It does not fall back to published Castle bundles. Keep `bundles/player` current when testing new engine features.
+`serve` converts these local files into scene data and runs them through the bundled web player in `bundles/player`. It does not fall back to published Castle bundles. Keep `bundles/player` current when testing new engine features.
 
 `edit` on a served local project follows the app AgentSheet/toolEditScene semantics as closely as possible, then rewrites the project files. Default blueprint templates and drawing replacements are bundled in this repo under `data/agent/`, so local edits do not depend on a sibling `castle-client` checkout.
 
-`push` uploads the materialized local project as an unlisted deck and applies the required content moderation flag payload. It does not update preview images. Use unlisted pushes while testing.
+`push` converts the local project files into scene data, uploads them as an unlisted deck, and applies the required content moderation flag payload. For a brand-new deck, it tries to capture the matching local `serve` browser preview before the first server save, so the newly-created deck has a cover image. It does not overwrite preview images for existing decks. Use unlisted pushes while testing.
 
-`save-preview-image` requires an active local `serve` browser preview. It waits for the served browser player to load the latest local edit, captures a live Castle-runtime screenshot, uploads it, and sets it as the card/deck preview image. Use it explicitly when the preview should change; do not rely on `push` to overwrite previews.
+`save-preview-image` requires an active local `serve` browser preview. It waits for the served browser player to load the latest local edit, captures a live Castle-runtime screenshot, uploads it, and sets it as the card/deck preview image. Use it explicitly when an existing deck preview should change or when the automatic new-deck capture could not run.
 
 ## Architecture
 
@@ -78,7 +78,7 @@ The connection finds a local project whose `deck.json` has the app-provided `dec
 - `src/commands/push.ts` — uploads local project scene data as an unlisted deck
 - `src/api.ts` — Castle GraphQL API for authentication
 - `src/config.ts` — token storage in ~/.castle/config.json
-- `src/utils/project.ts` — local project read/write and materialization helpers
+- `src/utils/project.ts` — local project read/write and scene-data conversion helpers
 - `src/utils/edit.ts` — local AgentSheet-style scene edit implementation
 - `src/utils/agent-data.ts` — bundled default blueprint and drawing replacement data
 - `src/utils/preview.ts` — uploads screenshot PNGs as card preview images
@@ -95,7 +95,7 @@ The following rules apply when editing Castle deck YAML/Lua in project directori
 ## IMPORTANT — Read Before Doing Anything
 
 - IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Grep the active card's `scene/scripting-reference.md` and read `scene/docs/` when available. Do NOT guess function names.
-- IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-connected project, use the active card's `scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and materialize/restart quickly to catch invalid behavior names.
+- IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-connected project, use the active card's `scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and run `serve`/`restart` quickly to catch invalid behavior names.
 - IMPORTANT: Before adding rules, check available triggers, responses, conditions, and expressions. In an app-connected project, use the active card's `scene/rules.yaml`.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.

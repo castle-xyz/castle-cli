@@ -4,10 +4,14 @@ import * as path from 'path';
 import * as API from '../api.js';
 import { UNLISTED_TEST_CONTENT_FLAGS } from '../utils/publish.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
+import { setCardPreviewImageFromPng } from '../utils/preview.js';
+import { sendToServe } from '../utils/serveClient.js';
 
 interface PushOptions {
   directory?: string;
 }
+
+const SCREENSHOT_COMMAND_TIMEOUT_MS = 75_000;
 
 function makeId(): string {
   const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_';
@@ -21,6 +25,36 @@ function readJson(filePath: string): any {
 function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function samePath(a: string, b: string): boolean {
+  return path.resolve(a) === path.resolve(b);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function trySetInitialPreviewFromServe(directory: string, cardId: string): Promise<{ path: string; fileId: string } | null> {
+  const status = await sendToServe({ command: 'status' }, 5000);
+  if (status.error) throw new Error(status.error);
+  if (status.mode !== 'serve') throw new Error('active CLI server is not local serve');
+  if (!status.directory || !samePath(status.directory, directory)) {
+    return null;
+  }
+  if (status.initialCardId && status.initialCardId !== cardId) {
+    throw new Error(`local serve initial card is ${status.initialCardId}, expected ${cardId}`);
+  }
+  if (typeof status.readyPreviewClients === 'number' && status.readyPreviewClients < 1) {
+    return null;
+  }
+
+  const result = await sendToServe({ command: 'screenshot' }, SCREENSHOT_COMMAND_TIMEOUT_MS);
+  if (result.error) throw new Error(result.error);
+  if (!result.path) throw new Error('serve screenshot response did not include a path');
+
+  const file = await setCardPreviewImageFromPng(cardId, result.path);
+  return { path: result.path, fileId: file.fileId };
 }
 
 async function uploadSceneData(cardId: string, sceneData: any): Promise<string> {
@@ -58,10 +92,26 @@ export async function push(options: PushOptions = {}): Promise<void> {
 
   const cards = deck.cards?.length ? deck.cards : deck.initialCard ? [deck.initialCard] : [];
   if (cards.length === 0) throw new Error(`No cards found in ${directory}.`);
+  for (const card of cards) card.cardId ||= makeId();
+
+  if (wasNewDeck) {
+    try {
+      const preview = await trySetInitialPreviewFromServe(directory, cards[0].cardId);
+      if (preview) {
+        console.log(`Captured initial preview image: ${preview.path}`);
+        console.log(`Prepared preview image for card ${cards[0].cardId}: ${preview.fileId}`);
+      } else {
+        console.warn('Initial preview image not set automatically: no matching ready local serve browser preview.');
+        console.warn('Run `npx tsx src/index.ts save-preview-image` after opening this deck in local serve to set a cover.');
+      }
+    } catch (error) {
+      console.warn(`Initial preview image not set automatically: ${errorMessage(error)}.`);
+      console.warn('Run `npx tsx src/index.ts save-preview-image` after opening this deck in local serve to set a cover.');
+    }
+  }
 
   for (let index = 0; index < cards.length; index++) {
     const card = cards[index];
-    card.cardId ||= makeId();
 
     const cardDir = path.join(directory, 'cards', card.cardId);
     if (!isProjectCardDir(cardDir)) {
