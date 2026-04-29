@@ -41,3 +41,46 @@ Immediate follow-up from this batch:
 - Parallel evals are viable in one worktree when each run gets its own `CASTLE_CLI_HOME`.
 - `agent-browser` session names must stay short; long run IDs can exceed Unix socket path limits.
 - Warning count was too optimistic, so the next harness pass should flag tiny literal `castle.draw.text` sizes and low-detail screenshots.
+
+## React Smoke Baseline, High Effort, Parallel
+
+Commit: `1ca8bdc` (`record parallel dialogue eval results`)
+
+Command:
+
+```bash
+npx tsx evals/run-react-smoke-matrix.ts --run-group react-smoke-high-1ca8bdc --concurrency 3 --timeout-min 8 --command-timeout-ms 120000 --browser-timeout-ms 45000 --console-output-limit-kb 16
+```
+
+| run | agent | model | total(s) | agent(s) | browser(s) | warnings | visual verdict | key note |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| `2026-04-29-23-05-01-045-react-smoke-high-1ca8bdc-react-smoke-codex-gpt-5-5-high` | codex | gpt-5.5 | 107.1 | 83.7 | 22.2 | 0 | pass | strong scene, readable dialogue, state changed after click |
+| `2026-04-29-23-05-01-050-react-smoke-high-1ca8bdc-react-smoke-claude-opus-high` | claude | opus | 100.0 | 68.1 | 24.4 | 0 | pass | fastest React run, readable RPG dialogue and branch UI |
+| `2026-04-29-23-05-01-069-react-smoke-high-1ca8bdc-react-smoke-claude-sonnet-high` | claude | sonnet | 115.0 | 92.2 | 21.0 | 0 | pass | functional dialogue scene; state text changed less informatively after first click |
+
+Comparison against the Castle parallel dialogue batch:
+
+| agent | React agent(s) | Castle agent(s) | Castle delta(s) | likely implication |
+| --- | ---: | ---: | ---: | --- |
+| codex gpt-5.5 | 83.7 | 169.1 | +85.4 | Castle roughly doubled agent time and still failed visually |
+| claude opus | 68.1 | 95.8 | +27.7 | Castle overhead was smaller for Opus, but text-size API confusion hurt quality |
+| claude sonnet | 92.2 | 249.1 | +156.9 | Castle was the largest slowdown and produced a clipped result |
+
+Immediate follow-up from this batch:
+
+- Browser verification overhead was similar across React and Castle, so the main delta is agent work time.
+- React agents did not need docs and all passed visually, so the next Castle experiments should isolate context/doc load from Castle file-format/API complexity.
+- A staged Castle eval should compare minimal cheat sheet, focused docs, current `CLAUDE.md`/docs, and broader docs.
+
+Transcript profile for the Castle and React batches:
+
+| suite | agent/model | agent(s) | commands | writes | reads | docs reads | output tokens | cache read |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Castle | codex gpt-5.5 | 169.1 | 47 | 1 | 0 | 2 | 11579 | 610816 |
+| Castle | claude opus | 95.8 | 11 | 1 | 1 | 1 | 6274 | 604876 |
+| Castle | claude sonnet | 249.1 | 21 | 5 | 9 | 4 | 10331 | 1392222 |
+| React | codex gpt-5.5 | 83.7 | 3 | 4 | 0 | 0 | 5844 | 79744 |
+| React | claude opus | 68.1 | 2 | 6 | 0 | 0 | 5197 | 355664 |
+| React | claude sonnet | 92.2 | 4 | 6 | 0 | 0 | 5389 | 326012 |
+
+This points to the next optimization target: reduce Castle discovery/tool churn first, not browser verification. Hidden model reasoning traces are not available from these agent CLIs, but transcript timing/tool-use profiles are enough to test whether smaller docs and more direct file instructions reduce first-shot latency.

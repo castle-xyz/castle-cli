@@ -6,6 +6,7 @@ import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
 
 type Agent = 'claude' | 'codex';
+type DocPack = 'none' | 'minimal' | 'focused' | 'current';
 
 interface Options {
   agent: Agent;
@@ -21,6 +22,7 @@ interface Options {
   headed: boolean;
   consoleOutputLimitBytes: number;
   runGroup?: string;
+  docPack: DocPack;
 }
 
 interface CommandResult {
@@ -115,6 +117,7 @@ function parseArgs(argv: string[]): Options {
     browser: true,
     headed: false,
     consoleOutputLimitBytes: 96 * 1024,
+    docPack: 'none',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -131,6 +134,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--output-dir') options.outputDir = argv[++i];
     else if (arg === '--console-output-limit-kb') options.consoleOutputLimitBytes = Number(argv[++i]) * 1024;
     else if (arg === '--run-group') options.runGroup = slugify(argv[++i]);
+    else if (arg === '--doc-pack') options.docPack = parseDocPack(argv[++i]);
     else if (arg === '--no-browser') options.browser = false;
     else if (arg === '--headless') options.headed = false;
     else if (arg === '--headed') options.headed = true;
@@ -150,6 +154,7 @@ Options:
   --output-dir <dir>            Eval output root (default: eval-runs)
   --console-output-limit-kb <n> Live console output limit per command stream (default: 96)
   --run-group <name>            Add a group slug to the run id for matrix batches
+  --doc-pack <name>             Append docs to the prompt: none, minimal, focused, current (default: none)
   --no-browser                  Skip agent-browser verification
   --headless                    Run agent-browser headless (default)
   --headed                      Run agent-browser headed`);
@@ -176,6 +181,11 @@ function parseAgent(value: string): Agent {
   throw new Error(`Unknown agent: ${value}`);
 }
 
+function parseDocPack(value: string): DocPack {
+  if (value === 'none' || value === 'minimal' || value === 'focused' || value === 'current') return value;
+  throw new Error(`Unknown doc pack: ${value}`);
+}
+
 function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'eval';
 }
@@ -187,6 +197,67 @@ function timestamp(): string {
 function promptPath(prompt: string): string {
   if (prompt.endsWith('.md') || prompt.includes(path.sep)) return path.resolve(ROOT, prompt);
   return path.join(ROOT, 'evals', 'prompts', `${prompt}.md`);
+}
+
+function readDoc(relativePath: string): string {
+  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8').trim();
+}
+
+function docSection(relativePath: string): string {
+  return `\n\n--- ${relativePath} ---\n\n${readDoc(relativePath)}`;
+}
+
+function buildDocPack(pack: DocPack): string {
+  if (pack === 'none') return '';
+
+  const minimal = `# Bundled Castle CLI 4 Minimal Context
+
+Use this bundled context first. Do not read docs unless you hit missing information.
+
+Workflow:
+- Create a local deck with: npx tsx src/index.ts init <deckDir> --title "Eval Deck"
+- Start local preview with: npx tsx src/index.ts serve <deckDir> --detach
+- Edit files under <deckDir>/cards/<cardId>/.
+- Prefer one visible Stage/Controller actor for a first shot.
+- Put custom drawing and touch logic in that actor's script.
+- Keep Layout.visible true or omit visible for any actor with onDraw().
+- Verify with status/logs/screenshot after edits.
+
+Local project shape:
+- deck.json
+- cards/<cardId>/scene/blueprints/<slug>.yaml
+- cards/<cardId>/scripts/<slug>.lua
+- cards/<cardId>/scene/actors.yaml
+
+Script essentials:
+- function onUpdate(dt) runs every frame.
+- function onDraw() draws every frame; castle.draw.* only works inside onDraw().
+- Use castle.getTouches() for input. Touches have x/y and pressed.
+- Use castle.draw.text(text, x, y, size, halign, valign, font) for text.
+- Use readable text sizes, roughly 7 to 12 for dialogue/HUD text.
+- There is no castle.draw.print().
+- There is no castle.dt(); use the dt parameter passed to onUpdate(dt).`;
+
+  if (pack === 'minimal') return minimal;
+
+  const focusedFiles = [
+    'docs/scripts/drawing-reference.md',
+    'docs/scripts/castle-library-reference.md',
+    'docs/cli/2-editing-decks.md',
+  ];
+  const focused = `${minimal}${focusedFiles.map(docSection).join('')}`;
+  if (pack === 'focused') return focused;
+
+  const currentFiles = [
+    'CLAUDE.md',
+    'docs/cli/1-getting-started.md',
+    'docs/cli/2-editing-decks.md',
+    'docs/cli/3-deck-format.md',
+    'docs/scripts/drawing-reference.md',
+    'docs/scripts/castle-library-reference.md',
+    'docs/scripts/actor-reference.md',
+  ];
+  return `${minimal}${currentFiles.map(docSection).join('')}`;
 }
 
 function gitOutput(args: string[]): string {
@@ -908,6 +979,7 @@ async function main(): Promise<void> {
   const evalEnv = { ...process.env, CASTLE_CLI_HOME: evalConfigDir };
 
   const taskPrompt = fs.readFileSync(promptFile, 'utf8');
+  const docPack = buildDocPack(options.docPack);
   const fullPrompt = `You are running an automated Castle CLI 4 eval.
 
 Eval run directory: ${path.relative(ROOT, runDir)}
@@ -926,6 +998,7 @@ For custom drawing and HUD/dialogue text, read docs/scripts/drawing-reference.md
 Use readable castle.draw.text sizes for game text, roughly 7 to 12. Sizes like 0.5 are almost invisible.
 
 For any actor or blueprint that draws the scene, HUD, or dialogue with onDraw(), keep Layout.visible true or omit visible. Do not set visible: false on draw/controller actors.
+${docPack ? `\nBundled docs/context pack: ${options.docPack}\n${docPack}\n` : ''}
 
 Task:
 ${taskPrompt}
@@ -1133,6 +1206,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     model: options.model,
     effort: options.effort,
     runGroup: options.runGroup,
+    docPack: options.docPack,
     git: {
       commit: gitOutput(['rev-parse', 'HEAD']),
       branch: gitOutput(['branch', '--show-current']),

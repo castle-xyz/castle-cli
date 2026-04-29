@@ -13,6 +13,7 @@ interface Spec {
 
 interface Options {
   prompt: string;
+  docPack: string;
   specs: Spec[];
   concurrency: number;
   timeoutMin: string;
@@ -50,6 +51,7 @@ function parseSpec(value: string): Spec {
 function parseArgs(argv: string[]): Options {
   const options: Options = {
     prompt: 'dialogue-rpg',
+    docPack: 'none',
     specs: [],
     concurrency: 3,
     timeoutMin: '12',
@@ -66,6 +68,7 @@ function parseArgs(argv: string[]): Options {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--prompt') options.prompt = argv[++i];
+    else if (arg === '--doc-pack') options.docPack = argv[++i];
     else if (arg === '--spec') options.specs.push(parseSpec(argv[++i]));
     else if (arg === '--concurrency') options.concurrency = Number(argv[++i]);
     else if (arg === '--timeout-min') options.timeoutMin = argv[++i];
@@ -88,6 +91,7 @@ Runs multiple eval specs in parallel. Default specs are:
 
 Options:
   --prompt <name|path>          Prompt under evals/prompts, or a markdown file path (default: dialogue-rpg)
+  --doc-pack <name>             Append docs to eval prompt: none, minimal, focused, current (default: none)
   --spec <agent:model:effort>   Eval spec; repeat to override defaults
   --concurrency <n>             Parallel evals (default: 3)
   --timeout-min <n>             Agent timeout in minutes (default: 12)
@@ -159,6 +163,7 @@ function runSpec(spec: Spec, options: Options): Promise<RunResult> {
     '--model', spec.model,
     '--effort', spec.effort,
     '--prompt', options.prompt,
+    '--doc-pack', options.docPack,
     '--timeout-min', options.timeoutMin,
     '--command-timeout-ms', options.commandTimeoutMs,
     '--browser-timeout-ms', options.browserTimeoutMs,
@@ -222,6 +227,7 @@ function resultTable(options: Options): string {
     `# Eval Matrix ${options.runGroup}`,
     '',
     `Prompt: \`${options.prompt}\``,
+    `Doc pack: \`${options.docPack}\``,
     '',
     '| commit | run | agent | model | effort | total(s) | agent(s) | warnings | screenshot |',
     '| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |',
