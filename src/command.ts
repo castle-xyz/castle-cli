@@ -17,36 +17,40 @@ function readJson(filePath: string): any | null {
 
 type CommandTarget = 'auto' | 'serve' | 'connect';
 
-function getSocketPath(target: CommandTarget = 'auto'): string | null {
+function getSocketPaths(target: CommandTarget = 'auto'): string[] {
   const registryPaths = target === 'serve'
     ? [SERVE_REGISTRY_PATH]
     : target === 'connect'
       ? [CONNECT_REGISTRY_PATH]
       : [CONNECT_REGISTRY_PATH, SERVE_REGISTRY_PATH];
 
+  const socketPaths: string[] = [];
   for (const registryPath of registryPaths) {
     const registry = readJson(registryPath);
-    if (registry?.sockPath && fs.existsSync(registry.sockPath)) return registry.sockPath;
+    if (
+      registry?.sockPath &&
+      fs.existsSync(registry.sockPath) &&
+      !socketPaths.includes(registry.sockPath)
+    ) {
+      socketPaths.push(registry.sockPath);
+    }
   }
-  return null;
+  return socketPaths;
 }
 
-function sendToServer(request: any, timeoutMs = 30000, target: CommandTarget = 'auto'): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const sockPath = getSocketPath(target);
-    if (!sockPath) {
-      reject(new Error('CLI server not running. Start serve or connect first.'));
-      return;
-    }
+function isStaleSocketError(error: any): boolean {
+  return error?.code === 'ENOENT' || error?.code === 'ECONNREFUSED';
+}
 
+function sendToSocket(sockPath: string, request: any, timeoutMs: number): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const client = net.createConnection(sockPath, () => {
+      client.write(JSON.stringify(request) + '\n');
+    });
     const timeout = setTimeout(() => {
       client.destroy();
       reject(new Error('timed out'));
     }, timeoutMs);
-
-    const client = net.createConnection(sockPath, () => {
-      client.write(JSON.stringify(request) + '\n');
-    });
 
     let data = '';
     client.on('data', (chunk) => {
@@ -64,13 +68,31 @@ function sendToServer(request: any, timeoutMs = 30000, target: CommandTarget = '
 
     client.on('error', (err: any) => {
       clearTimeout(timeout);
-      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
-        reject(new Error('CLI server not running. Start serve or connect first.'));
-      } else {
-        reject(err);
-      }
+      reject(err);
     });
   });
+}
+
+async function sendToServer(request: any, timeoutMs = 30000, target: CommandTarget = 'auto'): Promise<any> {
+  const socketPaths = getSocketPaths(target);
+  if (socketPaths.length === 0) {
+    throw new Error('CLI server not running. Start serve or connect first.');
+  }
+
+  const staleSockets: string[] = [];
+  for (const sockPath of socketPaths) {
+    try {
+      return await sendToSocket(sockPath, request, timeoutMs);
+    } catch (error: any) {
+      if (!isStaleSocketError(error)) throw error;
+      staleSockets.push(sockPath);
+    }
+  }
+
+  throw new Error(
+    'CLI server not running. Start serve or connect first.' +
+      (staleSockets.length ? ` Stale socket(s): ${staleSockets.join(', ')}` : '')
+  );
 }
 
 function readStdin(): Promise<string> {

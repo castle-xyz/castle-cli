@@ -4,7 +4,7 @@ import * as net from 'net';
 import * as os from 'os';
 import WebSocket from 'ws';
 import chokidar from 'chokidar';
-import { shortSocketPath } from './utils/socket.js';
+import { projectSocketPath } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
@@ -66,7 +66,7 @@ export class CLIServer {
     this.dir = dir;
     this.token = token;
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
-    this.sockPath = shortSocketPath('connect', dir);
+    this.sockPath = projectSocketPath('connect', dir);
 
     for (const d of [dir, path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });

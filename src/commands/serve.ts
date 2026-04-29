@@ -10,7 +10,7 @@ import openBrowser from 'open';
 import * as API from '../api.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
-import { shortSocketPath } from '../utils/socket.js';
+import { projectSocketPath } from '../utils/socket.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -706,7 +706,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
   const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
-  const sockPath = shortSocketPath('serve', deck.dir);
+  const sockPath = projectSocketPath('serve', deck.dir);
   let actualPort: number | null = null;
   let url = '';
 
