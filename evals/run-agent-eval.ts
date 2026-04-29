@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import * as crypto from 'crypto';
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -896,7 +897,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
   let cliScreenshot: CommandResult | null = null;
   let statusAfterBrowser: CommandResult | null = null;
   if (options.browser && serveInfo?.url) {
-    const session = `cli4-eval-${runId}`;
+    const session = `c4-${crypto.createHash('sha1').update(runId).digest('hex').slice(0, 12)}`;
     const browserBaseArgs = [
       'agent-browser',
       '--session',
