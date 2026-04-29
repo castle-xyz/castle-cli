@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import YAML from 'yaml';
 import { applyLocalEdit } from '../utils/edit.js';
@@ -53,12 +54,57 @@ function writeYaml(filePath: string, value: unknown): void {
   fs.writeFileSync(filePath, YAML.stringify(value, { lineWidth: 120 }), 'utf8');
 }
 
+function readJsonIfExists(filePath: string): any | null {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function isProcessAlive(pid: unknown): boolean {
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sameDirectory(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  return path.resolve(a) === path.resolve(b);
+}
+
+function activeServeInfoForDirectory(directory: string): any | null {
+  const serveInfoPaths = [
+    path.join(directory, '.castle', 'serve.json'),
+    path.join(os.homedir(), '.castle', 'cli4-serve.json'),
+  ];
+
+  for (const serveInfoPath of serveInfoPaths) {
+    const serveInfo = readJsonIfExists(serveInfoPath);
+    if (!serveInfo || !sameDirectory(serveInfo.deckDir, directory)) continue;
+    if (isProcessAlive(serveInfo.pid) || (serveInfo.sockPath && fs.existsSync(serveInfo.sockPath))) {
+      return serveInfo;
+    }
+  }
+
+  return null;
+}
+
 function assertDirectoryCanBeCreated(directory: string, force: boolean): void {
   if (!fs.existsSync(directory)) return;
   const entries = fs.readdirSync(directory).filter((entry) => entry !== '.DS_Store');
   if (entries.length === 0) return;
   if (!force) {
     throw new Error(`Directory is not empty: ${directory}. Pass --force to replace it.`);
+  }
+  const activeServeInfo = activeServeInfoForDirectory(directory);
+  if (activeServeInfo) {
+    const pid = activeServeInfo.pid ? ` PID ${activeServeInfo.pid}` : '';
+    throw new Error(`Refusing to replace actively served deck directory${pid}: ${directory}. Stop serve before using --force.`);
   }
   fs.rmSync(directory, { recursive: true, force: true });
 }

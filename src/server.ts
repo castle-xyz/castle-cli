@@ -4,7 +4,7 @@ import * as net from 'net';
 import * as os from 'os';
 import WebSocket from 'ws';
 import chokidar from 'chokidar';
-import { projectSocketPath } from './utils/socket.js';
+import { projectSocketEndpoint, type SocketEndpoint, unlinkSocket, withSocketCwd } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
@@ -55,6 +55,7 @@ export class CLIServer {
   private screenshotCounter = 0;
   private ipcServer: net.Server | null = null;
   private sockPath: string;
+  private socket: SocketEndpoint;
   private pendingScreenshot: { respond: (result: any) => void; filename?: string } | null = null;
   private pendingEdit: { respond: (result: any) => void } | null = null;
   private activeDeckDir: string | null = null;
@@ -66,7 +67,8 @@ export class CLIServer {
     this.dir = dir;
     this.token = token;
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
-    this.sockPath = projectSocketPath('connect', dir);
+    this.socket = projectSocketEndpoint('connect', dir);
+    this.sockPath = this.socket.displayPath;
 
     for (const d of [dir, path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -86,7 +88,7 @@ export class CLIServer {
     this._stopPing();
     this.watcher?.close();
     this.ipcServer?.close();
-    try { fs.unlinkSync(this.sockPath); } catch {}
+    try { unlinkSocket(this.socket); } catch {}
     try {
       const registry = JSON.parse(fs.readFileSync(CONNECT_REGISTRY_PATH, 'utf8'));
       if (registry.sockPath === this.sockPath) fs.unlinkSync(CONNECT_REGISTRY_PATH);
@@ -415,6 +417,8 @@ export class CLIServer {
   private _writeConnectRegistry() {
     const registry = {
       sockPath: this.sockPath,
+      sockName: this.socket.path,
+      sockCwd: this.socket.cwd,
       connectRoot: this.connectRoot,
       deckDir: this.activeDeckDir,
       cardDir: this.dir,
@@ -547,7 +551,7 @@ export class CLIServer {
   }
 
   private _startIPC() {
-    try { fs.unlinkSync(this.sockPath); } catch {}
+    try { unlinkSocket(this.socket); } catch {}
 
     this.ipcServer = net.createServer((conn) => {
       let data = '';
@@ -568,10 +572,10 @@ export class CLIServer {
       });
     });
 
-    this.ipcServer.listen(this.sockPath, () => {
+    withSocketCwd(this.socket, () => this.ipcServer!.listen(this.socket.path, () => {
       this._writeConnectRegistry();
       log('ipc', `listening on ${this.sockPath}`);
-    });
+    }));
 
     this.ipcServer.on('error', (err) => {
       log('ipc', 'error:', err.message);

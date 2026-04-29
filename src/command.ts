@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { setCardPreviewImageFromPng } from './utils/preview.js';
 import { sendToServe, SERVE_REGISTRY_PATH } from './utils/serveClient.js';
+import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './utils/socket.js';
 
 const CONNECT_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-connect.json');
 const SCREENSHOT_COMMAND_TIMEOUT_MS = 75_000;
@@ -17,36 +18,38 @@ function readJson(filePath: string): any | null {
 
 type CommandTarget = 'auto' | 'serve' | 'connect';
 
-function getSocketPaths(target: CommandTarget = 'auto'): string[] {
+function getSocketEndpoints(target: CommandTarget = 'auto'): SocketEndpoint[] {
   const registryPaths = target === 'serve'
     ? [SERVE_REGISTRY_PATH]
     : target === 'connect'
       ? [CONNECT_REGISTRY_PATH]
       : [CONNECT_REGISTRY_PATH, SERVE_REGISTRY_PATH];
 
-  const socketPaths: string[] = [];
+  const sockets: SocketEndpoint[] = [];
   for (const registryPath of registryPaths) {
     const registry = readJson(registryPath);
+    const socket = socketEndpointFromRegistry(registry);
     if (
-      registry?.sockPath &&
-      fs.existsSync(registry.sockPath) &&
-      !socketPaths.includes(registry.sockPath)
+      socket &&
+      socketExists(socket) &&
+      !sockets.some((item) => item.displayPath === socket.displayPath)
     ) {
-      socketPaths.push(registry.sockPath);
+      sockets.push(socket);
     }
   }
-  return socketPaths;
+  return sockets;
 }
 
 function isStaleSocketError(error: any): boolean {
   return error?.code === 'ENOENT' || error?.code === 'ECONNREFUSED';
 }
 
-function sendToSocket(sockPath: string, request: any, timeoutMs: number): Promise<any> {
+function sendToSocket(socket: SocketEndpoint, request: any, timeoutMs: number): Promise<any> {
   return new Promise((resolve, reject) => {
-    const client = net.createConnection(sockPath, () => {
+    let client: net.Socket;
+    client = withSocketCwd(socket, () => net.createConnection(socket.path, () => {
       client.write(JSON.stringify(request) + '\n');
-    });
+    }));
     const timeout = setTimeout(() => {
       client.destroy();
       reject(new Error('timed out'));
@@ -74,18 +77,18 @@ function sendToSocket(sockPath: string, request: any, timeoutMs: number): Promis
 }
 
 async function sendToServer(request: any, timeoutMs = 30000, target: CommandTarget = 'auto'): Promise<any> {
-  const socketPaths = getSocketPaths(target);
-  if (socketPaths.length === 0) {
+  const sockets = getSocketEndpoints(target);
+  if (sockets.length === 0) {
     throw new Error('CLI server not running. Start serve or connect first.');
   }
 
   const staleSockets: string[] = [];
-  for (const sockPath of socketPaths) {
+  for (const socket of sockets) {
     try {
-      return await sendToSocket(sockPath, request, timeoutMs);
+      return await sendToSocket(socket, request, timeoutMs);
     } catch (error: any) {
       if (!isStaleSocketError(error)) throw error;
-      staleSockets.push(sockPath);
+      staleSockets.push(socket.displayPath);
     }
   }
 

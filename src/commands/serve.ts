@@ -4,13 +4,14 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { spawn } from 'child_process';
 import { URL, fileURLToPath } from 'url';
 import chokidar from 'chokidar';
 import openBrowser from 'open';
 import * as API from '../api.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
-import { projectSocketPath } from '../utils/socket.js';
+import { projectSocketEndpoint, unlinkSocket, withSocketCwd } from '../utils/socket.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -30,6 +31,7 @@ interface ServeOptions {
   card?: string;
   open?: boolean;
   debug?: boolean;
+  detach?: boolean;
 }
 
 interface CardFile {
@@ -667,7 +669,74 @@ async function listen(server: http.Server): Promise<number> {
   throw new Error(`No available port found starting at ${start}.`);
 }
 
+function readJsonIfExists(filePath: string): any | null {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function serveChildArgs(deckDir: string, options: ServeOptions): string[] {
+  const entry = process.argv[1];
+  if (!entry) throw new Error('cannot find CLI entrypoint for detached serve');
+
+  const args = [...process.execArgv, entry, 'serve', deckDir];
+  if (options.card) args.push('--card', options.card);
+  if (options.open) args.push('--open');
+  if (options.debug) args.push('--debug');
+  return args;
+}
+
+async function serveDetached(directory: string, options: ServeOptions): Promise<void> {
+  const deck = readLocalDeck(directory);
+  const castleDir = path.join(deck.dir, '.castle');
+  const logPath = path.join(castleDir, 'serve.log');
+  const serveInfoPath = getDeckServeInfoPath(deck.dir);
+  fs.mkdirSync(castleDir, { recursive: true });
+  try { fs.unlinkSync(serveInfoPath); } catch {}
+
+  const logFd = fs.openSync(logPath, 'a');
+  const child = spawn(process.execPath, serveChildArgs(deck.dir, options), {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  child.unref();
+  fs.closeSync(logFd);
+
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const serveInfo = readJsonIfExists(serveInfoPath);
+    if (serveInfo?.url) {
+      console.log(`Started serve in background: ${serveInfo.url}`);
+      console.log(`PID: ${serveInfo.pid || child.pid}`);
+      console.log(`Logs: ${logPath}`);
+      console.log(`Command socket: ${serveInfo.sockPath}`);
+      return;
+    }
+    await sleep(250);
+  }
+
+  console.log(`Started serve in background: PID ${child.pid}`);
+  console.log(`Logs: ${logPath}`);
+  const logTail = (() => {
+    try {
+      return fs.readFileSync(logPath, 'utf8').trim().split('\n').slice(-20).join('\n');
+    } catch {
+      return '';
+    }
+  })();
+  if (logTail) console.error(logTail);
+  throw new Error(`Detached serve did not write ${serveInfoPath} within 15s; check logs for startup errors.`);
+}
+
 export async function serve(directory = '.', options: ServeOptions = {}): Promise<void> {
+  if (options.detach) {
+    await serveDetached(directory, options);
+    return;
+  }
+
   const debug = !!options.debug;
   verifyLocalPlayerBundle();
   if (debug) console.log(`[serve] player bundle: ${LOCAL_PLAYER_DIR}`);
@@ -706,7 +775,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
   const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
-  const sockPath = projectSocketPath('serve', deck.dir);
+  const socket = projectSocketEndpoint('serve', deck.dir);
+  const sockPath = socket.displayPath;
   let actualPort: number | null = null;
   let url = '';
 
@@ -811,7 +881,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   };
   watcher.on('all', (_event, filePath) => bumpVersion(filePath));
 
-  try { fs.unlinkSync(sockPath); } catch {}
+  try { unlinkSocket(socket); } catch {}
   const ipcServer = net.createServer((conn) => {
     let data = '';
     conn.on('data', (chunk) => {
@@ -895,7 +965,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       }
     });
   });
-  ipcServer.listen(sockPath);
+  withSocketCwd(socket, () => ipcServer.listen(socket.path));
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1081,7 +1151,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
   console.log(`Initial card: ${initialCard.cardId}`);
   console.log(`Command socket: ${sockPath}`);
-  const serveInfo = { sockPath, deckDir: deck.dir, url, port: actualPort };
+  const serveInfo = { sockPath, sockName: socket.path, sockCwd: socket.cwd, deckDir: deck.dir, url, port: actualPort, pid: process.pid };
   fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
   fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), { recursive: true });
   fs.writeFileSync(getServeRegistryPath(), JSON.stringify(serveInfo, null, 2), 'utf8');
@@ -1095,7 +1165,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     await watcher.close();
     server.close();
     ipcServer.close();
-    try { fs.unlinkSync(sockPath); } catch {}
+    try { unlinkSocket(socket); } catch {}
     try { fs.unlinkSync(getDeckServeInfoPath(deck.dir)); } catch {}
     try {
       const registry = JSON.parse(fs.readFileSync(getServeRegistryPath(), 'utf8'));

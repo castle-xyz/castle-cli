@@ -18,6 +18,8 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
     const arg = args[i];
     if (arg === '--open') {
       options.open = true;
+    } else if (arg === '--detach') {
+      options.detach = true;
     } else if (arg === '--debug') {
       options.debug = true;
     } else if (arg === '--force') {
@@ -96,6 +98,7 @@ Commands:
 
 Serve options:
   --open                 Open browser for serve
+  --detach               Start serve in the background and print URL/log paths
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
 
@@ -155,8 +158,11 @@ Global options:
     return;
   }
 
-  // Default: connect
-  const dir = command === 'connect' ? (args[1] || 'decks') : (args[0] || 'decks');
+  if (command !== 'connect') {
+    throw new Error(`Unknown command: ${command}`);
+  }
+
+  const dir = args[1] || 'decks';
   const token = await login();
   const resolvedDir = path.resolve(dir);
   const server = new CLIServer(resolvedDir, token);

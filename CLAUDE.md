@@ -49,7 +49,8 @@ The connection finds a local project whose `deck.json` has the app-provided `dec
 Castle documentation is vendored once under `docs/`. Do not expect every deck/card directory to contain its own copy of the docs.
 
 Key files:
-- `docs/scripts/castle-library-reference.md` — `castle.*` functions and drawing APIs
+- `docs/scripts/castle-library-reference.md` — `castle.*` functions such as input, actors, time, storage, and multiplayer
+- `docs/scripts/drawing-reference.md` — focused `castle.draw.*` and `onDraw()` reference; use `castle.draw.text`, not `castle.draw.print`
 - `docs/scripts/actor-reference.md` — actor methods and actor properties available to scripts
 - `docs/scripts/math-library-reference.md` — Castle math helpers
 - `docs/scripts/string-library-reference.md` — Castle string helpers
@@ -105,6 +106,10 @@ Client-side bridge code lives in the castle-client repo; use current main or a T
 ## Deck Authoring
 
 The following rules apply when editing Castle deck YAML/Lua in project directories under `decks/`.
+
+## Eval Work
+
+When running or changing CLI 4 evals, read `evals/README.md` first. It documents the current timing harness, prompt suite, browser verification, output artifacts, and visual-quality checks.
 
 ## IMPORTANT — Read Before Doing Anything
 

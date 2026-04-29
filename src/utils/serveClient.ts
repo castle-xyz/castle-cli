@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
+import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './socket.js';
 
 export const SERVE_REGISTRY_PATH = path.join(os.homedir(), '.castle', 'cli4-serve.json');
 
@@ -17,28 +18,30 @@ export function readServeRegistry(): any | null {
   return readJson(SERVE_REGISTRY_PATH);
 }
 
-export function getServeSocketPath(): string | null {
+export function getServeSocketEndpoint(): SocketEndpoint | null {
   const registry = readServeRegistry();
-  if (registry?.sockPath && fs.existsSync(registry.sockPath)) return registry.sockPath;
+  const endpoint = socketEndpointFromRegistry(registry);
+  if (endpoint && socketExists(endpoint)) return endpoint;
   return null;
 }
 
 export function sendToServe(request: any, timeoutMs = 30000): Promise<any> {
   return new Promise((resolve, reject) => {
-    const sockPath = getServeSocketPath();
-    if (!sockPath) {
+    const socket = getServeSocketEndpoint();
+    if (!socket) {
       reject(new Error('local serve is not running'));
       return;
     }
 
+    let client: net.Socket;
     const timeout = setTimeout(() => {
       client.destroy();
       reject(new Error('timed out'));
     }, timeoutMs);
 
-    const client = net.createConnection(sockPath, () => {
+    client = withSocketCwd(socket, () => net.createConnection(socket.path, () => {
       client.write(JSON.stringify(request) + '\n');
-    });
+    }));
 
     let data = '';
     client.on('data', (chunk) => {
