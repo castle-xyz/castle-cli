@@ -40,9 +40,24 @@ npx tsx src/index.ts push [dir]                 # push local project files as an
 The connection finds a local project whose `deck.json` has the app-provided `deckId`, then syncs the active card into `cards/<card-id>/`:
 - `cards/<card-id>/scripts/*.lua` — editable Lua scripts, one per blueprint. Changes auto-sync to the app.
 - `cards/<card-id>/scene/blueprints/<slug>.yaml` — one file per blueprint (same slugs as scripts)
-- `cards/<card-id>/scene/` — read-only scene state (actors, variables, behaviors, rules, docs)
+- `cards/<card-id>/scene/` — read-only scene state (actors, variables, behaviors, rules)
 - `.castle/logs.txt` — script logs and errors at the deck directory
 - `.castle/screenshots/` — captured screenshots at the deck directory
+
+## Repo-Level Docs
+
+Castle documentation is vendored once under `docs/`. Do not expect every deck/card directory to contain its own copy of the docs.
+
+Key files:
+- `docs/scripts/castle-library-reference.md` — `castle.*` functions and drawing APIs
+- `docs/scripts/actor-reference.md` — actor methods and actor properties available to scripts
+- `docs/scripts/math-library-reference.md` — Castle math helpers
+- `docs/scripts/string-library-reference.md` — Castle string helpers
+- `docs/scripts/tutorials/` — scripting tutorials, handlers, actors, timing, variables, and Lua basics
+- `docs/behaviors/` — behavior-specific docs such as Layout, Analog Stick, and Slowdown
+- `docs/multiplayer/` — multiplayer concepts, sessions, shared blueprints, and examples
+- `docs/cli/` — CLI docs from the main Castle docs repo
+- `docs/reference/` — broader Castle reference docs
 
 ## Local Project Format
 
@@ -93,7 +108,7 @@ The following rules apply when editing Castle deck YAML/Lua in project directori
 
 ## IMPORTANT — Read Before Doing Anything
 
-- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Grep the active card's `scene/scripting-reference.md` and read `scene/docs/` when available. Do NOT guess function names.
+- IMPORTANT: You MUST verify every Castle API function exists in the repo-level docs before using it. Start with `docs/scripts/castle-library-reference.md` and `docs/scripts/actor-reference.md`; grep `docs/` for anything broader. Do NOT guess function names.
 - IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-connected project, use the active card's `scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and run `serve`/`restart` quickly to catch invalid behavior names.
 - IMPORTANT: Before adding rules, check available triggers, responses, conditions, and expressions. In an app-connected project, use the active card's `scene/rules.yaml`.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
@@ -133,9 +148,6 @@ The following rules apply when editing Castle deck YAML/Lua in project directori
   - `variables.yaml` — Deck variables
   - `behaviors.yaml` — Available behavior types and properties
   - `rules.yaml` — Available rule triggers, responses, conditions
-  - `scripting-reference.md` — Full Lua scripting API reference
-  - `script-property-names.md` — Property name mappings (script vs YAML names)
-  - `docs/` — Castle documentation and tutorials
 - `decks/<deck>/.castle/logs.txt` — Script logs and errors from the running scene
 - `decks/<deck>/.castle/screenshots/` — Captured screenshots (latest.png is most recent)
 - `decks/<deck>/cards/<card-id>/scene/blueprints/*.yaml` — local project editable blueprint YAML
@@ -425,7 +437,7 @@ Scripts use Luau (Lua 5.1 with types). Key handlers:
 Access actor properties: `my.layout.x`, `my.layout.y`, `my.layout.rotation`, `my.dynamicMotion.vx`, etc. Other actors: `otherActor.layout.x`, etc.
 Behavior names in scripts use camelCase without spaces: Layout→`layout`, Dynamic Motion→`dynamicMotion`, Slow Down→`slowDown`.
 
-Key functions (verify in scripting-reference.md before using):
+Key functions (verify in `docs/scripts/castle-library-reference.md` or `docs/scripts/actor-reference.md` before using):
 - `castle.getTime()` — elapsed time since card start
 - `castle.getTouch()` / `castle.getTouches()` — current touch state
 - `castle.createActor(title, x, y)` — create actor from blueprint title
