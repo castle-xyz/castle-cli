@@ -19,7 +19,7 @@ For a new deck, ask the agent to create a deck, serve it locally, and push it:
 Start a new deck, serve it, and push it.
 ```
 
-The agent should create a local project under `decks/`, run the bundled local player with `serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. After that, the agent can keep improving the game locally without the Castle app open.
+The agent should create a local project under `decks/`, run `serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. After that, the agent can keep working on the game locally without the Castle app open.
 
 ### 3. Connect the Castle editor when needed
 
@@ -38,6 +38,7 @@ The agent should start `npx tsx src/index.ts connect` from this repo. Use either
 - **Place actors** — add/move/remove actors in the scene
 - **Manage variables** — create score counters, game state, etc.
 - **Restart & screenshot** — test changes and see results
+- **Find and pull decks** — list your recent decks and pull existing decks into local project files
 - **Push & cover** — publish an unlisted deck and capture a new-deck cover from local serve
 - **Connect to editor** — attach to an open Castle editor for the pushed deck when app-backed work is needed
 - **Read scene state** — understand what's in the deck to make informed edits
