@@ -10,6 +10,7 @@ import openBrowser from 'open';
 import * as API from '../api.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
+import { shortSocketPath } from '../utils/socket.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -704,10 +705,9 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
   const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
-  const sockPath = path.join(deck.dir, '.castle', 'cli.sock');
+  const sockPath = shortSocketPath('serve', deck.dir);
   let actualPort: number | null = null;
   let url = '';
-  fs.mkdirSync(path.dirname(sockPath), { recursive: true });
 
   const prunePreviewClients = () => {
     const cutoff = Date.now() - 60_000;
@@ -882,7 +882,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           deckId: deck.deckId,
           initialCardId: initialCard.cardId,
           cards: deck.cards.size,
-          workspace: deck.dir,
+          directory: deck.dir,
           port: actualPort,
           url,
           version,
@@ -1082,6 +1082,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   console.log(`Command socket: ${sockPath}`);
   const serveInfo = { sockPath, deckDir: deck.dir, url, port: actualPort };
   fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
+  fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), { recursive: true });
   fs.writeFileSync(getServeRegistryPath(), JSON.stringify(serveInfo, null, 2), 'utf8');
   fs.writeFileSync(getDeckServeInfoPath(deck.dir), JSON.stringify(serveInfo, null, 2), 'utf8');
 

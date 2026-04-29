@@ -1,13 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as net from 'net';
+import * as os from 'os';
 import WebSocket from 'ws';
 import chokidar from 'chokidar';
+import { shortSocketPath } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
 const PING_INTERVAL_MS = 30_000;
 const SCRIPT_DEBOUNCE_MS = 500;
+const CONNECT_REGISTRY_PATH = path.join(os.homedir(), '.castle', 'cli4-connect.json');
 
 interface StateMessage {
   innerType: 'cli4_state';
@@ -31,6 +34,7 @@ function log(category: string, ...args: any[]) {
 
 export class CLIServer {
   private ws: WebSocket | null = null;
+  private connectRoot: string;
   private dir: string;
   private token: string;
   private connected = false;
@@ -53,30 +57,25 @@ export class CLIServer {
   private sockPath: string;
   private pendingScreenshot: { respond: (result: any) => void; filename?: string } | null = null;
   private pendingEdit: { respond: (result: any) => void } | null = null;
+  private activeDeckDir: string | null = null;
+  private activeDeckId: string | null = null;
+  private activeCardId: string | null = null;
 
   constructor(dir: string, token: string) {
+    this.connectRoot = dir;
     this.dir = dir;
     this.token = token;
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
-    this.sockPath = path.join(dir, '.castle', 'cli.sock');
+    this.sockPath = shortSocketPath('connect', dir);
 
-    for (const d of [dir, path.join(dir, 'scripts'), path.join(dir, 'scene'), path.join(dir, '.castle'), this.screenshotsDir]) {
+    for (const d of [dir, path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
     }
-
-    const contextDir = path.join(dir, 'context');
-    if (fs.existsSync(contextDir)) fs.rmSync(contextDir, { recursive: true });
-
-    const staleBlueprintsDir = path.join(dir, 'scene', 'blueprints');
-    if (fs.existsSync(staleBlueprintsDir)) fs.rmSync(staleBlueprintsDir, { recursive: true });
-
-    this._writeGitignore();
   }
 
   start() {
-    log('server', `workspace: ${this.dir}`);
+    log('server', `connect root: ${this.connectRoot}`);
     this._connect();
-    this._startWatcher();
     this._startIPC();
   }
 
@@ -88,6 +87,10 @@ export class CLIServer {
     this.watcher?.close();
     this.ipcServer?.close();
     try { fs.unlinkSync(this.sockPath); } catch {}
+    try {
+      const registry = JSON.parse(fs.readFileSync(CONNECT_REGISTRY_PATH, 'utf8'));
+      if (registry.sockPath === this.sockPath) fs.unlinkSync(CONNECT_REGISTRY_PATH);
+    } catch {}
     if (this.ws) {
       this._sendToApp({ innerType: 'cli4_disconnect' });
       this.ws.close();
@@ -201,7 +204,8 @@ export class CLIServer {
         this._onEditResult(msg);
         break;
       case 'cli4_bridge_hello':
-        log('recv', 'bridge hello — card:', msg.cardId || 'unknown');
+        log('recv', 'bridge hello — deck:', msg.deckId || 'unknown', 'card:', msg.cardId || 'unknown');
+        this._activateProject(msg.deckId, msg.cardId);
         this.needsFullSync = true;
         this._sendToApp({ innerType: 'cli4_hello' });
         log('tunnel', 'sent hello in response to bridge');
@@ -211,18 +215,104 @@ export class CLIServer {
     }
   }
 
-  private _clearWorkspace() {
-    for (const sub of ['scripts', 'scene', 'context']) {
-      const p = path.join(this.dir, sub);
-      if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
+  private _readJson(filePath: string): any | null {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch {
+      return null;
     }
-    for (const sub of ['scripts', 'scene']) {
-      fs.mkdirSync(path.join(this.dir, sub), { recursive: true });
+  }
+
+  private _findProjectDeckDir(deckId: string): string | null {
+    const rootDeckJson = this._readJson(path.join(this.connectRoot, 'deck.json'));
+    if (rootDeckJson?.deckId === deckId) return this.connectRoot;
+
+    const direct = path.join(this.connectRoot, deckId);
+    const directDeckJson = this._readJson(path.join(direct, 'deck.json'));
+    if (directDeckJson?.deckId === deckId) return direct;
+
+    if (!fs.existsSync(this.connectRoot)) return null;
+    for (const entry of fs.readdirSync(this.connectRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(this.connectRoot, entry.name);
+      const deckJson = this._readJson(path.join(candidate, 'deck.json'));
+      if (deckJson?.deckId === deckId) return candidate;
     }
-    log('workspace', 'cleared');
+
+    return null;
+  }
+
+  private _activateProject(deckId?: string, cardId?: string): boolean {
+    if (!deckId || !cardId) {
+      log('project', 'waiting for deckId/cardId from app bridge');
+      return false;
+    }
+    if (this.activeDeckId === deckId && this.activeCardId === cardId) return true;
+
+    const deckDir = this._findProjectDeckDir(deckId);
+    if (!deckDir) {
+      log('project', `no local project found for deck ${deckId}; run "npx tsx src/index.ts pull ${deckId}" first`);
+      return false;
+    }
+
+    const cardDir = path.join(deckDir, 'cards', cardId);
+    if (!fs.existsSync(cardDir)) {
+      log('project', `deck ${deckId} found at ${deckDir}, but card ${cardId} is missing locally`);
+      return false;
+    }
+
+    this.activeDeckDir = deckDir;
+    this.activeDeckId = deckId;
+    this.activeCardId = cardId;
+    this.dir = cardDir;
+    this.screenshotsDir = path.join(deckDir, '.castle', 'screenshots');
+    this.needsFullSync = true;
+    this.pendingScriptChanges.clear();
+
+    for (const d of [
+      path.join(cardDir, 'scripts'),
+      path.join(cardDir, 'scene', 'blueprints'),
+      path.join(cardDir, '.castle'),
+      path.join(deckDir, '.castle'),
+      this.screenshotsDir,
+    ]) {
+      if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+    }
+
+    this._writeConnectRegistry();
+    this._startWatcher();
+    log('project', `active deck ${deckId} card ${cardId}: ${cardDir}`);
+    return true;
+  }
+
+  private _clearProjection() {
+    const scriptsDir = path.join(this.dir, 'scripts');
+    if (fs.existsSync(scriptsDir)) {
+      for (const f of fs.readdirSync(scriptsDir)) {
+        if (f.endsWith('.lua')) fs.unlinkSync(path.join(scriptsDir, f));
+      }
+    } else {
+      fs.mkdirSync(scriptsDir, { recursive: true });
+    }
+
+    const sceneDir = path.join(this.dir, 'scene');
+    fs.mkdirSync(path.join(sceneDir, 'blueprints'), { recursive: true });
+    for (const f of ['actors.yaml', 'variables.yaml', 'behaviors.yaml', 'rules.yaml', 'scripting-reference.md', 'script-property-names.md']) {
+      try { fs.unlinkSync(path.join(sceneDir, f)); } catch {}
+    }
+    const blueprintsDir = path.join(sceneDir, 'blueprints');
+    for (const f of fs.readdirSync(blueprintsDir)) {
+      if (f.endsWith('.yaml')) fs.unlinkSync(path.join(blueprintsDir, f));
+    }
+    log('project', `cleared app projection in ${this.dir}`);
   }
 
   private _onState(state: StateMessage) {
+    if (!this._activateProject(state.deckId, state.cardId)) {
+      log('state', 'skipping state update until matching local project is available');
+      return;
+    }
+
     const isFullSync = this.needsFullSync;
     this.needsFullSync = false;
 
@@ -235,7 +325,7 @@ export class CLIServer {
     this.writingFiles = true;
 
     if (isFullSync) {
-      this._clearWorkspace();
+      this._clearProjection();
       log('state', 'full sync');
     }
 
@@ -308,8 +398,6 @@ export class CLIServer {
     }
 
     this._writeFile('.castle/slug-map.json', JSON.stringify(state.slugToEntryId, null, 2));
-    this._copyDocs();
-
     log('state', `${Object.keys(state.scripts).length} scripts, ${Object.keys(state.slugToEntryId).length} blueprints`);
 
     setTimeout(() => {
@@ -324,50 +412,24 @@ export class CLIServer {
     fs.writeFileSync(fullPath, content);
   }
 
-  private _copyDocs() {
-    const docsSource = path.resolve(this.dir, '../../castle-docs/docs/scripts');
-    const docsDest = path.join(this.dir, 'scene', 'docs');
-
-    if (!fs.existsSync(docsSource)) {
-      log('docs', `castle-docs not found at ${docsSource}, skipping`);
-      return;
-    }
-
-    if (fs.existsSync(docsDest)) return;
-
-    const copyRecursive = (src: string, dest: string) => {
-      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-      for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-        if (entry.isDirectory()) {
-          copyRecursive(srcPath, destPath);
-        } else if (entry.name.endsWith('.md')) {
-          fs.copyFileSync(srcPath, destPath);
-        }
-      }
+  private _writeConnectRegistry() {
+    const registry = {
+      sockPath: this.sockPath,
+      connectRoot: this.connectRoot,
+      deckDir: this.activeDeckDir,
+      cardDir: this.dir,
+      deckId: this.activeDeckId,
+      cardId: this.activeCardId,
+      mode: 'connect',
     };
-
-    copyRecursive(docsSource, docsDest);
-    log('docs', 'copied castle docs to scene/docs/');
-  }
-
-  private _writeGitignore() {
-    const gitignorePath = path.join(this.dir, '.gitignore');
-    let content = '';
-    if (fs.existsSync(gitignorePath)) {
-      content = fs.readFileSync(gitignorePath, 'utf-8');
-    }
-    for (const entry of ['.castle/', 'scene/']) {
-      if (!content.includes(entry)) {
-        content += (content.length > 0 && !content.endsWith('\n') ? '\n' : '') + entry + '\n';
-      }
-    }
-    fs.writeFileSync(gitignorePath, content);
+    fs.mkdirSync(path.dirname(CONNECT_REGISTRY_PATH), { recursive: true });
+    fs.writeFileSync(CONNECT_REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
   }
 
   private _startWatcher() {
     const scriptsDir = path.join(this.dir, 'scripts');
+    this.watcher?.close();
+    this.watcher = null;
     log('watcher', `watching ${scriptsDir}`);
 
     this.watcher = chokidar.watch(scriptsDir, {
@@ -423,7 +485,7 @@ export class CLIServer {
   private _onLogs(logs: any[]) {
     if (!logs || !Array.isArray(logs)) return;
 
-    const logsPath = path.join(this.dir, '.castle', 'logs.txt');
+    const logsPath = path.join(this.activeDeckDir || this.connectRoot, '.castle', 'logs.txt');
     const lines = logs.map((entry: any) => {
       const level = entry.level || 'log';
       const prefix = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'LOG';
@@ -507,6 +569,7 @@ export class CLIServer {
     });
 
     this.ipcServer.listen(this.sockPath, () => {
+      this._writeConnectRegistry();
       log('ipc', `listening on ${this.sockPath}`);
     });
 
@@ -520,7 +583,7 @@ export class CLIServer {
     log('ipc', 'command:', command);
 
     if (command === 'restart') {
-      const logsPath = path.join(this.dir, '.castle', 'logs.txt');
+      const logsPath = path.join(this.activeDeckDir || this.connectRoot, '.castle', 'logs.txt');
       const ts = new Date().toISOString().substring(11, 23);
       try { fs.appendFileSync(logsPath, `\n--- restart ${ts} ---\n`); } catch {}
       this._sendToApp({ innerType: 'cli4_restart' });
@@ -540,7 +603,10 @@ export class CLIServer {
           fs.existsSync(path.join(this.dir, 'scripts', `${slug}.lua`))
         ).length,
         slugMap: this.slugToEntryId,
-        workspace: this.dir,
+        cardDir: this.dir,
+        deckDir: this.activeDeckDir,
+        deckId: this.activeDeckId,
+        cardId: this.activeCardId,
       });
     } else {
       respond({ error: `unknown command: ${command}` });

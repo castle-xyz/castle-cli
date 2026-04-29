@@ -86,7 +86,7 @@ Commands:
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   list                   List your recently edited decks
   push [dir]             Push local project files as an unlisted deck
-  connect [dir]          Connect to Castle app and sync scripts (default)
+  connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
   save-preview-image     Capture screenshot and set deck preview image
@@ -156,7 +156,7 @@ Global options:
   }
 
   // Default: connect
-  const dir = command === 'connect' ? (args[1] || 'workspace') : (args[0] || 'workspace');
+  const dir = command === 'connect' ? (args[1] || 'decks') : (args[0] || 'decks');
   const token = await login();
   const resolvedDir = path.resolve(dir);
   const server = new CLIServer(resolvedDir, token);

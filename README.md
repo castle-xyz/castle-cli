@@ -18,10 +18,10 @@ Use either the main Castle app build or a TestFlight beta build. Open the editor
 claude
 ```
 
-Claude will start the CLI connection automatically and manage the workspace. It will:
+Claude will start the CLI connection automatically and manage the active project directory. It will:
 - Connect to the Castle app and sync the scene state
-- Edit scripts in `workspace/scripts/` (auto-synced to the app)
-- Read scene context from `workspace/scene/` (blueprints, actors, variables, docs)
+- Edit scripts in `decks/<deck>/cards/<card-id>/scripts/` (auto-synced to the app)
+- Read scene context from `decks/<deck>/cards/<card-id>/scene/`
 - Use `restart`, `screenshot`, and `edit` commands to test and iterate
 
 ## What can the AI do?
@@ -35,6 +35,6 @@ Claude will start the CLI connection automatically and manage the workspace. It 
 
 ## How it works
 
-The CLI connects to the Castle app through a WebSocket tunnel. When you open a deck in the editor, the app sends the scene state to the CLI, which writes it to `workspace/`. Script file changes are watched and synced back. Commands like restart, screenshot, and edit go through a local Unix socket to the running CLI process, which forwards them through the tunnel.
+The CLI connects to the Castle app through a WebSocket tunnel. When you open a deck in the editor, the app sends its `deckId` and `cardId`; CLI 4 finds the matching local project under `decks/` and writes the card projection into `cards/<card-id>/`. Script file changes are watched and synced back. Commands like restart, screenshot, and edit go through a local Unix socket to the running CLI process, which forwards them through the tunnel.
 
 No bidirectional sync complexity — the app owns the scene state, the CLI owns scripts. Edit commands are one-shot operations that go through the app's existing edit pipeline with full undo support.

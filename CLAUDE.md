@@ -1,19 +1,19 @@
 # Castle CLI 4
 
-Bridge between Castle and a local workspace for AI-assisted game development.
+Bridge between Castle and local project directories for AI-assisted game development.
 
 ## First thing to do
 
 Run `npm install` if `node_modules/` doesn't exist.
 
-For app-backed editing, start the CLI connection in the background. The user should already have a deck open in the Castle editor.
+For app-backed editing, start the CLI connection in the background. The user should already have a deck open in the Castle editor and a matching local project under `decks/` (usually from `init` + `push`, or from `pull`).
 
 ```bash
 npm install  # only if needed
 npx tsx src/index.ts
 ```
 
-Run this in the background — it needs to stay running for the duration of the session. Wait for it to log `[state]` — that means the app is connected and scene state has been synced to `workspace/`. Keep running agents from the `castle-cli-4` repo root and use this `CLAUDE.md` as the instruction source.
+Run this in the background — it needs to stay running for the duration of the session. Wait for it to log `[project] active deck ...` and `[state]` — that means the app is connected and the active card projection has been synced into `decks/<deck>/cards/<card-id>/`. Keep running agents from the `castle-cli-4` repo root and use this `CLAUDE.md` as the instruction source.
 
 For app-independent project work, use `pull`, `serve`, `edit`, `screenshot`, and `push` against a project directory. Local project directories normally live under ignored `decks/`.
 
@@ -36,14 +36,14 @@ npx tsx src/index.ts push [dir]                 # push local project files as an
 
 `serve` dynamically picks an available port and prints the actual URL. Use `status` or `<deck-dir>/.castle/serve.json` if another command needs to discover the URL/socket; do not guess or hard-code ports.
 
-## App Workspace
+## App-Connected Project Sync
 
-The connection writes to `workspace/`:
-- `scripts/*.lua` — editable Lua scripts, one per blueprint. Changes auto-sync to the app.
-- `scene/blueprints/<slug>.yaml` — one file per blueprint (same slugs as scripts)
-- `scene/` — read-only scene state (actors, variables, behaviors, rules, docs)
-- `.castle/logs.txt` — script logs and errors
-- `.castle/screenshots/` — captured screenshots (latest.png)
+The connection finds a local project whose `deck.json` has the app-provided `deckId`, then syncs the active card into `cards/<card-id>/`:
+- `cards/<card-id>/scripts/*.lua` — editable Lua scripts, one per blueprint. Changes auto-sync to the app.
+- `cards/<card-id>/scene/blueprints/<slug>.yaml` — one file per blueprint (same slugs as scripts)
+- `cards/<card-id>/scene/` — read-only scene state (actors, variables, behaviors, rules, docs)
+- `.castle/logs.txt` — script logs and errors at the deck directory
+- `.castle/screenshots/` — captured screenshots at the deck directory
 
 ## Local Project Format
 
@@ -90,18 +90,18 @@ Client-side bridge code lives in the castle-client repo; use current main or a T
 
 ## Deck Authoring
 
-The following rules apply when editing Castle deck YAML/Lua in either app-synced `workspace/` files or app-independent local projects under `decks/`.
+The following rules apply when editing Castle deck YAML/Lua in project directories under `decks/`.
 
 ## IMPORTANT — Read Before Doing Anything
 
-- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Grep `workspace/scene/scripting-reference.md` and read `workspace/scene/docs/` when available. Do NOT guess function names.
-- IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-synced workspace, use `workspace/scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and materialize/restart quickly to catch invalid behavior names.
-- IMPORTANT: Before adding rules, check available triggers, responses, conditions, and expressions. In an app-synced workspace, use `workspace/scene/rules.yaml`.
+- IMPORTANT: You MUST verify every Castle API function exists in the docs before using it. Grep the active card's `scene/scripting-reference.md` and read `scene/docs/` when available. Do NOT guess function names.
+- IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-connected project, use the active card's `scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and materialize/restart quickly to catch invalid behavior names.
+- IMPORTANT: Before adding rules, check available triggers, responses, conditions, and expressions. In an app-connected project, use the active card's `scene/rules.yaml`.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.
 - IMPORTANT: `castle.draw.*` functions ONLY work inside `onDraw()`. They do nothing elsewhere.
-- IMPORTANT: Check `workspace/scene/script-property-names.md` for property name differences between scripts and YAML when it is available.
-- IMPORTANT: Always check logs after restarting to see script errors. In app-connected mode, use `workspace/.castle/logs.txt`; in local serve mode, use `<deck-dir>/.castle/logs.txt` or `npx tsx src/index.ts logs`. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
+- IMPORTANT: Check the active card's `scene/script-property-names.md` for property name differences between scripts and YAML when it is available.
+- IMPORTANT: Always check logs after restarting to see script errors. Use `<deck-dir>/.castle/logs.txt` or `npx tsx src/index.ts logs`. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
 - IMPORTANT: After ANY script change, restart and immediately check logs for errors before doing anything else.
 - IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.body.x` / `my.body.y`. There is no `body` accessor.
 - IMPORTANT: There is NO `onCollide` callback handler for actor scripts. Detect collisions by polling `my:isColliding("tag")` or `my:getCollidingActors("tag")` inside `onUpdate(dt)`.
@@ -123,12 +123,12 @@ The following rules apply when editing Castle deck YAML/Lua in either app-synced
 - IMPORTANT: Text behavior content renders independently from `onDraw`. If a blueprint has both Text and a Script with `onDraw`, the text will show on top of your custom drawing. Set `my.text.content = ""` in `onCreate()` to clear it.
 - IMPORTANT: `castle.getTouches()` returns a table of touch objects. Each has `x`, `y`, `pressed` (true only the frame it began), `released`, `id`, `deltaX`, `deltaY`. Use `touch.pressed` for tap detection, not just presence in the table.
 - IMPORTANT: `math.randomseed` with `os.clock()` alone may produce the same sequence across restarts. Combine with `castle.getTime()` and call `math.random()` a few times after seeding to get better randomness.
-- IMPORTANT: Prefer editing the actual `.lua` files for script changes: `workspace/scripts/*.lua` for app-connected work, or `decks/<deck>/cards/<card-id>/scripts/*.lua` for local project work. Use `edit` mainly for scene, actor, blueprint, and variable structure.
+- IMPORTANT: Prefer editing the actual `.lua` files for script changes: `decks/<deck>/cards/<card-id>/scripts/*.lua`. Use `edit` mainly for scene, actor, blueprint, and variable structure.
 
 ## Project Structure
 
-- `workspace/scripts/*.lua` — app-connected editable Lua scripts, one per blueprint. Changes auto-sync to the app.
-- `workspace/scene/` — Read-only scene state, auto-updated by the app:
+- `decks/<deck>/cards/<card-id>/scripts/*.lua` — editable Lua scripts, one per blueprint. In app-connected mode, changes auto-sync to the app.
+- `decks/<deck>/cards/<card-id>/scene/` — scene projection:
   - `blueprints/<slug>.yaml` — One file per blueprint (same slugs as scripts). Each contains behaviors, components, and properties for that blueprint. ALWAYS read the relevant blueprint YAML files before making changes — don't guess at structure or properties.
   - `actors.yaml` — Actor instances with positions
   - `variables.yaml` — Deck variables
@@ -137,9 +137,8 @@ The following rules apply when editing Castle deck YAML/Lua in either app-synced
   - `scripting-reference.md` — Full Lua scripting API reference
   - `script-property-names.md` — Property name mappings (script vs YAML names)
   - `docs/` — Castle documentation and tutorials
-- `workspace/.castle/logs.txt` — Script logs and errors from the running scene
-- `workspace/.castle/screenshots/` — Captured screenshots (latest.png is most recent)
-- `decks/<deck>/cards/<card-id>/scripts/*.lua` — local project Lua scripts
+- `decks/<deck>/.castle/logs.txt` — Script logs and errors from the running scene
+- `decks/<deck>/.castle/screenshots/` — Captured screenshots (latest.png is most recent)
 - `decks/<deck>/cards/<card-id>/scene/blueprints/*.yaml` — local project editable blueprint YAML
 - `decks/<deck>/cards/<card-id>/scene/blueprints/*.json` — local project opaque blueprint sidecar data, including drawings and fixtures
 
