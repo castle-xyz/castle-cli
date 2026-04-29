@@ -475,6 +475,65 @@ function extractLogWarnings(stdout: string, stderr: string): string[] {
     .slice(-20);
 }
 
+function splitTopLevelArgs(value: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  let depth = 0;
+
+  for (const char of value) {
+    if (quote) {
+      current += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === '(' || char === '{' || char === '[') {
+      depth++;
+      current += char;
+      continue;
+    }
+    if (char === ')' || char === '}' || char === ']') {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+    if (char === ',' && depth === 0) {
+      args.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  if (current.trim() || value.endsWith(',')) args.push(current.trim());
+  return args;
+}
+
+function drawTextLiteralSize(line: string): number | null {
+  const start = line.indexOf('castle.draw.text');
+  if (start < 0) return null;
+  const open = line.indexOf('(', start);
+  const close = line.lastIndexOf(')');
+  if (open < 0 || close <= open) return null;
+
+  const args = splitTopLevelArgs(line.slice(open + 1, close));
+  const size = Number(args[3]);
+  return Number.isFinite(size) ? size : null;
+}
+
 function buildQualityWarnings(args: {
   browserCanvas: PngInfo;
   cli: PngInfo;
@@ -492,6 +551,8 @@ function buildQualityWarnings(args: {
   } else {
     if (canvasStats.uniqueColors <= 4) {
       warnings.push(`browser canvas looks visually flat: only ${canvasStats.uniqueColors} sampled colors`);
+    } else if (canvasStats.uniqueColors < 48) {
+      warnings.push(`browser canvas has low visual variety: only ${canvasStats.uniqueColors} sampled colors`);
     }
     if (canvasStats.mostCommonRatio >= 0.985) {
       warnings.push(`browser canvas is dominated by one color (${Math.round(canvasStats.mostCommonRatio * 1000) / 10}%)`);
@@ -581,6 +642,17 @@ function scanScriptWarnings(deckDir: string): ScriptWarning[] {
               text: line.trim(),
             });
           }
+        }
+
+        const textSize = drawTextLiteralSize(line);
+        if (textSize !== null && textSize > 0 && textSize < 4) {
+          warnings.push({
+            file: rel,
+            line: index + 1,
+            pattern: 'castle.draw.text tiny size',
+            message: 'castle.draw.text size is in screen pixels; sizes below 4 are usually unreadable. Use roughly 7-12 for dialogue/HUD text.',
+            text: line.trim(),
+          });
         }
       });
       return warnings;
@@ -851,6 +923,7 @@ Do not run foreground serve in this eval, because the agent process must continu
 Read only the docs you need before editing. Start with docs/cli/1-getting-started.md, docs/cli/2-editing-decks.md, and the relevant script reference section such as docs/scripts/castle-library-reference.md for input APIs like castle.getTouches(). Do not search library/ or existing decks unless the task specifically requires examples from them.
 
 For custom drawing and HUD/dialogue text, read docs/scripts/drawing-reference.md before writing draw code. Use castle.draw.text(...); castle.draw.print(...) is not a Castle API.
+Use readable castle.draw.text sizes for game text, roughly 7 to 12. Sizes like 0.5 are almost invisible.
 
 For any actor or blueprint that draws the scene, HUD, or dialogue with onDraw(), keep Layout.visible true or omit visible. Do not set visible: false on draw/controller actors.
 

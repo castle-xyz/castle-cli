@@ -24,7 +24,8 @@ For a new game from scratch, optimize the first pass for speed and visible playa
 2. Prefer one visible Stage/Controller actor with `onDraw()` and touch/update logic for the first shot. Split into more blueprints only after the core loop is visible.
 3. Read only the relevant docs before editing. For most initial games, use `docs/scripts/drawing-reference.md` and the focused `castle.getTouches()` / timing sections in `docs/scripts/castle-library-reference.md`.
 4. Keep scene/HUD/dialogue draw actors visible. Use `visible: true` or omit `visible`; never set `visible: false` on the actor that owns `onDraw()`.
-5. Check status/logs and a screenshot, then iterate on the game instead of broadening context.
+5. Use readable `castle.draw.text` sizes, roughly `7` to `12` for dialogue/HUD text. Sizes like `0.5` are almost invisible.
+6. Check status/logs and a screenshot, then iterate on the game instead of broadening context.
 
 ## Commands
 

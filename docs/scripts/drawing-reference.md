@@ -29,6 +29,7 @@ There is no `castle.draw.print()`. For labels, counters, menus, dialogue, and HU
 
 `castle.draw.text(text, x, y, size [, halign, valign, font])` accepts:
 
+- `size`: readable HUD/dialogue text is usually around `7` to `12`; values like `0.5` are almost invisible
 - `halign`: `"left"`, `"center"`, or `"right"`; default is `"left"`
 - `valign`: `"top"`, `"middle"`, or `"bottom"`; default is `"top"`
 - `font`: defaults to `"DMSans"`
