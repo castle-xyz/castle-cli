@@ -9,6 +9,14 @@ npx tsx evals/run-agent-eval.ts --agent codex --model gpt-5.4 --effort low --pro
 
 Agents changing or running evals should read this file first. `CLAUDE.md` points here, and the harness also injects the critical runtime instructions directly into each eval prompt.
 
+For model timing batches, use the matrix runner. It runs evals in parallel with isolated CLI registry/config directories so `status`, `logs`, and `screenshot` target the correct local serve:
+
+```bash
+npx tsx evals/run-agent-matrix.ts --prompt dialogue-rpg --concurrency 3
+```
+
+By default this compares `codex:gpt-5.5:high`, `claude:opus:high`, and `claude:sonnet:high`. Add repeated `--spec agent:model:effort` flags to override the default set. Matrix summaries are written to `eval-runs/results/<run-group>.md`; committed cross-run summaries live in `evals/results.md`.
+
 Outputs are written under `eval-runs/<timestamp>-<prompt>-<agent>-<model>-<effort>/`:
 
 - `transcript.jsonl` — agent output stream
@@ -19,7 +27,7 @@ Outputs are written under `eval-runs/<timestamp>-<prompt>-<agent>-<model>-<effor
 - `browser-*.log` — `agent-browser` verification output
 - `screenshots/browser.png` — `agent-browser` screenshot when a local serve URL is available
 - `screenshots/cli.png` — CLI screenshot captured from the served preview
-- `result.json` — timings, timeout status, exit codes, screenshot dimensions, PNG pixel stats, canvas-region pixel stats, and verification summary
+- `result.json` — timings, git commit metadata, timeout status, exit codes, screenshot dimensions, PNG pixel stats, canvas-region pixel stats, and verification summary
 
 Browser verification runs headless by default to avoid UI noise. It opens the served URL, measures the canvas, sends a coordinate mouse down/up at the canvas center, then captures the browser screenshot before collecting slower probes/logs so transient visual feedback is less likely to disappear. Use `--headed` only when you want to inspect the browser. Use `--no-browser` to skip browser verification, and `--timeout-ms` or `--timeout-min` to control the hard agent timeout.
 
@@ -28,6 +36,8 @@ The harness prints timestamped command start/finish lines and streams child stdo
 For visual checks, inspect both `screenshots/browser.png` and `verification.screenshots.browserCanvas.pixelStats` in `result.json`. A very high `mostCommonRatio` and very low `uniqueColors` or `lumaStdDev` inside the canvas region usually means the served deck is blank or visually too subtle even when status/log checks pass.
 
 The harness also records `verification.scriptWarnings` for known Castle API footguns such as `castle.draw.print`, `castle.dt()`, `my.body`, `my:destroy()`, and `onCollide`. These warnings do not replace visual inspection, but they make common model mistakes easy to compare across runs.
+
+For first-shot game prompts, prefer fast visible slices over elaborate structure. A single visible Stage/Controller actor with `onDraw()` and `onUpdate(dt)` is often the fastest acceptable first pass. If a draw actor owns the scene, HUD, or dialogue, keep `Layout.visible` true or omit it; `visible: false` will make the whole first shot blank.
 
 ## Prompt Suite
 

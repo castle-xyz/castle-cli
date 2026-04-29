@@ -40,6 +40,7 @@ const rows = resultFiles(process.argv.slice(2))
     const result = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const warnings = result.verification?.qualityWarnings ?? [];
     return {
+      commit: String(result.git?.commit ?? '').slice(0, 7),
       runId: result.runId ?? path.basename(path.dirname(filePath)),
       prompt: result.prompt ?? '',
       agent: result.agent ?? '',
@@ -61,11 +62,12 @@ if (rows.length === 0) {
   process.exit(0);
 }
 
-console.log('| run | prompt | agent | model | effort | total(s) | agent(s) | exits | warnings | browser screenshot |');
-console.log('| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |');
+console.log('| commit | run | prompt | agent | model | effort | total(s) | agent(s) | exits | warnings | browser screenshot |');
+console.log('| --- | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |');
 for (const row of rows) {
   console.log([
-    `| ${row.runId}`,
+    `| ${row.commit}`,
+    row.runId,
     row.prompt,
     row.agent,
     row.model,
@@ -77,6 +79,6 @@ for (const row of rows) {
     truncate(path.relative(ROOT, row.browser), 56),
   ].join(' | ') + ' |');
   for (const warning of row.warnings) {
-    console.log(`|  |  |  |  |  |  |  | warning | ${truncate(String(warning), 80)} |  |`);
+    console.log(`|  |  |  |  |  |  |  |  | warning | ${truncate(String(warning), 80)} |  |`);
   }
 }

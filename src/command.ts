@@ -1,11 +1,12 @@
 import * as net from 'net';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getConfigDir } from './config.js';
 import { setCardPreviewImageFromPng } from './utils/preview.js';
 import { sendToServe, SERVE_REGISTRY_PATH } from './utils/serveClient.js';
 import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './utils/socket.js';
 
-const CONNECT_REGISTRY_PATH = path.join(process.env.HOME || '.', '.castle', 'cli4-connect.json');
+const CONNECT_REGISTRY_PATH = path.join(getConfigDir(), 'cli4-connect.json');
 const SCREENSHOT_COMMAND_TIMEOUT_MS = 75_000;
 
 function readJson(filePath: string): any | null {

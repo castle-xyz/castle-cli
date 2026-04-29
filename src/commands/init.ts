@@ -1,8 +1,8 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import YAML from 'yaml';
+import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 
 interface InitOptions {
@@ -80,7 +80,7 @@ function sameDirectory(a: string | undefined, b: string): boolean {
 function activeServeInfoForDirectory(directory: string): any | null {
   const serveInfoPaths = [
     path.join(directory, '.castle', 'serve.json'),
-    path.join(os.homedir(), '.castle', 'cli4-serve.json'),
+    path.join(getConfigDir(), 'cli4-serve.json'),
   ];
 
   for (const serveInfoPath of serveInfoPaths) {

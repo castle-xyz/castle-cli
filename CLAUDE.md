@@ -16,6 +16,16 @@ Run this in the background — it needs to stay running for the duration of the 
 
 For app-independent project work, use `pull`, `serve`, `edit`, `screenshot`, and `push` against a project directory. Local project directories normally live under ignored `decks/`.
 
+## Fast Initial Game Shots
+
+For a new game from scratch, optimize the first pass for speed and visible playability:
+
+1. Run `init`, then `serve --detach`, then make the smallest playable vertical slice.
+2. Prefer one visible Stage/Controller actor with `onDraw()` and touch/update logic for the first shot. Split into more blueprints only after the core loop is visible.
+3. Read only the relevant docs before editing. For most initial games, use `docs/scripts/drawing-reference.md` and the focused `castle.getTouches()` / timing sections in `docs/scripts/castle-library-reference.md`.
+4. Keep scene/HUD/dialogue draw actors visible. Use `visible: true` or omit `visible`; never set `visible: false` on the actor that owns `onDraw()`.
+5. Check status/logs and a screenshot, then iterate on the game instead of broadening context.
+
 ## Commands
 
 ```bash
@@ -119,6 +129,7 @@ When running or changing CLI 4 evals, read `evals/README.md` first. It documents
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
 - IMPORTANT: `onDraw()` does NOT receive dt. Use `castle.getTime()` for elapsed time in draw handlers.
 - IMPORTANT: `castle.draw.*` functions ONLY work inside `onDraw()`. They do nothing elsewhere.
+- IMPORTANT: Actors or blueprints that draw scene, HUD, or dialogue with `onDraw()` must be visible. Use `visible: true` or omit `visible`; `visible: false` hides the actor and its custom drawing.
 - IMPORTANT: Check the active card's `scene/script-property-names.md` for property name differences between scripts and YAML when it is available.
 - IMPORTANT: Always check logs after restarting to see script errors. Use `<deck-dir>/.castle/logs.txt` or `npx tsx src/index.ts logs`. Logs have timestamps and `--- restart ---` markers. Always look at logs AFTER the most recent restart marker — older entries are stale.
 - IMPORTANT: After ANY script change, restart and immediately check logs for errors before doing anything else.

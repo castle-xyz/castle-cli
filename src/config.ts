@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-function getConfigDir() {
+export function getConfigDir() {
+  const override = process.env.CASTLE_CLI_HOME || process.env.CASTLE_HOME;
+  if (override) return path.resolve(override);
   return path.join(os.homedir(), '.castle');
 }
 

@@ -1,16 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as net from 'net';
-import * as os from 'os';
 import WebSocket from 'ws';
 import chokidar from 'chokidar';
+import { getConfigDir } from './config.js';
 import { projectSocketEndpoint, type SocketEndpoint, unlinkSocket, withSocketCwd } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
 const PING_INTERVAL_MS = 30_000;
 const SCRIPT_DEBOUNCE_MS = 500;
-const CONNECT_REGISTRY_PATH = path.join(os.homedir(), '.castle', 'cli4-connect.json');
+const CONNECT_REGISTRY_PATH = path.join(getConfigDir(), 'cli4-connect.json');
 
 interface StateMessage {
   innerType: 'cli4_state';

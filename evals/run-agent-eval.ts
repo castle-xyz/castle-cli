@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
 
 type Agent = 'claude' | 'codex';
@@ -19,6 +19,7 @@ interface Options {
   browser: boolean;
   headed: boolean;
   consoleOutputLimitBytes: number;
+  runGroup?: string;
 }
 
 interface CommandResult {
@@ -128,6 +129,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--max-budget-usd') options.maxBudgetUsd = argv[++i];
     else if (arg === '--output-dir') options.outputDir = argv[++i];
     else if (arg === '--console-output-limit-kb') options.consoleOutputLimitBytes = Number(argv[++i]) * 1024;
+    else if (arg === '--run-group') options.runGroup = slugify(argv[++i]);
     else if (arg === '--no-browser') options.browser = false;
     else if (arg === '--headless') options.headed = false;
     else if (arg === '--headed') options.headed = true;
@@ -146,6 +148,7 @@ Options:
   --max-budget-usd <n>          Claude max budget (default: 5)
   --output-dir <dir>            Eval output root (default: eval-runs)
   --console-output-limit-kb <n> Live console output limit per command stream (default: 96)
+  --run-group <name>            Add a group slug to the run id for matrix batches
   --no-browser                  Skip agent-browser verification
   --headless                    Run agent-browser headless (default)
   --headed                      Run agent-browser headed`);
@@ -183,6 +186,12 @@ function timestamp(): string {
 function promptPath(prompt: string): string {
   if (prompt.endsWith('.md') || prompt.includes(path.sep)) return path.resolve(ROOT, prompt);
   return path.join(ROOT, 'evals', 'prompts', `${prompt}.md`);
+}
+
+function gitOutput(args: string[]): string {
+  const result = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  if (result.status !== 0) return '';
+  return result.stdout.trim();
 }
 
 function readJsonIfExists(filePath: string): any | null {
@@ -554,7 +563,7 @@ function scanScriptWarnings(deckDir: string): ScriptWarning[] {
     },
   ];
 
-  return walkFiles(deckDir)
+  const warnings = walkFiles(deckDir)
     .filter((filePath) => filePath.endsWith('.lua'))
     .flatMap((filePath) => {
       const rel = path.relative(deckDir, filePath);
@@ -575,6 +584,34 @@ function scanScriptWarnings(deckDir: string): ScriptWarning[] {
       });
       return warnings;
     });
+
+  for (const filePath of walkFiles(deckDir).filter((file) =>
+    file.endsWith('.yaml') && file.includes(`${path.sep}scene${path.sep}blueprints${path.sep}`)
+  )) {
+    const yamlText = fs.readFileSync(filePath, 'utf8');
+    if (!/^\s*visible:\s*false\s*$/m.test(yamlText)) continue;
+
+    const slug = path.basename(filePath, '.yaml');
+    const cardDir = path.dirname(path.dirname(path.dirname(filePath)));
+    const scriptPath = path.join(cardDir, 'scripts', `${slug}.lua`);
+    if (!fs.existsSync(scriptPath)) continue;
+
+    const scriptText = fs.readFileSync(scriptPath, 'utf8');
+    if (!/\bfunction\s+onDraw\s*\(|\bcastle\.draw\./.test(scriptText)) continue;
+
+    const rel = path.relative(deckDir, filePath);
+    const lines = yamlText.split(/\r?\n/);
+    const lineIndex = lines.findIndex((line) => /^\s*visible:\s*false\s*$/.test(line));
+    warnings.push({
+      file: rel,
+      line: lineIndex >= 0 ? lineIndex + 1 : 1,
+      pattern: 'visible: false',
+      message: 'This blueprint has onDraw/custom drawing but Layout.visible is false, so its scene/HUD/dialogue drawing will not render. Use visible: true or omit visible.',
+      text: lineIndex >= 0 ? lines[lineIndex].trim() : 'visible: false',
+    });
+  }
+
+  return warnings;
 }
 
 function progress(message: string): void {
@@ -711,7 +748,7 @@ function killProcessTree(child: ChildProcess): void {
 function runCommand(
   command: string,
   args: string[],
-  options: { cwd: string; timeoutMs: number; stdoutPath?: string; stderrPath?: string; label?: string; consoleOutputLimitBytes?: number }
+  options: { cwd: string; timeoutMs: number; stdoutPath?: string; stderrPath?: string; label?: string; consoleOutputLimitBytes?: number; env?: NodeJS.ProcessEnv }
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
     const label = options.label || command;
@@ -725,6 +762,7 @@ function runCommand(
     const consoleOutputLimitBytes = options.consoleOutputLimitBytes ?? 96 * 1024;
     const child = spawn(command, args, {
       cwd: options.cwd,
+      env: options.env,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -785,12 +823,16 @@ async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const promptFile = promptPath(options.prompt);
   const promptName = slugify(path.basename(promptFile, '.md'));
-  const runId = `${timestamp()}-${promptName}-${options.agent}-${slugify(options.model)}-${slugify(options.effort)}`;
+  const groupSlug = options.runGroup ? `${options.runGroup}-` : '';
+  const runId = `${timestamp()}-${groupSlug}${promptName}-${options.agent}-${slugify(options.model)}-${slugify(options.effort)}`;
   const runDir = path.resolve(ROOT, options.outputDir, runId);
   const deckDir = path.join(runDir, 'deck');
   const screenshotDir = path.join(runDir, 'screenshots');
+  const evalConfigDir = path.join(runDir, '.castle-home');
   fs.mkdirSync(runDir, { recursive: true });
   fs.mkdirSync(screenshotDir, { recursive: true });
+  fs.mkdirSync(evalConfigDir, { recursive: true });
+  const evalEnv = { ...process.env, CASTLE_CLI_HOME: evalConfigDir };
 
   const taskPrompt = fs.readFileSync(promptFile, 'utf8');
   const fullPrompt = `You are running an automated Castle CLI 4 eval.
@@ -809,6 +851,8 @@ Read only the docs you need before editing. Start with docs/cli/1-getting-starte
 
 For custom drawing and HUD/dialogue text, read docs/scripts/drawing-reference.md before writing draw code. Use castle.draw.text(...); castle.draw.print(...) is not a Castle API.
 
+For any actor or blueprint that draws the scene, HUD, or dialogue with onDraw(), keep Layout.visible true or omit visible. Do not set visible: false on draw/controller actors.
+
 Task:
 ${taskPrompt}
 
@@ -825,6 +869,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     stderrPath: agentCommand.stderrPath,
     consoleOutputLimitBytes: options.consoleOutputLimitBytes,
     label: options.agent,
+    env: evalEnv,
   });
 
   const status = await runCommand('npx', ['tsx', 'src/index.ts', 'status'], {
@@ -834,6 +879,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     stderrPath: path.join(runDir, 'status.stderr.log'),
     consoleOutputLimitBytes: options.consoleOutputLimitBytes,
     label: 'status',
+    env: evalEnv,
   });
   const logs = await runCommand('npx', ['tsx', 'src/index.ts', 'logs'], {
     cwd: ROOT,
@@ -842,6 +888,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     stderrPath: path.join(runDir, 'logs.stderr.log'),
     consoleOutputLimitBytes: options.consoleOutputLimitBytes,
     label: 'logs',
+    env: evalEnv,
   });
 
   const serveInfo = readJsonIfExists(path.join(deckDir, '.castle', 'serve.json'));
@@ -952,6 +999,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
       stderrPath: path.join(runDir, 'cli-screenshot.stderr.log'),
       consoleOutputLimitBytes: options.consoleOutputLimitBytes,
       label: 'cli-screenshot',
+      env: evalEnv,
     });
     statusAfterBrowser = await runCommand('npx', ['tsx', 'src/index.ts', 'status'], {
       cwd: ROOT,
@@ -960,6 +1008,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
       stderrPath: path.join(runDir, 'status-after-browser.stderr.log'),
       consoleOutputLimitBytes: options.consoleOutputLimitBytes,
       label: 'status-after-browser',
+      env: evalEnv,
     });
     browserResults.push(await runCommand('npx', [...browserBaseArgs, 'close'], {
       cwd: ROOT,
@@ -1009,6 +1058,12 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     promptFile,
     model: options.model,
     effort: options.effort,
+    runGroup: options.runGroup,
+    git: {
+      commit: gitOutput(['rev-parse', 'HEAD']),
+      branch: gitOutput(['branch', '--show-current']),
+      trackedDirty: gitOutput(['status', '--short', '--untracked-files=no']).length > 0,
+    },
     startedAt,
     endedAt,
     durationMs: Date.parse(endedAt) - Date.parse(startedAt),

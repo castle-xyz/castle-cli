@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as net from 'net';
-import * as os from 'os';
 import * as path from 'path';
+import { getConfigDir } from '../config.js';
 import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './socket.js';
 
-export const SERVE_REGISTRY_PATH = path.join(os.homedir(), '.castle', 'cli4-serve.json');
+export const SERVE_REGISTRY_PATH = path.join(getConfigDir(), 'cli4-serve.json');
 
 function readJson(filePath: string): any | null {
   try {

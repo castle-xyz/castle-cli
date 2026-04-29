@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as http from 'http';
 import * as net from 'net';
-import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { spawn } from 'child_process';
@@ -9,6 +8,7 @@ import { URL, fileURLToPath } from 'url';
 import chokidar from 'chokidar';
 import openBrowser from 'open';
 import * as API from '../api.js';
+import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 import { projectSocketEndpoint, unlinkSocket, withSocketCwd } from '../utils/socket.js';
@@ -73,11 +73,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 function getCacheDir(): string {
-  return path.join(os.homedir(), '.castle', 'cache');
+  return path.join(getConfigDir(), 'cache');
 }
 
 function getServeRegistryPath(): string {
-  return path.join(os.homedir(), '.castle', 'cli4-serve.json');
+  return path.join(getConfigDir(), 'cli4-serve.json');
 }
 
 function getDeckServeInfoPath(deckDir: string): string {
