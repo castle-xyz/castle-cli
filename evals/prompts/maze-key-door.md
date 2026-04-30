@@ -8,6 +8,6 @@ Requirements:
 - Touching/clicking should move the player toward the tap or step the player through the maze.
 - The key and door state should be visible. After one tap, the screenshot should show a changed player position, path marker, or other clear feedback.
 - Use manual distance checks if you move actors by changing `layout.x` and `layout.y`; do not rely on physics collision callbacks.
-- For custom drawing text, read `docs/scripts/drawing-reference.md` and use `castle.draw.text(...)`; do not use `castle.draw.print(...)`.
+- For custom drawing text, read `docs/simple/drawing.md` and use `castle.draw.text(...)`; do not use `castle.draw.print(...)`.
 - Check status and logs after making changes.
 - Do not open a browser yourself; the eval harness will verify the game visually with headless `agent-browser`.

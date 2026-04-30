@@ -18,14 +18,14 @@ npx tsx evals/run-agent-matrix.ts --prompt dialogue-rpg --doc-pack minimal --con
 
 By default this compares `codex:gpt-5.5:high`, `claude:opus:high`, and `claude:sonnet:high`. Add repeated `--spec agent:model:effort` flags to override the default set. Matrix summaries are written to `eval-runs/results/<run-group>.md`; committed cross-run summaries live in `evals/results.md`.
 
-Use `--doc-pack` to test whether appending docs directly to the prompt reduces discovery/tool-call overhead. `minimal` is a short cheat sheet, `focused` appends the draw/input/editing references, and `current` appends the current main instruction/doc set. The harness records the selected pack in `result.json`.
+Use `--doc-pack` to test whether appending docs directly to the prompt reduces discovery/tool-call overhead. `minimal` is a short cheat sheet, `focused` appends the small `docs/simple` drawing/input/actor references, and `current` appends the current main instruction plus `docs/simple` core set. The harness records the selected pack in `result.json`.
 
 For non-Castle baselines, use the web smoke runner. It asks the same model set to create a small dialogue RPG in a temp app directory, then installs/builds/serves it and verifies with `agent-browser`:
 
 ```bash
-npx tsx evals/run-react-smoke-matrix.ts --stack react --concurrency 3
-npx tsx evals/run-react-smoke-matrix.ts --stack canvas --concurrency 3
-npx tsx evals/run-react-smoke-matrix.ts --stack pixi --concurrency 3
+npx tsx evals/run-web-smoke-matrix.ts --stack canvas --concurrency 3
+npx tsx evals/run-web-smoke-matrix.ts --stack pixi --concurrency 3
+npx tsx evals/run-web-smoke-matrix.ts --stack cli-script --concurrency 3
 ```
 
 Use the transcript profiler to compare where agent time went across Castle and non-Castle runs:

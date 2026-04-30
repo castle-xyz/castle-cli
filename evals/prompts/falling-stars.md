@@ -8,6 +8,6 @@ Requirements:
 - Touching/clicking should move the catcher or set its target position.
 - The game should animate on its own without needing repeated input, so a screenshot shows multiple visible objects.
 - The screenshot after one tap should show the catcher, falling objects, and HUD state clearly.
-- For custom drawing text, read `docs/scripts/drawing-reference.md` and use `castle.draw.text(...)`; do not use `castle.draw.print(...)`.
+- For custom drawing text, read `docs/simple/drawing.md` and use `castle.draw.text(...)`; do not use `castle.draw.print(...)`.
 - Check status and logs after making changes.
 - Do not open a browser yourself; the eval harness will verify the game visually with headless `agent-browser`.

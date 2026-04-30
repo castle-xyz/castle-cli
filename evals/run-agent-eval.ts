@@ -246,7 +246,7 @@ function buildDocPack(pack: DocPack): string {
 
   const minimal = `# Bundled Castle CLI 4 Minimal Context
 
-Use this bundled context first. Do not read docs unless you hit missing information.
+Use this bundled context first. Do not read broad docs unless you hit missing information.
 
 Workflow:
 - Create a local deck with: npx tsx src/index.ts init <deckDir> --title "Eval Deck"
@@ -270,26 +270,29 @@ Script essentials:
 - Use castle.draw.text(text, x, y, size, halign, valign, font) for text.
 - Use readable text sizes, roughly 7 to 12 for dialogue/HUD text.
 - There is no castle.draw.print().
-- There is no castle.dt(); use the dt parameter passed to onUpdate(dt).`;
+- There is no castle.dt(); use the dt parameter passed to onUpdate(dt).
+- Do not use Lua goto or labels (::done::); Castle actor scripts reject them.
+- Do not use scene-script-only APIs in CLI 4 actor scripts: castle.createActor({ body = ... }), onCollide/onSeparate, actor:destroy(), actor:isAlive(), castle.image.load, or castle.draw.image.`;
 
   if (pack === 'minimal') return minimal;
 
   const focusedFiles = [
-    'docs/scripts/drawing-reference.md',
-    'docs/scripts/castle-library-reference.md',
-    'docs/cli/2-editing-decks.md',
+    'docs/simple/README.md',
+    'docs/simple/drawing.md',
+    'docs/simple/input-time.md',
+    'docs/simple/actors.md',
   ];
   const focused = `${minimal}${focusedFiles.map(docSection).join('')}`;
   if (pack === 'focused') return focused;
 
   const currentFiles = [
     'CLAUDE.md',
-    'docs/cli/1-getting-started.md',
-    'docs/cli/2-editing-decks.md',
-    'docs/cli/3-deck-format.md',
-    'docs/scripts/drawing-reference.md',
-    'docs/scripts/castle-library-reference.md',
-    'docs/scripts/actor-reference.md',
+    'docs/simple/README.md',
+    'docs/simple/drawing.md',
+    'docs/simple/input-time.md',
+    'docs/simple/actors.md',
+    'docs/simple/variables.md',
+    'docs/simple/physics.md',
   ];
   return `${minimal}${currentFiles.map(docSection).join('')}`;
 }
@@ -728,6 +731,11 @@ function scanScriptWarnings(deckDir: string): ScriptWarning[] {
       regex: /\bfunction\s+onCollide\s*\(/,
       message: 'There is no onCollide callback; poll collisions from onUpdate if needed.',
     },
+    {
+      pattern: 'goto/label',
+      regex: /^\s*(goto\s+\w+\b|::\w+::)/,
+      message: 'Castle actor scripts reject Lua goto/labels. Use flags, helper functions, or loop conditions instead.',
+    },
   ];
 
   const warnings = walkFiles(deckDir)
@@ -1028,10 +1036,13 @@ Then use this command for local serve: npx tsx src/index.ts serve ${path.relativ
 
 Do not run foreground serve in this eval, because the agent process must continue after the server starts. Do not run OS browser commands such as open, and do not run agent-browser; the harness owns headless browser verification after you finish. Leave detached serve running so verification can inspect it.
 
-Read only the docs you need before editing. Start with docs/cli/1-getting-started.md, docs/cli/2-editing-decks.md, and the relevant script reference section such as docs/scripts/castle-library-reference.md for input APIs like castle.getTouches(). Do not search library/ or existing decks unless the task specifically requires examples from them.
+Read only the docs you need before editing. Start with docs/simple/README.md, then read only the relevant docs/simple/*.md file. Do not search docs/full/, library/, or existing decks unless the task specifically requires deeper reference or examples.
 
-For custom drawing and HUD/dialogue text, read docs/scripts/drawing-reference.md before writing draw code. Use castle.draw.text(...); castle.draw.print(...) is not a Castle API.
+For custom drawing and HUD/dialogue text, read docs/simple/drawing.md before writing draw code. Use castle.draw.text(...); castle.draw.print(...) is not a Castle API.
 Use readable castle.draw.text sizes for game text, roughly 7 to 12. Sizes like 0.5 are almost invisible.
+
+Avoid scene-script-only APIs in CLI 4 actor scripts: castle.createActor({ body = ... }), onCollide/onSeparate, actor:destroy(), actor:isAlive(), castle.image.load, and castle.draw.image.
+Do not use Lua goto or labels (::done::); Castle actor scripts reject them. Use flags, helper functions, or loop conditions instead.
 
 For any actor or blueprint that draws the scene, HUD, or dialogue with onDraw(), keep Layout.visible true or omit visible. Do not set visible: false on draw/controller actors.
 ${docPack ? `\nBundled docs/context pack: ${options.docPack}\n${docPack}\n` : ''}${variantGuidance}
@@ -1224,7 +1235,9 @@ Finish by printing a short summary with the local serve URL, what you changed, a
   };
   const statusReady = parseReadyPreviews(status.stdout);
   const statusAfterReady = statusAfterBrowser ? parseReadyPreviews(statusAfterBrowser.stdout) : null;
-  const logWarnings = extractLogWarnings(logs.stdout, logs.stderr);
+  const deckLogPath = path.join(deckDir, '.castle', 'logs.txt');
+  const deckLogText = fs.existsSync(deckLogPath) ? fs.readFileSync(deckLogPath, 'utf8') : '';
+  const logWarnings = extractLogWarnings(`${logs.stdout}\n${deckLogText}`, logs.stderr);
   const scriptWarnings = scanScriptWarnings(deckDir);
   const qualityWarnings = buildQualityWarnings({
     browserCanvas: screenshots.browserCanvas,

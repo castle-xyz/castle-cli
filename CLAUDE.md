@@ -22,7 +22,7 @@ For a new game from scratch, optimize the first pass for speed and visible playa
 
 1. Run `init`, then `serve --detach`, then make the smallest playable vertical slice.
 2. Prefer one visible Stage/Controller actor with `onDraw()` and touch/update logic for the first shot. Split into more blueprints only after the core loop is visible.
-3. Read only the relevant docs before editing. For most initial games, use `docs/scripts/drawing-reference.md` and the focused `castle.getTouches()` / timing sections in `docs/scripts/castle-library-reference.md`.
+3. Read only the relevant docs before editing. For most initial games, start with `docs/simple/README.md`, then use only `docs/simple/drawing.md`, `docs/simple/input-time.md`, or `docs/simple/actors.md` as needed.
 4. Keep scene/HUD/dialogue draw actors visible. Use `visible: true` or omit `visible`; never set `visible: false` on the actor that owns `onDraw()`.
 5. Use readable `castle.draw.text` sizes, roughly `7` to `12` for dialogue/HUD text. Sizes like `0.5` are almost invisible.
 6. Check status/logs and a screenshot, then iterate on the game instead of broadening context.
@@ -60,16 +60,15 @@ The connection finds a local project whose `deck.json` has the app-provided `dec
 Castle documentation is vendored once under `docs/`. Do not expect every deck/card directory to contain its own copy of the docs.
 
 Key files:
-- `docs/scripts/castle-library-reference.md` — `castle.*` functions such as input, actors, time, storage, and multiplayer
-- `docs/scripts/drawing-reference.md` — focused `castle.draw.*` and `onDraw()` reference; use `castle.draw.text`, not `castle.draw.print`
-- `docs/scripts/actor-reference.md` — actor methods and actor properties available to scripts
-- `docs/scripts/math-library-reference.md` — Castle math helpers
-- `docs/scripts/string-library-reference.md` — Castle string helpers
-- `docs/scripts/tutorials/` — scripting tutorials, handlers, actors, timing, variables, and Lua basics
-- `docs/behaviors/` — behavior-specific docs such as Layout, Analog Stick, and Slowdown
-- `docs/multiplayer/` — multiplayer concepts, sessions, shared blueprints, and examples
-- `docs/cli/` — CLI docs from the main Castle docs repo
-- `docs/reference/` — broader Castle reference docs
+- `docs/simple/README.md` — first stop; tells agents which small doc to read and which scene-script-only APIs to avoid
+- `docs/simple/drawing.md` — focused `castle.draw.*` and `onDraw()` reference; use `castle.draw.text`, not `castle.draw.print`
+- `docs/simple/input-time.md` — touch input, tilt, `dt`, and timers
+- `docs/simple/actors.md` — `my`, actor properties/methods, tags, blueprint-based creation, destruction, messaging
+- `docs/simple/variables.md` — deck and local variables
+- `docs/simple/physics.md` — collision polling, physics queries, and joints
+- `docs/simple/async-events.md` — `castle.co.*` and `castle.events.*`
+- `docs/simple/math.md` — math helpers
+- `docs/full/` — complete reference docs. Only dive here when the simple docs are missing something specific.
 
 ## Local Project Format
 
@@ -124,7 +123,7 @@ When running or changing CLI 4 evals, read `evals/README.md` first. It documents
 
 ## IMPORTANT — Read Before Doing Anything
 
-- IMPORTANT: You MUST verify every Castle API function exists in the repo-level docs before using it. Start with `docs/scripts/castle-library-reference.md` and `docs/scripts/actor-reference.md`; grep `docs/` for anything broader. Do NOT guess function names.
+- IMPORTANT: You MUST verify every Castle API function exists in the repo-level docs before using it. Start with `docs/simple/`; only use `docs/full/` when the simple docs are missing something specific. Do NOT guess function names.
 - IMPORTANT: Before adding behaviors to blueprints, check available behavior names and properties. In an app-connected project, use the active card's `scene/behaviors.yaml`; in a local project, inspect existing blueprint YAML and run `serve`/`restart` quickly to catch invalid behavior names.
 - IMPORTANT: Before adding rules, check available triggers, responses, conditions, and expressions. In an app-connected project, use the active card's `scene/rules.yaml`.
 - IMPORTANT: `onUpdate(dt)` receives delta time as a parameter. There is NO `castle.dt()` function.
@@ -137,6 +136,9 @@ When running or changing CLI 4 evals, read `evals/README.md` first. It documents
 - IMPORTANT: Position is accessed via `my.layout.x` / `my.layout.y` in scripts, NOT `my.body.x` / `my.body.y`. There is no `body` accessor.
 - IMPORTANT: There is NO `onCollide` callback handler for actor scripts. Detect collisions by polling `my:isColliding("tag")` or `my:getCollidingActors("tag")` inside `onUpdate(dt)`.
 - IMPORTANT: To destroy an actor, use `castle.destroyActor(my)` or `castle.destroyActor(otherActor)`. There is no `my:destroy()` method.
+- IMPORTANT: `castle.createActor({ body = ... })` is scene-script-only. In CLI 4 actor scripts, create actors from blueprints with `castle.createActor("Blueprint Title", x, y)`.
+- IMPORTANT: `castle.image.load` and `castle.draw.image` are scene-script-only in `script.cpp`; do not use them in normal CLI 4 actor scripts. Use regular Castle drawings/blueprints and `castle.draw.*` shapes.
+- IMPORTANT: Do not use Lua `goto` or labels like `::done::`; Castle actor scripts reject them. Use flags, helper functions, or loop conditions instead.
 - IMPORTANT: When you discover a misunderstanding about the Castle API or system (e.g. a function doesn't exist, a property name is wrong, a pattern doesn't work), add an IMPORTANT note to this CLAUDE.md file documenting the correct behavior so you remember it in future sessions.
 - IMPORTANT: When explaining rules to the user, don't dump raw YAML. Translate rules into readable pseudocode that describes the logic clearly (e.g. "on create: repeat 10 times, pick random terrain type, place at offset...").
 - IMPORTANT: `getCollidingActors` and `isColliding` only work with physics-based movement (Dynamic Motion / Moving behaviors). If actors move by setting `layout.x/y` directly, use manual distance checks instead: `local dx = a.layout.x - b.layout.x; local dy = a.layout.y - b.layout.y; if math.sqrt(dx*dx+dy*dy) < hitRadius then ...`
@@ -454,7 +456,7 @@ Scripts use Luau (Lua 5.1 with types). Key handlers:
 Access actor properties: `my.layout.x`, `my.layout.y`, `my.layout.rotation`, `my.dynamicMotion.vx`, etc. Other actors: `otherActor.layout.x`, etc.
 Behavior names in scripts use camelCase without spaces: Layout→`layout`, Dynamic Motion→`dynamicMotion`, Slow Down→`slowDown`.
 
-Key functions (verify in `docs/scripts/castle-library-reference.md` or `docs/scripts/actor-reference.md` before using):
+Key functions (verify in `docs/simple/` first, then `docs/full/` only if needed):
 - `castle.getTime()` — elapsed time since card start
 - `castle.getTouch()` / `castle.getTouches()` — current touch state
 - `castle.createActor(title, x, y)` — create actor from blueprint title
