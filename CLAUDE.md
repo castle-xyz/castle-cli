@@ -177,13 +177,14 @@ castle.getVariable("name")
 castle.setVariable("name", value)
 my:isColliding("tag")
 my:getCollidingActors("tag")
-my:sendMessage("message", actor)
-my:broadcastMessage("message")
+otherActor:sendMessage("message", data)
 ```
 
 `castle.createActor({ body = ... })`, `castle.image.load`, and `castle.draw.image` are not available in normal CLI 4 actor scripts. Use blueprint actors, Text actors, default drawings, and `castle.draw.*` shapes.
 
 `my:isColliding` and `my:getCollidingActors` only work with physics-based movement. If actors move by directly setting `layout.x/y`, use manual distance or AABB checks.
+
+There is no `my:broadcastMessage(...)`. To notify multiple actors, loop over `castle.actorsWithTag("tag")` and call `actor:sendMessage("message", data)` on each actor.
 
 ## Drawing API
 
