@@ -281,7 +281,17 @@ Only these per-actor properties should be set on actor entries:
 
 Set `visible` and `layerName` on the blueprint Layout, not on placed actor entries.
 
-`castle.setVariable(name, value)` stores numbers. Use Lua locals, actor variables, messages, or numeric codes for string/boolean game state.
+Placed actor Layout values override blueprint Layout values. When size matters for placed actors, set `widthScale` and `heightScale` on the actor entries or draw at the intended size in Lua.
+
+`castle.setVariable(name, value)` stores numbers. In normal actor scripts, it only updates existing deck variables; define shared variables first through `edit`:
+
+```json
+"variables": {
+  "score-var": { "name": "score", "initialValue": 0, "lifetime": "deck" }
+}
+```
+
+Use Lua locals, actor variables, messages, or numeric codes for string/boolean game state.
 
 ## Eval Work
 
