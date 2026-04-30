@@ -261,7 +261,13 @@ When forking from Empty or Drawing, provide `replaceDrawing`, for example `blue 
 
 `components` is a YAML string using behavior display names such as `Layout`, `Drawing`, `Text`, `Tags`, `Dynamic Motion`, `Solid`, `Bounce`, `Gravity`, `Friction`, `Slow Down`, `Speed Limit`, and `Axis Lock`.
 
-When adding a Lua script through `edit`, use the blueprint `script` field. Do not put `Script:` in `components`; the `script` field enables the Script behavior.
+When adding a Lua script through `edit`, `script` must be an array of edit operations:
+
+```json
+"script": [{ "code": "function onCreate()\n  print(\"ready\")\nend\n" }]
+```
+
+Do not use a plain string for `script`; it will be ignored. Do not put `Script:` in `components` as a substitute for script code; the array-form `script` field enables the Script behavior and writes the matching Lua file. Batch related blueprint/script changes in one `edit` call when possible.
 
 Actor entries reference blueprints by title. Define new blueprints before actors that use them.
 
@@ -273,6 +279,8 @@ Only these per-actor properties should be set on actor entries:
 - Link: `targetDeckId`
 
 Set `visible` and `layerName` on the blueprint Layout, not on placed actor entries.
+
+`castle.setVariable(name, value)` stores numbers. Use Lua locals, actor variables, messages, or numeric codes for string/boolean game state.
 
 ## Eval Work
 

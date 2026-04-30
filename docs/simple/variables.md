@@ -16,6 +16,8 @@ castle.setVariable("score", 100)
 local score = castle.getVariable("score")
 ```
 
+Deck variables store numbers. For string or boolean state shared across actors, use numeric codes, actor local variables, Lua locals, or messages.
+
 The `deck.variables` helper is equivalent:
 
 ```lua
