@@ -251,14 +251,11 @@ Use this bundled context first. Do not read broad docs unless you hit missing in
 Workflow:
 - Create a local deck with: npx tsx src/index.ts init <deckDir> --title "Eval Deck"
 - Start local preview with: npx tsx src/index.ts serve <deckDir> --detach
-- Edit Lua scripts directly under <deckDir>/cards/<cardId>/scripts/.
-- Use npx tsx src/index.ts edit for scene structure: blueprints, actors, variables, behavior properties, Layout, Tags, Drawing/Text settings, Script behavior wiring, and rules.
-- Treat scene YAML/JSON files as read-only inspection output. Do not edit scene/blueprints/*.yaml, scene/actors.yaml, scene/variables.yaml, or blueprint .json sidecars directly.
+- Edit files under <deckDir>/cards/<cardId>/.
 - Prefer one visible Stage/Controller actor for a first shot.
 - Put custom drawing and touch logic in that actor's script.
 - Keep Layout.visible true or omit visible for any actor with onDraw().
-- Local serve hot-reloads after edits; do not run restart for local serve.
-- Verify with logs/status/screenshot after edits.
+- Verify with status/logs/screenshot after edits.
 
 Local project shape:
 - deck.json
@@ -1038,10 +1035,6 @@ Create the project first with: npx tsx src/index.ts init ${path.relative(ROOT, d
 Then use this command for local serve: npx tsx src/index.ts serve ${path.relative(ROOT, deckDir)} --detach
 
 Do not run foreground serve in this eval, because the agent process must continue after the server starts. Do not run OS browser commands such as open, and do not run agent-browser; the harness owns headless browser verification after you finish. Leave detached serve running so verification can inspect it.
-
-Edit Lua scripts directly under the eval deck's cards/<cardId>/scripts/ directory. Use npx tsx src/index.ts edit for scene structure: blueprints, actors, variables, behavior properties, Layout, Tags, Drawing/Text settings, Script behavior wiring, and rules. Treat scene YAML/JSON files as read-only inspection output; do not edit scene/blueprints/*.yaml, scene/actors.yaml, scene/variables.yaml, or blueprint .json sidecars directly.
-
-The local serve hot-reloads when project files change. Do not run npx tsx src/index.ts restart for local serve; restart is for the app-connected bridge. After edits, check logs/status/screenshot.
 
 Read only the docs you need before editing. Start with docs/simple/README.md, then read only the relevant docs/simple/*.md file. Do not search docs/full/, library/, or existing decks unless the task specifically requires deeper reference or examples.
 

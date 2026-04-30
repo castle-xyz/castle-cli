@@ -32,20 +32,9 @@ Use the transcript profiler to compare where agent time went across Castle and n
 
 ```bash
 npx tsx evals/profile-agent-runs.ts eval-runs/<castle-run> eval-runs/react-smoke/<react-run>
-python3 evals/transcript-timeline.py eval-runs/<run-id>
 ```
 
 This does not expose hidden model reasoning. It summarizes observable transcript behavior: tool calls, shell commands, file writes, reads/searches, docs reads, npm install/build commands, token counts when the agent CLI reports them, and cost for Claude runs.
-
-For every prompt, docs, or CLI workflow experiment, inspect representative `transcript.jsonl` files before drawing conclusions. Record the qualitative tool-call story in `evals/results.md`, not only timing tables. Specifically check:
-
-- whether the agent used `edit` for scene structure or edited generated scene YAML directly
-- how many setup/discovery calls happened before the first script write
-- whether repeated `ls`/`find`/`cat` calls could be replaced by a better CLI inspect/read command or clearer instructions
-- whether `serve`, `logs`, `status`, and screenshot checks were run in a useful order
-- whether failures came from docs/API confusion, CLI path confusion, scene wiring, generated-code bugs, or browser/harness verification
-
-When comparing two approaches, include at least one timeline excerpt or short narrative such as: "single-script read docs, found main.lua, wrote once, served/logged; separate-actors created blueprints via edit, then drifted into extra source reads while trying to wire Script behavior." These narratives are often more actionable than median seconds alone. When putting tables in monospace blocks, align columns so the numbers scan cleanly.
 
 Outputs are written under `eval-runs/<timestamp>-<prompt>-<agent>-<model>-<effort>/`:
 
