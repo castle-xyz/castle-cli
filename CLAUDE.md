@@ -10,7 +10,7 @@ For a new local game, create and serve the project first:
 
 ```bash
 npx tsx src/index.ts init <deck-dir> --title "Game"
-npx tsx src/index.ts serve <deck-dir> --detach
+npx tsx src/index.ts serve <deck-dir> --open
 ```
 
 For app-connected editing, start the bridge in the background:
@@ -58,8 +58,8 @@ Split into separate paddle/ball/enemy/HUD blueprints only when the task asks for
 
 ```bash
 npx tsx src/index.ts init [dir] --title "Game"  # create local deck project
-npx tsx src/index.ts serve [dir] --detach       # serve local project in background
-npx tsx src/index.ts serve [dir] --open         # serve and open browser
+npx tsx src/index.ts serve [dir]                # serve local project in foreground
+npx tsx src/index.ts serve [dir] --open         # serve in foreground and open browser
 npx tsx src/index.ts edit                       # apply scene edits from JSON on stdin
 npx tsx src/index.ts restart                    # restart app-connected active scene
 npx tsx src/index.ts logs                       # show recent script logs
