@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 
 type Agent = 'claude' | 'codex';
 type DocPack = 'none' | 'minimal' | 'focused' | 'current';
+type Variant = 'default' | 'single-script' | 'separate-actors';
 
 interface Options {
   agent: Agent;
@@ -23,6 +24,7 @@ interface Options {
   consoleOutputLimitBytes: number;
   runGroup?: string;
   docPack: DocPack;
+  variant: Variant;
 }
 
 interface CommandResult {
@@ -118,6 +120,7 @@ function parseArgs(argv: string[]): Options {
     headed: false,
     consoleOutputLimitBytes: 96 * 1024,
     docPack: 'none',
+    variant: 'default',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -135,6 +138,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--console-output-limit-kb') options.consoleOutputLimitBytes = Number(argv[++i]) * 1024;
     else if (arg === '--run-group') options.runGroup = slugify(argv[++i]);
     else if (arg === '--doc-pack') options.docPack = parseDocPack(argv[++i]);
+    else if (arg === '--variant') options.variant = parseVariant(argv[++i]);
     else if (arg === '--no-browser') options.browser = false;
     else if (arg === '--headless') options.headed = false;
     else if (arg === '--headed') options.headed = true;
@@ -155,6 +159,7 @@ Options:
   --console-output-limit-kb <n> Live console output limit per command stream (default: 96)
   --run-group <name>            Add a group slug to the run id for matrix batches
   --doc-pack <name>             Append docs to the prompt: none, minimal, focused, current (default: none)
+  --variant <name>              Architecture variant: default, single-script, separate-actors (default: default)
   --no-browser                  Skip agent-browser verification
   --headless                    Run agent-browser headless (default)
   --headed                      Run agent-browser headed`);
@@ -184,6 +189,35 @@ function parseAgent(value: string): Agent {
 function parseDocPack(value: string): DocPack {
   if (value === 'none' || value === 'minimal' || value === 'focused' || value === 'current') return value;
   throw new Error(`Unknown doc pack: ${value}`);
+}
+
+function parseVariant(value: string): Variant {
+  if (value === 'default' || value === 'single-script' || value === 'separate-actors') return value;
+  throw new Error(`Unknown variant: ${value}`);
+}
+
+function buildVariantGuidance(variant: Variant): string {
+  if (variant === 'single-script') {
+    return `\nArchitecture variant: SINGLE-SCRIPT.
+- Implement the entire game inside ONE controller blueprint with one Lua script.
+- Do NOT create separate blueprints for paddle, ball, bricks, HUD, etc. Track everything in Lua tables/locals on the controller.
+- Use \`onUpdate(dt)\` for game loop, ball/brick/paddle state, collisions (manual distance/AABB checks), score, lives, win/lose.
+- Use \`onDraw()\` with castle.draw.* to render paddle, ball, bricks, score, lives, and game-state messages.
+- Keep the controller actor visible (\`visible: true\` or omit visible) so onDraw() renders.
+- Do not rely on physics behaviors (Dynamic Motion, Solid, Bounce); compute positions and collisions yourself.
+`;
+  }
+  if (variant === 'separate-actors') {
+    return `\nArchitecture variant: SEPARATE-ACTORS.
+- Create distinct blueprints for the paddle, ball, and brick (and a HUD/controller actor for score/lives/state if needed).
+- Place actor instances for each (paddle, ball, several bricks across rows) using \`edit\`.
+- Implement game logic in Lua scripts on the relevant blueprints (\`onUpdate(dt)\`, \`onCreate()\`, etc).
+- Do NOT use Castle rules; keep all logic in Lua scripts.
+- Manual position/collision math is fine; physics behaviors are optional.
+- Use a HUD/controller blueprint with onDraw() for score/lives/state if you want a single readable HUD.
+`;
+  }
+  return '';
 }
 
 function slugify(value: string): string {
@@ -968,7 +1002,8 @@ async function main(): Promise<void> {
   const promptFile = promptPath(options.prompt);
   const promptName = slugify(path.basename(promptFile, '.md'));
   const groupSlug = options.runGroup ? `${options.runGroup}-` : '';
-  const runId = `${timestamp()}-${groupSlug}${promptName}-${options.agent}-${slugify(options.model)}-${slugify(options.effort)}`;
+  const variantSlug = options.variant !== 'default' ? `-${options.variant}` : '';
+  const runId = `${timestamp()}-${groupSlug}${promptName}${variantSlug}-${options.agent}-${slugify(options.model)}-${slugify(options.effort)}`;
   const runDir = path.resolve(ROOT, options.outputDir, runId);
   const deckDir = path.join(runDir, 'deck');
   const screenshotDir = path.join(runDir, 'screenshots');
@@ -980,6 +1015,7 @@ async function main(): Promise<void> {
 
   const taskPrompt = fs.readFileSync(promptFile, 'utf8');
   const docPack = buildDocPack(options.docPack);
+  const variantGuidance = buildVariantGuidance(options.variant);
   const fullPrompt = `You are running an automated Castle CLI 4 eval.
 
 Eval run directory: ${path.relative(ROOT, runDir)}
@@ -998,7 +1034,7 @@ For custom drawing and HUD/dialogue text, read docs/scripts/drawing-reference.md
 Use readable castle.draw.text sizes for game text, roughly 7 to 12. Sizes like 0.5 are almost invisible.
 
 For any actor or blueprint that draws the scene, HUD, or dialogue with onDraw(), keep Layout.visible true or omit visible. Do not set visible: false on draw/controller actors.
-${docPack ? `\nBundled docs/context pack: ${options.docPack}\n${docPack}\n` : ''}
+${docPack ? `\nBundled docs/context pack: ${options.docPack}\n${docPack}\n` : ''}${variantGuidance}
 
 Task:
 ${taskPrompt}
@@ -1207,6 +1243,7 @@ Finish by printing a short summary with the local serve URL, what you changed, a
     effort: options.effort,
     runGroup: options.runGroup,
     docPack: options.docPack,
+    variant: options.variant,
     git: {
       commit: gitOutput(['rev-parse', 'HEAD']),
       branch: gitOutput(['branch', '--show-current']),
@@ -1271,6 +1308,12 @@ Finish by printing a short summary with the local serve URL, what you changed, a
   };
 
   fs.writeFileSync(path.join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  try {
+    spawn('python3', [path.join(ROOT, 'evals', 'transcript-timeline.py'), runDir], {
+      stdio: 'ignore',
+      detached: true,
+    }).unref();
+  } catch {}
   console.log(JSON.stringify(result, null, 2));
 
   if (agent.timedOut || agent.exitCode !== 0) process.exitCode = 1;

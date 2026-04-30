@@ -14,6 +14,7 @@ interface Spec {
 interface Options {
   prompt: string;
   docPack: string;
+  variant: string;
   specs: Spec[];
   concurrency: number;
   timeoutMin: string;
@@ -52,6 +53,7 @@ function parseArgs(argv: string[]): Options {
   const options: Options = {
     prompt: 'dialogue-rpg',
     docPack: 'none',
+    variant: 'default',
     specs: [],
     concurrency: 3,
     timeoutMin: '12',
@@ -69,6 +71,7 @@ function parseArgs(argv: string[]): Options {
     const arg = argv[i];
     if (arg === '--prompt') options.prompt = argv[++i];
     else if (arg === '--doc-pack') options.docPack = argv[++i];
+    else if (arg === '--variant') options.variant = argv[++i];
     else if (arg === '--spec') options.specs.push(parseSpec(argv[++i]));
     else if (arg === '--concurrency') options.concurrency = Number(argv[++i]);
     else if (arg === '--timeout-min') options.timeoutMin = argv[++i];
@@ -92,6 +95,7 @@ Runs multiple eval specs in parallel. Default specs are:
 Options:
   --prompt <name|path>          Prompt under evals/prompts, or a markdown file path (default: dialogue-rpg)
   --doc-pack <name>             Append docs to eval prompt: none, minimal, focused, current (default: none)
+  --variant <name>              Architecture variant: default, single-script, separate-actors (default: default)
   --spec <agent:model:effort>   Eval spec; repeat to override defaults
   --concurrency <n>             Parallel evals (default: 3)
   --timeout-min <n>             Agent timeout in minutes (default: 12)
@@ -164,6 +168,7 @@ function runSpec(spec: Spec, options: Options): Promise<RunResult> {
     '--effort', spec.effort,
     '--prompt', options.prompt,
     '--doc-pack', options.docPack,
+    '--variant', options.variant,
     '--timeout-min', options.timeoutMin,
     '--command-timeout-ms', options.commandTimeoutMs,
     '--browser-timeout-ms', options.browserTimeoutMs,
@@ -228,6 +233,7 @@ function resultTable(options: Options): string {
     '',
     `Prompt: \`${options.prompt}\``,
     `Doc pack: \`${options.docPack}\``,
+    `Variant: \`${options.variant}\``,
     '',
     '| commit | run | agent | model | effort | total(s) | agent(s) | warnings | screenshot |',
     '| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |',
