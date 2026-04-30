@@ -50,7 +50,7 @@ For a new game from scratch, optimize for a visible playable slice:
 3. Keep the draw/controller actor visible. Use `visible: true` or omit `visible`; never set `visible: false` on an actor that owns `onDraw()`.
 4. Use touch input, not keyboard or mouse APIs.
 5. Use readable `castle.draw.text` sizes, roughly `7` to `12` for HUD/dialogue and `12` to `20` for short titles.
-6. Restart, check logs, take a screenshot, then iterate on the game instead of broadening context.
+6. Let local serve hot-reload or restart the app bridge, check logs, take a screenshot, then iterate on the game instead of broadening context.
 
 Split into separate paddle/ball/enemy/HUD blueprints only when the task asks for it or when the first visible loop is already working.
 
@@ -61,8 +61,8 @@ npx tsx src/index.ts init [dir] --title "Game"  # create local deck project
 npx tsx src/index.ts serve [dir] --detach       # serve local project in background
 npx tsx src/index.ts serve [dir] --open         # serve and open browser
 npx tsx src/index.ts edit                       # apply scene edits from JSON on stdin
-npx tsx src/index.ts restart                    # restart active scene
-npx tsx src/index.ts logs                       # show script logs since last restart
+npx tsx src/index.ts restart                    # restart app-connected active scene
+npx tsx src/index.ts logs                       # show recent script logs
 npx tsx src/index.ts status                     # show connection/preview status
 npx tsx src/index.ts screenshot [filename]      # capture screenshot
 npx tsx src/index.ts push [dir]                 # push as unlisted deck
@@ -72,29 +72,39 @@ npx tsx src/index.ts list                       # recent decks
 
 `serve` chooses an available port. Use `status` or `<deck-dir>/.castle/serve.json`; do not guess ports.
 
+Local tool commands are two-step: first run `serve <deck-dir> --detach`, then use `edit`, `logs`, `status`, and `screenshot` with no deck path. Those commands target the currently registered local serve or app bridge socket. Do not invent `--deck` or append the deck directory to those commands; that does not select a project. If a command seems to target the wrong project, check `status`, `<deck-dir>/.castle/serve.json`, and the current `CASTLE_CLI_HOME` before doing more work.
+
+Local `serve` hot-reloads when project files change; it does not support the `restart` command. Use `restart` only with the app-connected bridge. For local serve, save or run `edit`, wait briefly for reload, then check `logs`, `status`, and screenshots.
+
+Local `edit` targets the served initial card. App-connected `edit` targets the active card in the Castle app.
+
 ## Project Files
 
 Local projects use this shape:
 
 - `deck.json` - local deck/card metadata
 - `cards/<card-id>/scripts/<slug>.lua` - editable actor script
-- `cards/<card-id>/scene/blueprints/<slug>.yaml` - editable blueprint data
-- `cards/<card-id>/scene/blueprints/<slug>.json` - opaque drawing/fixture sidecar
-- `cards/<card-id>/scene/actors.yaml` - placed actors
-- `cards/<card-id>/scene/variables.yaml` - deck variables
+- `cards/<card-id>/scene/blueprints/<slug>.yaml` - generated blueprint data; read only for inspection
+- `cards/<card-id>/scene/blueprints/<slug>.json` - opaque drawing/fixture sidecar; do not edit
+- `cards/<card-id>/scene/actors.yaml` - generated placed actors; read only for inspection
+- `cards/<card-id>/scene/variables.yaml` - generated deck variables; read only for inspection
 - `<deck-dir>/.castle/logs.txt` - script logs and errors
 - `<deck-dir>/.castle/screenshots/` - screenshots
 
-Blueprint YAML and script files share the same slug. Read both when changing an existing blueprint.
+Blueprint YAML and script files share the same slug. Read YAML when you need to inspect existing structure, but do not edit scene YAML files directly. The CLI materializes scene state from Lua plus scene projection files, applies edits through Castle metadata, then rewrites the projection files.
 
 ## Edit Workflow
 
-Edit Lua files directly for script changes. Use `edit` only for structural changes: adding/removing blueprints, actors, variables, or behavior properties.
+Edit Lua files directly for script changes. Use `edit` for all structural changes: adding/removing blueprints, actors, variables, behavior properties, layout properties, tags, drawing/text settings, script-behavior wiring, and rules.
+
+Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/actors.yaml`, `scene/variables.yaml`, or blueprint `.json` sidecars. Treat those files as read-only inspection output. If a blueprint needs a Script behavior, a Layout property, a tag, or an actor placement change, apply it with `npx tsx src/index.ts edit`.
+
+Batch related structural changes into one `edit` call. For example, when adding a separate-actors game, create the needed blueprints, Script/Layout/Tags components, variables, and initial actor placements together instead of running one `edit` per blueprint or actor. After the batched edit, inspect logs/state once, then fix only the specific problem.
 
 After each significant script or scene change:
 
-1. Run `npx tsx src/index.ts restart`.
-2. Read logs after the latest `--- restart ---` marker with `npx tsx src/index.ts logs` or `<deck-dir>/.castle/logs.txt`.
+1. Local serve: let hot reload run. App bridge: run `npx tsx src/index.ts restart`.
+2. Read logs after the latest marker with `npx tsx src/index.ts logs` or `<deck-dir>/.castle/logs.txt`.
 3. Fix script errors immediately.
 4. Run `npx tsx src/index.ts screenshot <path>` when visual output matters.
 
@@ -212,7 +222,7 @@ Known fonts: `DMSans`, `Glacier`, `HelicoCentrica`, `Piazzolla`, `YatraOne`, `Bo
 
 ## Scene Edits
 
-Pipe one-off JSON to `edit`. Do not create persistent edit JSON files.
+Pipe one-off JSON to `edit`. Do not create persistent edit JSON files. Run `serve <deck-dir> --detach` before `edit`; `edit` sends the JSON to the active local serve/app bridge socket.
 
 ```bash
 npx tsx src/index.ts edit <<'EDIT'
@@ -236,6 +246,12 @@ npx tsx src/index.ts edit <<'EDIT'
 EDIT
 ```
 
+For complex or calculated edits, generate one JSON payload and pipe it directly:
+
+```bash
+node -e 'const edit = {description:"add brick row", actors:{}}; for (let i = 0; i < 8; i++) edit.actors["new-brick-"+i] = {title:"Brick", components:"Layout:\n  x: "+(-4+i*1.15)+"\n  y: -4"}; process.stdout.write(JSON.stringify(edit))' | npx tsx src/index.ts edit
+```
+
 New blueprints must fork an existing blueprint id or a default:
 
 - `default-blueprint-0` Drawing
@@ -257,16 +273,31 @@ When forking from Empty or Drawing, provide `replaceDrawing`, for example `blue 
 
 `components` is a YAML string using behavior display names such as `Layout`, `Drawing`, `Text`, `Tags`, `Dynamic Motion`, `Solid`, `Bounce`, `Gravity`, `Friction`, `Slow Down`, `Speed Limit`, and `Axis Lock`.
 
+Use normal external scale values in `edit` payloads, such as `widthScale: 1.2` for 120%. The CLI maps those values to the engine's internal representation.
+
+When adding a Lua script through `edit`, use the blueprint `script` field. Do not put `Script:` in `components`; the `script` field enables the Script behavior.
+
+```json
+{
+  "description": "add controller script",
+  "blueprints": {
+    "some-blueprint-id": {
+      "script": [{ "code": "function onUpdate(dt)\n  print(dt)\nend" }]
+    }
+  }
+}
+```
+
 Actor entries reference blueprints by title. Define new blueprints before actors that use them.
 
 Only these per-actor properties should be set on actor entries:
 
-- Layout: `x`, `y`, `angle`, `widthScale`, `heightScale`, `visible`, `layerName`
+- Layout: `x`, `y`, `angle`, `widthScale`, `heightScale`
 - Drawing: `initialFrame`
 - Text: `content`, `fontSizeScale`
 - Link: `targetDeckId`
 
-For HUD/UI actors that should stay fixed on screen, use `layerName: camera`.
+Set `visible`, `layerName`, `relativeToCamera`, tags, drawing settings, physics, and script behavior on the blueprint, not on placed actor entries. For HUD/UI actors that should stay fixed on screen, set blueprint Layout `layerName: camera`.
 
 ## Eval Work
 
