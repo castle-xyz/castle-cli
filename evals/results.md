@@ -199,3 +199,35 @@ sonnet focused cli4  cli4-separate-actors  2       300s       348s       45.5  1
 ```
 
 The CLI4 slowdown is mostly tool churn, not just docs. CLI4 single-script is now close to the web/cli-script stacks: focused Sonnet single-script used 9.3 tools on average and had a 90s agent median. CLI4 separate-actors is a different profile: 34-46 tools on average, many more shell reads, more file reads, and many more writes across multiple scripts/blueprints. That matches the hypothesis that the agent is spending time coordinating a multi-file Castle deck, not just reading the wrong docs.
+
+### 2026-04-30 CLI4 Focused Trim And Targeted Fixes
+
+These serial one-at-a-time runs followed the over-expanded CLAUDE.md trim. The baseline commit was `8c9575e` (`agent: trim cli4 tool guidance`). Two small follow-up fixes were then made from transcript evidence:
+
+- `2502813` (`agent: clarify edit script shape`) documented `script: [{ "code": "..." }]` and numeric deck variables.
+- `8175c3d` (`agent: remove invalid broadcast api`) removed nonexistent `my:broadcastMessage(...)` guidance.
+
+```text
+commit   variant          model   agent_s  total_s  timeout  warn  visual/verdict
+-------  ---------------  ------  -------  -------  -------  ----  -------------------------------
+8c9575e  single-script    sonnet      116      202   no          0  pass; game over after harness tap
+8c9575e  single-script    opus         95      226   no          0  pass; game over after harness tap
+8c9575e  separate-actors  sonnet      240      331   yes        12  partial/static; bad script field shape
+8c9575e  separate-actors  opus        240      329   yes        20  partial/static; bad script field + variable warning
+2502813  separate-actors  sonnet      155      251   no         17  visible, but runtime error after tap
+8175c3d  separate-actors  sonnet      174      260   no         12  usable visible pass; no runtime errors
+```
+
+Warning counts in this table include duplicated screenshot-poll `Failed to fetch` lines during hot reloads. The important real warnings were:
+
+- Before `2502813`, both separate-actors runs used the wrong `script` shape in `edit`, so scripts did not attach and both models source-dived into `src/` before timing out.
+- The Opus pre-fix run also hit `Expected number in setVariable for argument #2`; the docs now state deck variables store numbers.
+- After `2502813`, Sonnet attached scripts and finished, but used `my:broadcastMessage(...)`, which is not registered by `script.cpp`; `8175c3d` removed that bad instruction.
+
+Transcript notes:
+
+- Single-script Sonnet was lean: simple docs, one targeted deck discovery command, direct `main.lua` write, serve/logs. No direct YAML edits.
+- Single-script Opus did more directory probing and read one blueprint YAML, but still wrote only Lua and did not source-dive.
+- Separate-actors before the fixes spent most of the extra time on schema uncertainty: repeated `edit` attempts, YAML inspection, `find/ls/cat`, then source exploration.
+- After the script-shape and broadcast fixes, Sonnet separate-actors avoided the source dive and completed inside the 4-minute agent cap. It still used multiple `edit --deck ...` calls even though CLAUDE.md says active socket commands need no `--deck`, so command examples may need more force later.
+- The JS canvas `toDataURL` probe continued to report all-black/transparent samples even when saved screenshots and pixel stats were visibly nonblank; screenshot files are the trusted visual artifact for this batch.
