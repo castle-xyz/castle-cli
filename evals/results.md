@@ -206,6 +206,7 @@ These serial one-at-a-time runs followed the over-expanded CLAUDE.md trim. The b
 
 - `2502813` (`agent: clarify edit script shape`) documented `script: [{ "code": "..." }]` and numeric deck variables.
 - `8175c3d` (`agent: remove invalid broadcast api`) removed nonexistent `my:broadcastMessage(...)` guidance.
+- `2f0cec4` (`agent: clarify deck variables`) documented predeclaring shared deck variables and actor scale overrides.
 
 ```text
 commit   variant          model   agent_s  total_s  timeout  warn  visual/verdict
@@ -216,6 +217,8 @@ commit   variant          model   agent_s  total_s  timeout  warn  visual/verdic
 8c9575e  separate-actors  opus        240      329   yes        20  partial/static; bad script field + variable warning
 2502813  separate-actors  sonnet      155      251   no         17  visible, but runtime error after tap
 8175c3d  separate-actors  sonnet      174      260   no         12  usable visible pass; no runtime errors
+99dcfa7  separate-actors  opus        240      327   yes        12  visible but unfinished; variables/scale confusion
+2f0cec4  separate-actors  opus        240      293   yes        20  visible but unfinished; no source dive or Lua errors
 ```
 
 Warning counts in this table include duplicated screenshot-poll `Failed to fetch` lines during hot reloads. The important real warnings were:
@@ -223,6 +226,8 @@ Warning counts in this table include duplicated screenshot-poll `Failed to fetch
 - Before `2502813`, both separate-actors runs used the wrong `script` shape in `edit`, so scripts did not attach and both models source-dived into `src/` before timing out.
 - The Opus pre-fix run also hit `Expected number in setVariable for argument #2`; the docs now state deck variables store numbers.
 - After `2502813`, Sonnet attached scripts and finished, but used `my:broadcastMessage(...)`, which is not registered by `script.cpp`; `8175c3d` removed that bad instruction.
+- After `8175c3d`, Opus still timed out and spent time debugging why `getVariable` values were `0` and why placed actor scales overrode blueprint scales; `2f0cec4` documented those constraints.
+- After `2f0cec4`, Opus used the deck-variable schema and avoided the source dive, but still timed out from multi-script/multi-edit iteration. The resulting screenshot had score/lives updating and no Lua errors, but the game was still visually unfinished.
 
 Transcript notes:
 
@@ -230,4 +235,5 @@ Transcript notes:
 - Single-script Opus did more directory probing and read one blueprint YAML, but still wrote only Lua and did not source-dive.
 - Separate-actors before the fixes spent most of the extra time on schema uncertainty: repeated `edit` attempts, YAML inspection, `find/ls/cat`, then source exploration.
 - After the script-shape and broadcast fixes, Sonnet separate-actors avoided the source dive and completed inside the 4-minute agent cap. It still used multiple `edit --deck ...` calls even though CLAUDE.md says active socket commands need no `--deck`, so command examples may need more force later.
+- Opus separate-actors remained above the 4-minute cap even with the targeted docs fixed. The latest run created variables, blueprints, actors, and five Lua files without source exploration, then kept reading/revising scripts and inspecting scene files until timeout.
 - The JS canvas `toDataURL` probe continued to report all-black/transparent samples even when saved screenshots and pixel stats were visibly nonblank; screenshot files are the trusted visual artifact for this batch.
