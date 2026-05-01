@@ -87,7 +87,7 @@ export async function push(options: PushOptions = {}): Promise<void> {
   const wasNewDeck = !deck.deckId;
   deck.deckId ||= makeId();
   deck.title ||= path.basename(directory);
-  deck.visibility = 'unlisted';
+  deck.visibility ??= 'unlisted';
   deck.variables ??= [];
 
   const cards = deck.cards?.length ? deck.cards : deck.initialCard ? [deck.initialCard] : [];
@@ -110,8 +110,12 @@ export async function push(options: PushOptions = {}): Promise<void> {
     }
   }
 
+  const initialCardId = deck.initialCard?.cardId || cards[0].cardId;
+
   for (let index = 0; index < cards.length; index++) {
     const card = cards[index];
+
+    const isInitialCard = card.cardId === initialCardId;
 
     const cardDir = path.join(directory, 'cards', card.cardId);
     if (!isProjectCardDir(cardDir)) {
@@ -131,16 +135,17 @@ export async function push(options: PushOptions = {}): Promise<void> {
       {
         deckId: deck.deckId,
         title: deck.title,
-        visibility: 'unlisted',
+        visibility: deck.visibility,
         contentFlags: UNLISTED_TEST_CONTENT_FLAGS,
-        ...(index === 0 ? { initialCardId: card.cardId } : {}),
+        ...(isInitialCard ? { initialCardId: card.cardId } : {}),
+        ...(deck.multiplayerEnabledByCreator ? { multiplayerEnabledByCreator: true } : {}),
       },
       {
         cardId: card.cardId,
         title: card.title || `Card ${index + 1}`,
         blocks: [],
         uploadId,
-        makeInitialCard: index === 0,
+        makeInitialCard: isInitialCard,
       }
     );
 
@@ -152,11 +157,11 @@ export async function push(options: PushOptions = {}): Promise<void> {
     }
 
     card.sceneDataUrl = undefined;
-    if (index === 0) deck.initialCard = card;
+    if (isInitialCard) deck.initialCard = card;
     console.log(`Pushed card ${card.cardId}.`);
   }
 
   deck.cards = cards;
   writeJson(deckJsonPath, deck);
-  console.log(`${wasNewDeck ? 'Created' : 'Updated'} unlisted deck: https://castle.xyz/d/${deck.deckId}`);
+  console.log(`${wasNewDeck ? 'Created' : 'Updated'} ${deck.visibility} deck: https://castle.xyz/d/${deck.deckId}`);
 }

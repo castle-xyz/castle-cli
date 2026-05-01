@@ -95,6 +95,8 @@ Edit Lua files directly for script changes. Use `edit` for structural changes: b
 
 Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/actors.yaml`, `scene/variables.yaml`, or blueprint `.json` sidecars. Treat them as read-only inspection output.
 
+`push` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. It does not update preview images. New decks default to unlisted.
+
 After each significant script or scene change:
 
 1. Local serve hot-reloads. App bridge: run `npx tsx src/index.ts restart`.
