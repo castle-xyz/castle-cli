@@ -288,7 +288,7 @@ export async function writeProjectCardFromSceneData({
       fs.writeFileSync(path.join(cardDir, 'scripts', `${slug}.lua`), scriptCode, 'utf8');
     }
 
-    const blueprintYaml = {
+    const blueprintYaml: any = {
       id: entryId,
       title: externalEntry.title ?? internalEntry.title ?? slug,
       blueprintAssetId: internalEntry.library?.blueprintAssetId ?? '',
@@ -297,6 +297,8 @@ export async function writeProjectCardFromSceneData({
         components: yamlComponents,
       },
     };
+    const entryCategory = externalEntry.category || internalEntry.category;
+    if (entryCategory) blueprintYaml.category = entryCategory;
 
     writeYaml(path.join(cardDir, 'scene', 'blueprints', `${slug}.yaml`), blueprintYaml);
     writeJson(path.join(cardDir, 'scene', 'blueprints', `${slug}.json`), internalEntry);
@@ -364,6 +366,7 @@ export async function materializeProjectCard(cardDir: string): Promise<any> {
         components: engineComponents,
       },
     };
+    if (yamlData.category !== undefined) overlay.category = yamlData.category;
     if (yamlData.blueprintAssetId !== undefined) {
       overlay.library = { blueprintAssetId: yamlData.blueprintAssetId };
     }
