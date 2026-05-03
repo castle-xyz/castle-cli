@@ -169,8 +169,18 @@ function stripActorComponents(actor: any): any {
   if (components.Drawing2?.initialFrame !== undefined) {
     stripped.Drawing2 = { initialFrame: components.Drawing2.initialFrame };
   }
-  if (components.Text && Object.keys(components.Text).length > 0) stripped.Text = components.Text;
-  if (components.Link && Object.keys(components.Link).length > 0) stripped.Link = components.Link;
+  if (components.Text) {
+    const text: Record<string, any> = {};
+    for (const key of ['content', 'fontSizeScale']) {
+      if (components.Text[key] !== undefined) text[key] = components.Text[key];
+    }
+    if (Object.keys(text).length > 0) stripped.Text = text;
+  }
+  if (components.Link) {
+    const link: Record<string, any> = {};
+    if (components.Link.targetDeckId !== undefined) link.targetDeckId = components.Link.targetDeckId;
+    if (Object.keys(link).length > 0) stripped.Link = link;
+  }
 
   return { ...actor, bp: { components: stripped } };
 }
@@ -195,7 +205,7 @@ function actorToYaml(actor: any, library: Record<string, any>): Record<string, a
   if (body.heightScale !== undefined && body.heightScale !== entryBody.heightScale) result.heightScale = body.heightScale;
   if (drawing.initialFrame !== undefined && drawing.initialFrame !== 1) result.initialFrame = drawing.initialFrame;
   if (text.fontSizeScale !== undefined && text.fontSizeScale !== 1) result.fontSizeScale = text.fontSizeScale;
-  if (text.content !== undefined && text.content !== entryText.content) result.content = text.content;
+  if (text.content !== undefined && text.content !== '' && text.content !== entryText.content) result.content = text.content;
   if (link.targetDeckId !== undefined && link.targetDeckId !== entryLink.targetDeckId) result.targetDeckId = link.targetDeckId;
   return result;
 }
