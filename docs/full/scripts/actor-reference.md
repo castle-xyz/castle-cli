@@ -64,6 +64,22 @@ The frame that the drawing starts at when the actor is created. This is only use
 
 #### `text.fontSize` {#text.fontSize}
 
+#### `text.color` {#text.color}
+
+The text (foreground) color, as a `{ r, g, b }` table with values from 0 to 1.
+
+```
+my.text.color = { r = 1, g = 0, b = 0 }  -- red text
+```
+
+#### `text.backgroundColor` {#text.backgroundColor}
+
+The background color of the text box, as a `{ r, g, b }` table with values from 0 to 1.
+
+```
+my.text.backgroundColor = { r = 0, g = 0, b = 0 }  -- black background
+```
+
 ### [Fixed Motion](../behaviors/Motion)
 
 These properties only apply to actors that have Motion set to Fixed in the Movement tab.

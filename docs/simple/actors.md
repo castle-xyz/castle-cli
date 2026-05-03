@@ -14,6 +14,8 @@ my.layout.visible = true
 
 my.text.content = "Hello"
 my.text.fontSize = 10
+my.text.color = { r = 1, g = 1, b = 1 }           -- white text
+my.text.backgroundColor = { r = 0.1, g = 0.1, b = 0.3 }  -- dark blue background
 
 my.dynamicMotion.vx = 2
 my.dynamicMotion.vy = 0
