@@ -11,6 +11,7 @@
     "dist/",
     "bundles/player/",
     "data/agent/",
+    "docs/agent/",
     "docs/simple/",
     "docs/full/",
     "CLAUDE.md",

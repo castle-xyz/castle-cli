@@ -11,6 +11,7 @@ import { push } from './commands/push.js';
 import { init } from './commands/init.js';
 import { listDecks } from './commands/list.js';
 import { cardAdd, cardRemove } from './commands/card.js';
+import { docs } from './commands/docs.js';
 
 function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
   const positional: string[] = [];
@@ -89,6 +90,7 @@ Commands:
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   list                   List your recently edited decks
+  docs                   Install/update shared agent docs and print their path
   push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
   card add [dir]         Add a card to a local project deck
   card remove <id> [dir] Remove a card from a local project deck
@@ -155,6 +157,11 @@ Global options:
     const user = await API.me();
     if (!user?.userId) throw new Error('Unable to load current user.');
     await listDecks(user.userId, { limit: options.limit, json: options.json === true });
+    return;
+  }
+
+  if (command === 'docs') {
+    await docs();
     return;
   }
 

@@ -21,23 +21,23 @@ Wait for `[project] active deck ...` and `[state]`, then work in the synced proj
 
 After the project exists, your first action is always to read the current Lua script under `cards/<card-id>/scripts/`. If the task is already scoped to one blueprint, read that script and its matching `scene/blueprints/<slug>.yaml`. Do not spend time planning before reading the script.
 
-Do not run broad `ls`, repo-wide globs, repo-wide `rg`, or browse directories before reading the current script. If you need the card id or script path, use a targeted command limited to the deck directory. Do not read `src/`, `bundles/`, `library/`, old `decks/`, or `docs/full/` unless a specific missing API or CLI bug requires it.
+Do not run broad `ls`, repo-wide globs, repo-wide `rg`, or browse directories before reading the current script. If you need the card id or script path, use a targeted command limited to the deck directory. Do not read `src/`, `bundles/`, `library/`, old `decks/`, or `full/` unless a specific missing API or CLI bug requires it.
 
 ## Read Only Needed Docs
 
-Shared Castle docs are installed by `castle-4 docs` under `~/.castle/docs` by default. In shared docs, focused files are under `simple/`; in this package checkout, the same files are under `docs/simple/`.
+This docs directory contains focused docs under `simple/` and fuller references under `full/`.
 
-Start with `simple/README.md` from shared docs, or `docs/simple/README.md` in this checkout. Then read only the small file that matches the API you need:
+Start with `simple/README.md`, then read only the small file that matches the API you need:
 
-- `simple/drawing.md` / `docs/simple/drawing.md` - `onDraw()` and `castle.draw.*`
-- `simple/input-time.md` / `docs/simple/input-time.md` - touch input, tilt, `dt`, timers
-- `simple/actors.md` / `docs/simple/actors.md` - `my`, actor properties, actor methods, actor creation
-- `simple/variables.md` / `docs/simple/variables.md` - deck and local variables
-- `simple/physics.md` / `docs/simple/physics.md` - collision polling, physics queries, joints
-- `simple/async-events.md` / `docs/simple/async-events.md` - `castle.co.*` and `castle.events.*`
-- `simple/math.md` / `docs/simple/math.md` - math helpers
+- `simple/drawing.md` - `onDraw()` and `castle.draw.*`
+- `simple/input-time.md` - touch input, tilt, `dt`, timers
+- `simple/actors.md` - `my`, actor properties, actor methods, actor creation
+- `simple/variables.md` - deck and local variables
+- `simple/physics.md` - collision polling, physics queries, joints
+- `simple/async-events.md` - `castle.co.*` and `castle.events.*`
+- `simple/math.md` - math helpers
 
-Use `full/` from shared docs, or `docs/full/` in this checkout, only when the simple docs are missing something specific. Then return to editing immediately.
+Use `full/` only when the simple docs are missing something specific. Then return to editing immediately.
 
 ## Fast First Shot
 
@@ -232,76 +232,16 @@ castle-4 edit <<'EDIT'
   "description": "add brick blueprint and actor",
   "blueprints": {
     "new-brick": {
-      "forkBlueprintId": "default-blueprint-1",
       "title": "Brick",
-      "replaceDrawing": "red square",
-      "components": "Layout:\n  widthScale: 1.2\n  heightScale: 0.4\n  visible: true\nTags:\n  tagsString: brick"
+      "layout": { "width": 0.9, "height": 0.35, "isStatic": true },
+      "drawing": { "type": "rectangle", "color": "#e76f51" }
     }
   },
-  "actors": {
-    "new-brick-1": {
-      "title": "Brick",
-      "components": "Layout:\n  x: -3\n  y: -4"
-    }
-  }
+  "actors": [
+    { "blueprint": "new-brick", "x": 0, "y": -2, "tags": ["brick"] }
+  ]
 }
 EDIT
 ```
 
-New blueprints must fork an existing blueprint id or a default:
-
-- `default-blueprint-0` Drawing
-- `default-blueprint-1` Empty blueprint
-- `default-blueprint-2` Text
-- `default-blueprint-3` Portal
-- `default-blueprint-4` Mirror
-- `default-blueprint-5` Wall
-- `default-blueprint-6` Ball
-- `default-blueprint-7` Character
-- `default-blueprint-8` Tracking Camera
-- `default-blueprint-9` Creature
-- `default-blueprint-10` Border
-- `default-blueprint-11` Background
-- `default-blueprint-12` Collectible
-- `default-blueprint-13` Score Counter
-
-When forking from Empty or Drawing, provide `replaceDrawing`, for example `blue square`, `red circle`, `green square`, `yellow square`, `purple circle`, `orange square`, `gray square`, or `slate circle`.
-
-`components` is a YAML string using behavior display names such as `Layout`, `Drawing`, `Text`, `Tags`, `Dynamic Motion`, `Solid`, `Bounce`, `Gravity`, `Friction`, `Slow Down`, `Speed Limit`, and `Axis Lock`.
-
-When adding a Lua script through `edit`, `script` must be an array of edit operations:
-
-```json
-"script": [{ "code": "function onCreate()\n  print(\"ready\")\nend\n" }]
-```
-
-Do not use a plain string for `script`; it will be ignored. Do not put `Script:` in `components` as a substitute for script code; the array-form `script` field enables the Script behavior and writes the matching Lua file. Batch related blueprint/script changes in one `edit` call when possible.
-
-Actor entries reference blueprints by title. Define new blueprints before actors that use them.
-
-Only these per-actor properties should be set on actor entries:
-
-- Layout: `x`, `y`, `angle`, `widthScale`, `heightScale`
-- Drawing: `initialFrame`
-- Text: `content`, `fontSizeScale`
-- Link: `targetDeckId`
-
-Set `visible` and `layerName` on the blueprint Layout, not on placed actor entries.
-
-Placed actor Layout values override blueprint Layout values. When size matters for placed actors, set `widthScale` and `heightScale` on the actor entries or draw at the intended size in Lua.
-
-`castle.setVariable(name, value)` stores numbers. In normal actor scripts, it only updates existing deck variables; define shared variables first through `edit`:
-
-```json
-"variables": {
-  "score-var": { "name": "score", "initialValue": 0, "lifetime": "deck" }
-}
-```
-
-Use Lua locals, actor variables, messages, or numeric codes for string/boolean game state.
-
-## Eval Work
-
-When changing or running CLI 4 evals, read `evals/README.md` first. Keep eval output under `eval-runs/`.
-
-When you discover a durable Castle API misunderstanding, add a short IMPORTANT note here or in the relevant simple doc so future agents do not repeat it.
+Prefer batching related scene edits into one `castle-4 edit` call so the generated YAML stays coherent.

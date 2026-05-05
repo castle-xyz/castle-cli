@@ -608,7 +608,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
             lastRequestId = body.requestId;
           }
         } catch (e) {
-          console.error('screenshot poll failed', e);
+          if (debugLogs) console.warn('[cli screenshot] poll failed', e);
           await new Promise(function(resolve) { setTimeout(resolve, 1000); });
         }
         pollScreenshotRequests(lastRequestId);

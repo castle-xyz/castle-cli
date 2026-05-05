@@ -20,6 +20,8 @@ local t = castle.getTime()
 
 ## Touches
 
+For taps/clicks, use `castle.getTouches()` and handle `touch.pressed`. Use `castle.getTouch()` for continuous drag/aiming while a touch is held.
+
 ```lua
 function onUpdate(dt)
   for _, touch in ipairs(castle.getTouches()) do

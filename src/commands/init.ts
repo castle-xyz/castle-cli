@@ -1,18 +1,16 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import YAML from 'yaml';
 import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
+import { syncAgentDocs, writeDeckInstructionFiles } from './docs.js';
 
 interface InitOptions {
   directory?: string;
   title?: string;
   force?: boolean;
 }
-
-const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const STARTER_SCRIPT = `function onCreate()
   print("ready")
@@ -55,20 +53,6 @@ export function writeJson(filePath: string, value: unknown): void {
 function writeYaml(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, YAML.stringify(value, { lineWidth: 120 }), 'utf8');
-}
-
-function copyProjectDocs(directory: string): void {
-  const claudeSrc = path.join(CLI_ROOT, 'CLAUDE.md');
-  if (fs.existsSync(claudeSrc)) {
-    fs.copyFileSync(claudeSrc, path.join(directory, 'CLAUDE.md'));
-  }
-
-  for (const section of ['simple', 'full']) {
-    const docsSrc = path.join(CLI_ROOT, 'docs', section);
-    if (fs.existsSync(docsSrc)) {
-      fs.cpSync(docsSrc, path.join(directory, 'docs', section), { recursive: true });
-    }
-  }
 }
 
 export async function createStarterCard(deckDir: string, card: any): Promise<void> {
@@ -206,7 +190,8 @@ export async function init(options: InitOptions = {}): Promise<void> {
     cards: [card],
   });
 
-  copyProjectDocs(directory);
+  const docsDir = syncAgentDocs();
+  writeDeckInstructionFiles(directory, docsDir);
   await createStarterCard(directory, card);
 
   console.log(`Created ${path.relative(process.cwd(), directory) || directory}`);

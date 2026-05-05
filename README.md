@@ -8,6 +8,14 @@ npm install -g @castle/cli-4
 
 ### 2. Run an agent
 
+Install the shared Castle agent docs:
+
+```bash
+castle-4 docs
+```
+
+This writes Castle instructions and API docs to `~/.castle/docs` by default.
+
 ```bash
 claude
 ```
@@ -15,10 +23,10 @@ claude
 For a new deck, ask the agent to create a deck, serve it locally, and push it:
 
 ```text
-Start a new deck, serve it, and push it.
+Read ~/.castle/docs/AGENTS.md. Start a new Castle deck, serve it locally, and push it.
 ```
 
-The agent should create a local project, run `castle-4 serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. After that, the agent can keep working on the game locally without the Castle app open.
+The agent should create a local project, run `castle-4 serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. Each deck also gets a short `AGENTS.md` and `CLAUDE.md` that point back to the shared docs.
 
 ### 3. Connect the Castle editor when needed
 
