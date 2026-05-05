@@ -11,7 +11,7 @@ castle-4 init <deck-dir> --title "Game"
 castle-4 serve <deck-dir> --open
 ```
 
-For app-connected editing, start the bridge in the background:
+For app-connected editing, start a long-running bridge session:
 
 ```bash
 castle-4 connect
@@ -25,9 +25,9 @@ Do not run broad `ls`, repo-wide globs, repo-wide `rg`, or browse directories be
 
 ## Read Only Needed Docs
 
-This docs directory contains focused docs under `simple/` and fuller references under `full/`.
+This docs directory contains focused docs under `simple/` and fuller references under `full/`. In the CLI source checkout, those same docs live under `docs/simple/` and `docs/full/`.
 
-Start with `simple/README.md`, then read only the small file that matches the API you need:
+Start with `simple/README.md` from installed shared docs, or `docs/simple/README.md` in the source checkout. Then read only the small file that matches the API you need:
 
 - `simple/drawing.md` - `onDraw()` and `castle.draw.*`
 - `simple/input-time.md` - touch input, tilt, `dt`, timers
@@ -37,7 +37,7 @@ Start with `simple/README.md`, then read only the small file that matches the AP
 - `simple/async-events.md` - `castle.co.*` and `castle.events.*`
 - `simple/math.md` - math helpers
 
-Use `full/` only when the simple docs are missing something specific. Then return to editing immediately.
+Use `full/` from installed shared docs, or `docs/full/` in the source checkout, only when the simple docs are missing something specific. Then return to editing immediately.
 
 ## Fast First Shot
 
@@ -105,8 +105,6 @@ After each significant script or scene change:
 2. Read logs with `castle-4 logs` or `<deck-dir>/.castle/logs.txt`.
 3. Fix script errors immediately.
 4. Run `castle-4 screenshot <path>` when visual output matters.
-
-Use headless `agent-browser` for local browser checks when interaction matters. Batch short-lived interactions and screenshots in one `agent-browser batch` command so transient effects are still visible.
 
 ## Mobile First
 
@@ -232,16 +230,70 @@ castle-4 edit <<'EDIT'
   "description": "add brick blueprint and actor",
   "blueprints": {
     "new-brick": {
+      "forkBlueprintId": "default-blueprint-1",
       "title": "Brick",
-      "layout": { "width": 0.9, "height": 0.35, "isStatic": true },
-      "drawing": { "type": "rectangle", "color": "#e76f51" }
+      "replaceDrawing": "red square",
+      "components": "Layout:\n  widthScale: 1.2\n  heightScale: 0.4\n  visible: true\nTags:\n  tagsString: brick"
     }
   },
-  "actors": [
-    { "blueprint": "new-brick", "x": 0, "y": -2, "tags": ["brick"] }
-  ]
+  "actors": {
+    "new-brick-1": {
+      "title": "Brick",
+      "components": "Layout:\n  x: -3\n  y: -4"
+    }
+  }
 }
 EDIT
 ```
 
-Prefer batching related scene edits into one `castle-4 edit` call so the generated YAML stays coherent.
+New blueprints must fork an existing blueprint id or a default:
+
+- `default-blueprint-0` Drawing
+- `default-blueprint-1` Empty blueprint
+- `default-blueprint-2` Text
+- `default-blueprint-3` Portal
+- `default-blueprint-4` Mirror
+- `default-blueprint-5` Wall
+- `default-blueprint-6` Ball
+- `default-blueprint-7` Character
+- `default-blueprint-8` Tracking Camera
+- `default-blueprint-9` Creature
+- `default-blueprint-10` Border
+- `default-blueprint-11` Background
+- `default-blueprint-12` Collectible
+- `default-blueprint-13` Score Counter
+
+When forking from Empty or Drawing, provide `replaceDrawing`, for example `blue square`, `red circle`, `green square`, `yellow square`, `purple circle`, `orange square`, `gray square`, or `slate circle`.
+
+`components` is a YAML string using behavior display names such as `Layout`, `Drawing`, `Text`, `Tags`, `Dynamic Motion`, `Solid`, `Bounce`, `Gravity`, `Friction`, `Slow Down`, `Speed Limit`, and `Axis Lock`.
+
+When adding a Lua script through `edit`, `script` must be an array of edit operations:
+
+```json
+"script": [{ "code": "function onCreate()\n  print(\"ready\")\nend\n" }]
+```
+
+Do not use a plain string for `script`; it will be ignored. Do not put `Script:` in `components` as a substitute for script code; the array-form `script` field enables the Script behavior and writes the matching Lua file. Batch related blueprint/script changes in one `edit` call when possible.
+
+Actor entries reference blueprints by title. Define new blueprints before actors that use them.
+
+Only these per-actor properties should be set on actor entries:
+
+- Layout: `x`, `y`, `angle`, `widthScale`, `heightScale`
+- Drawing: `initialFrame`
+- Text: `content`, `fontSizeScale`
+- Link: `targetDeckId`
+
+Set `visible` and `layerName` on the blueprint Layout, not on placed actor entries.
+
+Placed actor Layout values override blueprint Layout values. When size matters for placed actors, set `widthScale` and `heightScale` on the actor entries or draw at the intended size in Lua.
+
+`castle.setVariable(name, value)` stores numbers. In normal actor scripts, it only updates existing deck variables; define shared variables first through `edit`:
+
+```json
+"variables": {
+  "score-var": { "name": "score", "initialValue": 0, "lifetime": "deck" }
+}
+```
+
+Use Lua locals, actor variables, messages, or numeric codes for string/boolean game state.

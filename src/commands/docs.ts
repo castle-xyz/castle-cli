@@ -45,6 +45,8 @@ Read the shared Castle agent instructions first:
 
 ${agentsPath}
 
+If that file is missing, run \`castle-4 docs\`, then read it.
+
 Then work in this deck. Start by reading \`deck.json\` and the current Lua script under \`cards/<card-id>/scripts/\`.
 
 Use \`castle-4 serve .\` for local preview, \`castle-4 restart\` after a batch of edits, \`castle-4 logs\` for script errors, and \`castle-4 screenshot <path>\` when visual output matters.

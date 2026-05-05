@@ -1,7 +1,7 @@
 {
   "name": "@castle/cli-4",
   "version": "0.1.0",
-  "description": "Castle CLI — script editing bridge",
+  "description": "Castle CLI 4 for AI-assisted deck creation and editing",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -15,6 +15,7 @@
     "docs/simple/",
     "docs/full/",
     "CLAUDE.md",
+    "INSTALL.md",
     "README.md"
   ],
   "scripts": {

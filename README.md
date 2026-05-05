@@ -1,3 +1,9 @@
+# Castle CLI 4
+
+Castle CLI 4 lets agents create, preview, edit, and push Castle deck projects from local files.
+
+Install with `npm install -g @castle/cli-4`, or paste [INSTALL.md](./INSTALL.md) to an agent.
+
 ## Setup
 
 ### 1. Install

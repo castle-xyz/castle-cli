@@ -2,7 +2,7 @@
 
 Start here for first-pass game work. These docs intentionally cover the small regular actor-script API that is usually enough to make a playable game.
 
-Do not browse `docs/full/`, old decks, or `library/` unless you have a specific missing API, behavior schema, multiplayer need, or rules task. Broad docs exploration is a common source of slow, worse first shots.
+Do not browse the full reference, old decks, or `library/` unless you have a specific missing API, behavior schema, multiplayer need, or rules task. Broad docs exploration is a common source of slow, worse first shots.
 
 Read only the file you need:
 
@@ -27,4 +27,4 @@ Do not use APIs from `castle-cli-script` that only work in scene scripts or sing
 - Do not use `actor:destroy()` or `actor:isAlive()`; use `castle.destroyActor(actor)` and `castle.actorExists(actor)`.
 - Do not use Lua `goto` or labels like `::done::`; Castle actor scripts reject them. Use flags, helper functions, or loop conditions instead.
 
-If a task truly requires a full reference, use `docs/full/`, then return to editing quickly.
+If a task truly requires a full reference, use `full/` from shared docs or `docs/full/` in the source checkout, then return to editing quickly.
