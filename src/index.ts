@@ -92,8 +92,8 @@ Commands:
   list                   List your recently edited decks
   docs                   Install/update shared agent docs and print their path
   push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
-  card add [dir]         Add a card to a local project deck
-  card remove <id> [dir] Remove a card from a local project deck
+  add-card [dir]         Add a card to a local project deck
+  remove-card <id> [dir] Remove a card from a local project deck
   connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
@@ -112,8 +112,8 @@ Init options:
   --force                Replace target directory if it already contains files
 
 Card options:
-  --title                Card title for card add
-  --force                Required for card remove
+  --title                Card title for add-card
+  --force                Required for remove-card
 
 List options:
   --limit                Number of decks to show (default: 20)
@@ -172,18 +172,16 @@ Global options:
     return;
   }
 
-  if (command === 'card') {
-    const subcommand = args[1];
-    const { positional, options } = parseOptions(args.slice(2));
-    if (subcommand === 'add') {
-      await cardAdd({ directory: positional[0] || '.', title: options.title });
-      return;
-    }
-    if (subcommand === 'remove') {
-      await cardRemove({ cardId: positional[0], directory: positional[1] || '.', force: options.force === true });
-      return;
-    }
-    throw new Error('Unknown card command. Use `castle-4 card add` or `castle-4 card remove`.');
+  if (command === 'add-card') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await cardAdd({ directory: positional[0] || '.', title: options.title });
+    return;
+  }
+
+  if (command === 'remove-card') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await cardRemove({ cardId: positional[0], directory: positional[1] || '.', force: options.force === true });
+    return;
   }
 
   if (command !== 'connect') {

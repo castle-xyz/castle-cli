@@ -65,8 +65,8 @@ castle-4 restart                             # reload active local serve or app 
 castle-4 logs                                # show recent script logs
 castle-4 status                              # show connection/preview status
 castle-4 screenshot [filename]               # capture screenshot
-castle-4 card add [dir] --title "Card 2"     # add a card
-castle-4 card remove <card-id> [dir] --force # remove a card
+castle-4 add-card [dir] --title "Card 2"     # add a card
+castle-4 remove-card <card-id> [dir] --force # remove a card
 castle-4 push [dir]                          # push as unlisted deck
 castle-4 pull <deck-id> [dir]                # pull existing deck
 castle-4 list                                # recent decks
