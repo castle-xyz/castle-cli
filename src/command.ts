@@ -156,7 +156,8 @@ export async function sendCommand(command: string, arg?: string) {
     if (result.error) {
       console.error('edit failed:', result.error);
     } else {
-      const msg = result.summary ? `edit applied: ${result.summary}` : 'edit applied successfully';
+      const suffix = result.restartRequired ? ' (run `castle-4 restart` to reload preview)' : '';
+      const msg = result.summary ? `edit applied: ${result.summary}${suffix}` : `edit applied successfully${suffix}`;
       console.log(msg);
       if (result.blueprintIdMapping && Object.keys(result.blueprintIdMapping).length > 0) {
         console.log('blueprint ID mapping:', JSON.stringify(result.blueprintIdMapping, null, 2));
@@ -197,6 +198,7 @@ export async function sendCommand(command: string, arg?: string) {
       console.log(`directory: ${result.directory || result.deckDir}`);
       if (result.url) console.log(`url: ${result.url}`);
       if (result.port) console.log(`port: ${result.port}`);
+      if (typeof result.dirty === 'boolean') console.log(`dirty: ${result.dirty}`);
       if (typeof result.readyPreviewClients === 'number') console.log(`ready previews: ${result.readyPreviewClients}/${result.previewClients || 0}`);
     } else {
       console.log(`connected: ${result.connected}`);

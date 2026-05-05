@@ -4,19 +4,17 @@ Castle CLI 4 edits local Castle deck projects for AI-assisted game work. Treat d
 
 ## Start Here
 
-If `node_modules/` is missing, run `npm install` before CLI commands.
-
 For a new local game, create and serve the project first:
 
 ```bash
-npx tsx src/index.ts init <deck-dir> --title "Game"
-npx tsx src/index.ts serve <deck-dir> --open
+castle-4 init <deck-dir> --title "Game"
+castle-4 serve <deck-dir> --open
 ```
 
 For app-connected editing, start the bridge in the background:
 
 ```bash
-npx tsx src/index.ts
+castle-4 connect
 ```
 
 Wait for `[project] active deck ...` and `[state]`, then work in the synced project under `decks/<deck>/cards/<card-id>/`.
@@ -27,7 +25,7 @@ Do not run broad `ls`, repo-wide globs, repo-wide `rg`, or browse directories be
 
 ## Read Only Needed Docs
 
-Docs live once at the repo root. Deck directories do not contain their own docs.
+New deck projects include focused docs under `docs/simple/`.
 
 Start with `docs/simple/README.md`, then read only the small file that matches the API you need:
 
@@ -57,22 +55,24 @@ Split into separate paddle/ball/enemy/HUD blueprints only when the task asks for
 ## Commands
 
 ```bash
-npx tsx src/index.ts init [dir] --title "Game"  # create local deck project
-npx tsx src/index.ts serve [dir]                # serve local project in foreground
-npx tsx src/index.ts serve [dir] --open         # serve in foreground and open browser
-npx tsx src/index.ts edit                       # apply scene edits from JSON on stdin
-npx tsx src/index.ts restart                    # restart app-connected active scene
-npx tsx src/index.ts logs                       # show recent script logs
-npx tsx src/index.ts status                     # show connection/preview status
-npx tsx src/index.ts screenshot [filename]      # capture screenshot
-npx tsx src/index.ts push [dir]                 # push as unlisted deck
-npx tsx src/index.ts pull <deck-id> [dir]       # pull existing deck
-npx tsx src/index.ts list                       # recent decks
+castle-4 init [dir] --title "Game"          # create local deck project
+castle-4 serve [dir]                        # serve local project in foreground
+castle-4 serve [dir] --open                 # serve in foreground and open browser
+castle-4 edit                               # apply scene edits from JSON on stdin
+castle-4 restart                            # reload active local serve or app scene
+castle-4 logs                               # show recent script logs
+castle-4 status                             # show connection/preview status
+castle-4 screenshot [filename]              # capture screenshot
+castle-4 card add [dir] --title "Card 2"    # add a card
+castle-4 card remove <card-id> [dir] --force # remove a card
+castle-4 push [dir]                         # push as unlisted deck
+castle-4 pull <deck-id> [dir]               # pull existing deck
+castle-4 list                               # recent decks
 ```
 
 `serve` chooses an available port. Use `status` or `<deck-dir>/.castle/serve.json`; do not guess ports.
 
-`edit`, `logs`, `status`, and `screenshot` target the active serve/app socket. Pass no deck path or `--deck` to those commands. Local `serve` hot-reloads file changes; `restart` is app-connected only.
+`edit`, `restart`, `logs`, `status`, and `screenshot` target the active serve/app socket. Pass no deck path or `--deck` to those commands. Local `serve` marks file changes dirty; run `castle-4 restart` when a batch of edits is complete.
 
 ## Project Files
 
@@ -95,14 +95,14 @@ Edit Lua files directly for script changes. Use `edit` for structural changes: b
 
 Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/actors.yaml`, `scene/variables.yaml`, or blueprint `.json` sidecars. Treat them as read-only inspection output.
 
-`push` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. It does not update preview images. New decks default to unlisted.
+`push` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. New decks default to unlisted and try to capture a cover from local serve when a ready browser preview is open.
 
 After each significant script or scene change:
 
-1. Local serve hot-reloads. App bridge: run `npx tsx src/index.ts restart`.
-2. Read logs with `npx tsx src/index.ts logs` or `<deck-dir>/.castle/logs.txt`.
+1. Run `castle-4 restart` after the whole change is written.
+2. Read logs with `castle-4 logs` or `<deck-dir>/.castle/logs.txt`.
 3. Fix script errors immediately.
-4. Run `npx tsx src/index.ts screenshot <path>` when visual output matters.
+4. Run `castle-4 screenshot <path>` when visual output matters.
 
 ## Mobile First
 
@@ -222,7 +222,7 @@ Known fonts: `DMSans`, `Glacier`, `HelicoCentrica`, `Piazzolla`, `YatraOne`, `Bo
 Pipe one-off JSON to `edit`. Do not create persistent edit JSON files.
 
 ```bash
-npx tsx src/index.ts edit <<'EDIT'
+castle-4 edit <<'EDIT'
 {
   "description": "add brick blueprint and actor",
   "blueprints": {

@@ -1,9 +1,23 @@
 {
-  "name": "castle-cli-4",
+  "name": "@castle/cli-4",
   "version": "0.1.0",
   "description": "Castle CLI — script editing bridge",
+  "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "castle-4": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "bundles/player/",
+    "data/agent/",
+    "docs/simple/",
+    "docs/full/",
+    "CLAUDE.md",
+    "README.md"
+  ],
   "scripts": {
+    "prepack": "npm run build",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"

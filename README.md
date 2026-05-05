@@ -1,10 +1,9 @@
 ## Setup
 
-### 1. Clone
+### 1. Install
 
 ```bash
-git clone git@github.com:castle-xyz/castle-cli-4.git
-cd castle-cli-4
+npm install -g @castle/cli-4
 ```
 
 ### 2. Run an agent
@@ -19,7 +18,7 @@ For a new deck, ask the agent to create a deck, serve it locally, and push it:
 Start a new deck, serve it, and push it.
 ```
 
-The agent should create a local project under `decks/`, run `serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. After that, the agent can keep working on the game locally without the Castle app open.
+The agent should create a local project, run `castle-4 serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. After that, the agent can keep working on the game locally without the Castle app open.
 
 ### 3. Connect the Castle editor when needed
 
@@ -29,7 +28,7 @@ After the deck has been pushed, you can open it in the Castle editor. If you wan
 Connect to the app/editor for this deck.
 ```
 
-The agent should start `npx tsx src/index.ts connect` from this repo. Use either the main branch Castle app build or a TestFlight beta build. When the CLI connects, a terminal icon will appear in the editor header.
+The agent should start `castle-4 connect`. Use either the main branch Castle app build or a TestFlight beta build. When the CLI connects, a terminal icon will appear in the editor header.
 
 ## What can the AI do?
 
@@ -37,6 +36,7 @@ The agent should start `npx tsx src/index.ts connect` from this repo. Use either
 - **Create blueprints** — fork existing templates, set behaviors and properties
 - **Place actors** — add/move/remove actors in the scene
 - **Manage variables** — create score counters, game state, etc.
+- **Manage cards** — add/remove cards in local deck projects
 - **Restart & screenshot** — test changes and see results
 - **Find and pull decks** — list your recent decks and pull existing decks into local project files
 - **Push & cover** — publish an unlisted deck and capture a new-deck cover from local serve

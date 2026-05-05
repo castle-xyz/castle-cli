@@ -46,6 +46,7 @@ interface LocalDeck {
   deckId?: string;
   title?: string;
   initialCardId?: string;
+  variables: any[];
   cards: Map<string, CardFile>;
 }
 
@@ -206,6 +207,7 @@ function readLocalDeck(dir: string): LocalDeck {
   let deckId: string | undefined;
   let title: string | undefined;
   let initialCardId: string | undefined;
+  let variables: any[] = [];
 
   const deckJsonPath = path.join(resolvedDir, 'deck.json');
   if (fs.existsSync(deckJsonPath)) {
@@ -213,6 +215,7 @@ function readLocalDeck(dir: string): LocalDeck {
     deckId = deck.deckId;
     title = deck.title;
     initialCardId = deck.initialCard?.cardId;
+    variables = Array.isArray(deck.variables) ? deck.variables : [];
 
     for (const card of deck.cards || []) {
       if (!card?.cardId) continue;
@@ -271,7 +274,12 @@ function readLocalDeck(dir: string): LocalDeck {
 
   initialCardId ??= cards.keys().next().value;
 
-  return { dir: resolvedDir, deckId, title, initialCardId, cards };
+  return { dir: resolvedDir, deckId, title, initialCardId, variables, cards };
+}
+
+function selectInitialCard(deck: LocalDeck, requestedCardId?: string): CardFile | undefined {
+  const cardId = requestedCardId || deck.initialCardId || deck.cards.keys().next().value;
+  return cardId ? deck.cards.get(cardId) : undefined;
 }
 
 async function getCardSceneDataText(card: CardFile): Promise<string> {
@@ -282,6 +290,30 @@ async function getCardSceneDataText(card: CardFile): Promise<string> {
     throw new Error(`Card ${card.cardId} has no scene-data.json or project files.`);
   }
   return fs.readFileSync(card.sceneDataPath, 'utf8');
+}
+
+async function getCardVariables(card: CardFile): Promise<any[]> {
+  if (card.projectCardDir) {
+    const sceneData = await materializeProjectCard(card.projectCardDir);
+    return Array.isArray(sceneData?.snapshot?.variables) ? sceneData.snapshot.variables : [];
+  }
+  if (card.sceneDataPath) {
+    const sceneData = JSON.parse(fs.readFileSync(card.sceneDataPath, 'utf8'));
+    return Array.isArray(sceneData?.snapshot?.variables) ? sceneData.snapshot.variables : [];
+  }
+  return [];
+}
+
+function mergeVariables(...groups: any[][]): any[] {
+  const result = new Map<string, any>();
+  for (const group of groups) {
+    for (const variable of group) {
+      const key = variable?.variableId || variable?.name;
+      if (!key) continue;
+      result.set(key, variable);
+    }
+  }
+  return Array.from(result.values());
 }
 
 function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, servedVersion: number, debug: boolean): string {
@@ -740,7 +772,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   const debug = !!options.debug;
   verifyLocalPlayerBundle();
   if (debug) console.log(`[serve] player bundle: ${LOCAL_PLAYER_DIR}`);
-  const deck = readLocalDeck(directory);
+  let deck = readLocalDeck(directory);
 
   if (deck.cards.size === 0) {
     console.error(`No local card data found in ${deck.dir}.`);
@@ -757,12 +789,12 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     return;
   }
 
-  const initialCardId = options.card || deck.initialCardId || deck.cards.keys().next().value;
-  const initialCard = initialCardId ? deck.cards.get(initialCardId) : undefined;
-  if (!initialCard) {
-    console.error(`Card ${initialCardId} not found in ${deck.dir}.`);
+  const selectedInitialCard = selectInitialCard(deck, options.card);
+  if (!selectedInitialCard) {
+    console.error(`Card ${options.card || deck.initialCardId || '(first card)'} not found in ${deck.dir}.`);
     return;
   }
+  let initialCard: CardFile = selectedInitialCard;
 
   const [coreViewsJson, meInfo] = await Promise.all([
     fetchCoreViews(debug),
@@ -772,6 +804,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   const previewRunId = crypto.randomUUID();
   const previewClients = new Map<string, PreviewClientState>();
   let version = 0;
+  let dirty = false;
+  const changedFiles = new Set<string>();
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
   const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
@@ -871,15 +905,35 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   });
 
   const pendingVersionResponses = new Set<http.ServerResponse>();
-  const bumpVersion = (filePath?: string) => {
-    if (debug && filePath) console.log(`[serve] changed: ${path.relative(deck.dir, filePath)}`);
+  const reloadLocalProject = () => {
+    const nextDeck = readLocalDeck(deck.dir);
+    const nextInitialCard = selectInitialCard(nextDeck, options.card);
+    if (!nextInitialCard) {
+      throw new Error(`No local card data found after reload in ${nextDeck.dir}.`);
+    }
+    deck = nextDeck;
+    initialCard = nextInitialCard;
+  };
+  const markDirty = (filePath?: string) => {
+    dirty = true;
+    if (filePath) changedFiles.add(path.relative(deck.dir, filePath));
+    if (debug && filePath) console.log(`[serve] changed, restart required: ${path.relative(deck.dir, filePath)}`);
+  };
+  const restartPreview = (reason = 'restart') => {
+    reloadLocalProject();
     version++;
+    dirty = false;
+    changedFiles.clear();
     for (const pending of pendingVersionResponses) {
       sendJson(pending, 200, { version });
     }
     pendingVersionResponses.clear();
+    const ts = new Date().toISOString().substring(11, 23);
+    const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
+    fs.mkdirSync(path.dirname(logsPath), { recursive: true });
+    fs.appendFileSync(logsPath, `\n--- restart ${ts} (${reason}) ---\n`, 'utf8');
   };
-  watcher.on('all', (_event, filePath) => bumpVersion(filePath));
+  watcher.on('all', (_event, filePath) => markDirty(filePath));
 
   try { unlinkSocket(socket); } catch {}
   const ipcServer = net.createServer((conn) => {
@@ -902,7 +956,14 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         conn.end();
       };
 
-      if (request.command === 'screenshot') {
+      if (request.command === 'restart') {
+        try {
+          restartPreview('local serve');
+          respond({ ok: true, version, dirty: false });
+        } catch (error: any) {
+          respond({ error: error?.message || String(error) });
+        }
+      } else if (request.command === 'screenshot') {
         void (async () => {
           const targetClientId = await waitForReadyPreviewClient();
           if (!targetClientId) {
@@ -940,8 +1001,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         }
         applyLocalEdit({ cardDir: card.projectCardDir, args: request.args, deckId: deck.deckId, cardId })
           .then((result) => {
-            bumpVersion();
-            respond({ success: true, summary: result.summary });
+            markDirty();
+            respond({ success: true, summary: result.summary, restartRequired: true });
           })
           .catch((error: any) => {
             respond({ error: error?.message || String(error) });
@@ -957,6 +1018,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           port: actualPort,
           url,
           version,
+          dirty,
+          changedFiles: Array.from(changedFiles).slice(-20),
           previewClients: previewClients.size,
           readyPreviewClients: readyPreviewClientCount(),
         });
@@ -999,7 +1062,12 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       }
 
       if (req.method === 'GET' && reqPath === '/variables') {
-        sendJson(res, 200, { variables: [], passes: [], cards: Array.from(deck.cards.values()).map((card) => ({ cardId: card.cardId, title: card.title })) });
+        const cardVariables = await getCardVariables(initialCard);
+        sendJson(res, 200, {
+          variables: mergeVariables(deck.variables, cardVariables),
+          passes: [],
+          cards: Array.from(deck.cards.values()).map((card) => ({ cardId: card.cardId, title: card.title })),
+        });
         return;
       }
 

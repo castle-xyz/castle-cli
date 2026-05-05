@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import * as path from 'path';
 import open from 'open';
 import { CLIServer } from './server.js';
@@ -9,6 +10,7 @@ import { pull } from './commands/pull.js';
 import { push } from './commands/push.js';
 import { init } from './commands/init.js';
 import { listDecks } from './commands/list.js';
+import { cardAdd, cardRemove } from './commands/card.js';
 
 function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
   const positional: string[] = [];
@@ -80,7 +82,7 @@ async function main() {
 castle-cli — Castle script editing bridge
 
 Usage:
-  castle [command] [options]
+  castle-4 [command] [options]
 
 Commands:
   init [dir]             Create a new local project deck
@@ -88,6 +90,8 @@ Commands:
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   list                   List your recently edited decks
   push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
+  card add [dir]         Add a card to a local project deck
+  card remove <id> [dir] Remove a card from a local project deck
   connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
   restart                Stop and restart the scene
   screenshot [filename]  Take a screenshot
@@ -98,13 +102,16 @@ Commands:
 
 Serve options:
   --open                 Open browser for serve
-  --detach               Start serve in the background and print URL/log paths
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
 
 Init options:
   --title                Deck title
   --force                Replace target directory if it already contains files
+
+Card options:
+  --title                Card title for card add
+  --force                Required for card remove
 
 List options:
   --limit                Number of decks to show (default: 20)
@@ -156,6 +163,20 @@ Global options:
     await login();
     await push({ directory: positional[0] || '.' });
     return;
+  }
+
+  if (command === 'card') {
+    const subcommand = args[1];
+    const { positional, options } = parseOptions(args.slice(2));
+    if (subcommand === 'add') {
+      await cardAdd({ directory: positional[0] || '.', title: options.title });
+      return;
+    }
+    if (subcommand === 'remove') {
+      await cardRemove({ cardId: positional[0], directory: positional[1] || '.', force: options.force === true });
+      return;
+    }
+    throw new Error('Unknown card command. Use `castle-4 card add` or `castle-4 card remove`.');
   }
 
   if (command !== 'connect') {

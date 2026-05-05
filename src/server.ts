@@ -253,7 +253,7 @@ export class CLIServer {
 
     const deckDir = this._findProjectDeckDir(deckId);
     if (!deckDir) {
-      log('project', `no local project found for deck ${deckId}; run "npx tsx src/index.ts pull ${deckId}" first`);
+      log('project', `no local project found for deck ${deckId}; run "castle-4 pull ${deckId}" first`);
       return false;
     }
 

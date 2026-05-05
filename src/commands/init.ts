@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import YAML from 'yaml';
 import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
@@ -10,6 +11,8 @@ interface InitOptions {
   title?: string;
   force?: boolean;
 }
+
+const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const STARTER_SCRIPT = `function onCreate()
   print("ready")
@@ -25,7 +28,7 @@ function onDraw()
 end
 `;
 
-function makeId(): string {
+export function makeId(): string {
   const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_';
   return Array.from(crypto.randomBytes(12), (byte) => alphabet[byte & 63]).join('');
 }
@@ -44,7 +47,7 @@ function uniqueDirectory(baseDir: string): string {
   return `${baseDir}-${index}`;
 }
 
-function writeJson(filePath: string, value: unknown): void {
+export function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
@@ -52,6 +55,77 @@ function writeJson(filePath: string, value: unknown): void {
 function writeYaml(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, YAML.stringify(value, { lineWidth: 120 }), 'utf8');
+}
+
+function copyProjectDocs(directory: string): void {
+  const claudeSrc = path.join(CLI_ROOT, 'CLAUDE.md');
+  if (fs.existsSync(claudeSrc)) {
+    fs.copyFileSync(claudeSrc, path.join(directory, 'CLAUDE.md'));
+  }
+
+  for (const section of ['simple', 'full']) {
+    const docsSrc = path.join(CLI_ROOT, 'docs', section);
+    if (fs.existsSync(docsSrc)) {
+      fs.cpSync(docsSrc, path.join(directory, 'docs', section), { recursive: true });
+    }
+  }
+}
+
+export async function createStarterCard(deckDir: string, card: any): Promise<void> {
+  const cardDir = path.join(deckDir, 'cards', card.cardId);
+  fs.mkdirSync(path.join(cardDir, 'scene', 'blueprints'), { recursive: true });
+  fs.mkdirSync(path.join(cardDir, 'scripts'), { recursive: true });
+
+  writeJson(path.join(cardDir, 'card.json'), {
+    ...card,
+    sceneProperties: {
+      backgroundColor: { r: 0.03529, g: 0.06275, b: 0.10196, a: 1 },
+      coordinateSystemVersion: 2,
+      clock: {
+        tempo: 120,
+        beatsPerBar: 4,
+        stepsPerBeat: 4,
+      },
+    },
+    actorBlueprintInherit: true,
+    linkTargetDeckIds: [],
+  });
+  writeYaml(path.join(cardDir, 'scene', 'actors.yaml'), {});
+  writeYaml(path.join(cardDir, 'scene', 'variables.yaml'), []);
+
+  await applyLocalEdit({
+    cardDir,
+    cardId: card.cardId,
+    args: {
+      description: 'initialize starter deck',
+      blueprints: {
+        'new-main': {
+          forkBlueprintId: 'default-blueprint-1',
+          title: 'Main',
+          replaceDrawing: 'blue square',
+          components: `Layout:
+  widthScale: 1
+  heightScale: 1
+Tags:
+  tagsString: main starter
+Script:
+  scriptProperties: []`,
+          script: [{ code: STARTER_SCRIPT }],
+        },
+      },
+      actors: {
+        a0: {
+          title: 'Main',
+          components: `Layout:
+  x: 0
+  y: 0
+  widthScale: 1
+  heightScale: 1`,
+        },
+      },
+      variables: {},
+    },
+  });
 }
 
 function readJsonIfExists(filePath: string): any | null {
@@ -114,11 +188,9 @@ export async function init(options: InitOptions = {}): Promise<void> {
   const directory = path.resolve(options.directory || uniqueDirectory(path.join('decks', slugify(title))));
   const cardId = makeId();
   const cardTitle = title;
-  const cardDir = path.join(directory, 'cards', cardId);
 
   assertDirectoryCanBeCreated(directory, options.force === true);
-  fs.mkdirSync(path.join(cardDir, 'scene', 'blueprints'), { recursive: true });
-  fs.mkdirSync(path.join(cardDir, 'scripts'), { recursive: true });
+  fs.mkdirSync(directory, { recursive: true });
 
   const card = {
     cardId,
@@ -134,56 +206,8 @@ export async function init(options: InitOptions = {}): Promise<void> {
     cards: [card],
   });
 
-  writeJson(path.join(cardDir, 'card.json'), {
-    ...card,
-    sceneProperties: {
-      backgroundColor: { r: 0.03529, g: 0.06275, b: 0.10196, a: 1 },
-      coordinateSystemVersion: 2,
-      clock: {
-        tempo: 120,
-        beatsPerBar: 4,
-        stepsPerBeat: 4,
-      },
-    },
-    actorBlueprintInherit: true,
-    linkTargetDeckIds: [],
-  });
-  writeYaml(path.join(cardDir, 'scene', 'actors.yaml'), {});
-  writeYaml(path.join(cardDir, 'scene', 'variables.yaml'), []);
-
-  await applyLocalEdit({
-    cardDir,
-    cardId,
-    args: {
-      description: 'initialize starter deck',
-      blueprints: {
-        'new-main': {
-          forkBlueprintId: 'default-blueprint-1',
-          title: 'Main',
-          replaceDrawing: 'blue square',
-          components: `Layout:
-  widthScale: 1
-  heightScale: 1
-Tags:
-  tagsString: main starter
-Script:
-  scriptProperties: []`,
-          script: [{ code: STARTER_SCRIPT }],
-        },
-      },
-      actors: {
-        a0: {
-          title: 'Main',
-          components: `Layout:
-  x: 0
-  y: 0
-  widthScale: 1
-  heightScale: 1`,
-        },
-      },
-      variables: {},
-    },
-  });
+  copyProjectDocs(directory);
+  await createStarterCard(directory, card);
 
   console.log(`Created ${path.relative(process.cwd(), directory) || directory}`);
 }
