@@ -14,5 +14,3 @@ The included guide is for Castle deck/game work. For CLI source changes, it is f
 For CLI source changes, do not edit generated `dist/` files directly. Run `npm run build` after TypeScript changes, and use `npm pack --dry-run --json` when package contents matter.
 
 For release/package handoff work, keep `README.md`, `docs/agent/AGENTS.md`, `src/commands/docs.ts`, and the `castle --help` text in `src/index.ts` consistent. Do not duplicate the full agent guide here.
-
-For eval work, read `evals/README.md` first and keep generated eval output under `eval-runs/`.
