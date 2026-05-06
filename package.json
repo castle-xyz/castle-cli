@@ -1,51 +1,46 @@
 {
-  "name": "castle-cli-beta",
+  "name": "castle-cli",
+  "version": "2.0.0",
+  "description": "Castle CLI for local deck creation, preview, editing, and publishing",
+  "license": "ISC",
   "type": "module",
-  "version": "1.0.27",
-  "description": "Castle CLI",
+  "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/castle-xyz/castle-cli.git"
+  },
   "bin": {
-    "castle": "./bin/castle.js"
+    "castle": "dist/index.js"
   },
   "files": [
-    "bin/",
-    "dist/"
+    "dist/",
+    "bundles/player/",
+    "data/agent/",
+    "docs/agent/",
+    "docs/simple/",
+    "docs/full/",
+    "CLAUDE.md",
+    "INSTALL.md",
+    "README.md"
   ],
   "scripts": {
-    "build": "tsup && cp -r src/assets/. dist/assets/",
-    "prepublishOnly": "npm run build",
-    "dev": "tsx src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:chess": "npx tsx scripts/test-chess-playwright.ts"
+    "prepack": "npm run build",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^1.7.0",
-    "chokidar": "^4.0.0",
-    "commander": "^12.0.0",
-    "express": "^4.18.0",
-    "gl": "^8.1.6",
-    "glob": "^11.0.0",
-    "lodash": "^4.17.21",
-    "node-watch": "^0.7.4",
-    "open": "^10.0.0",
-    "portfinder": "^1.0.32",
-    "update-notifier": "^7.3.1",
-    "uuid": "^10.0.0",
+    "axios": "^1.13.5",
+    "chokidar": "^4.0.3",
+    "open": "^11.0.0",
     "ws": "^8.18.0",
-    "yaml": "^2.4.0"
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "@types/express": "^4.17.21",
-    "@types/lodash": "^4.17.0",
-    "@types/node": "^20.0.0",
-    "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.10",
-    "tsup": "^8.0.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   }
 }

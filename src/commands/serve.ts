@@ -1,56 +1,412 @@
-import express from 'express';
-import openBrowser from 'open';
-import portfinder from 'portfinder';
 import * as fs from 'fs';
+import * as http from 'http';
+import * as net from 'net';
 import * as path from 'path';
-import readline from 'readline';
-import watch from 'node-watch';
-import yaml from 'yaml';
+import * as crypto from 'crypto';
+import { spawn } from 'child_process';
+import { URL, fileURLToPath } from 'url';
+import chokidar from 'chokidar';
+import openBrowser from 'open';
+import * as API from '../api.js';
+import { getConfigDir } from '../config.js';
+import { applyLocalEdit } from '../utils/edit.js';
+import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
+import { projectSocketEndpoint, unlinkSocket, withSocketCwd } from '../utils/socket.js';
 
-import * as Decks from '../utils/decks.js';
-import { initMetadata } from '../utils/init.js';
-import { CLIMobileConnection, SyncMode } from '../utils/mobile.js';
-import * as config from '../utils/config.js';
-import { getCacheDir, readCache, writeCache, fetchPlayerId } from '../utils/cache.js';
-import * as api from '../utils/api.js';
-
-const CASTLE_CDN = 'https://cdn.castle.xyz';
 const CASTLE_WWW = 'https://castle.xyz';
+const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const LOCAL_PLAYER_DIR = path.join(CLI_ROOT, 'bundles', 'player');
+const SCREENSHOT_SERVER_TIMEOUT_MS = 60_000;
+const REQUIRED_PLAYER_FILES = [
+  path.join('main', 'castle-core.js'),
+  path.join('main', 'castle-core.wasm'),
+  path.join('main', 'castle-core.worker.js'),
+  path.join('nothread', 'castle-core.js'),
+  path.join('nothread', 'castle-core.wasm'),
+  path.join('node', 'castle-core-node.js'),
+  path.join('node', 'castle-core-node.wasm'),
+];
 
-// Full player approach: load castle-core.js directly so we can inject real variables.
-// On file change, reload the page (simpler than re-calling createDeckFromJSON).
-function getHTML(meInfo: any) {
-  return `
+interface ServeOptions {
+  card?: string;
+  open?: boolean;
+  debug?: boolean;
+  detach?: boolean;
+}
+
+interface CardFile {
+  cardId: string;
+  title?: string;
+  sceneDataPath?: string;
+  projectCardDir?: string;
+}
+
+interface LocalDeck {
+  dir: string;
+  deckId?: string;
+  title?: string;
+  initialCardId?: string;
+  variables: any[];
+  cards: Map<string, CardFile>;
+}
+
+interface PendingScreenshot {
+  filename?: string;
+  targetClientId?: string;
+  respond: (result: any) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+interface PendingScreenshotPoll {
+  clientId: string;
+  res: http.ServerResponse;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+interface PreviewClientState {
+  seenAt: number;
+  readyVersion?: number;
+  readyAt?: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getCacheDir(): string {
+  return path.join(getConfigDir(), 'cache');
+}
+
+function getServeRegistryPath(): string {
+  return path.join(getConfigDir(), 'cli4-serve.json');
+}
+
+function getDeckServeInfoPath(deckDir: string): string {
+  return path.join(deckDir, '.castle', 'serve.json');
+}
+
+function readCache(relativePath: string): string | null {
+  try {
+    return fs.readFileSync(path.join(getCacheDir(), relativePath), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(relativePath: string, data: string): void {
+  const fullPath = path.join(getCacheDir(), relativePath);
+  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+  fs.writeFileSync(fullPath, data, 'utf8');
+}
+
+async function fetchCoreViews(debug: boolean): Promise<string> {
+  try {
+    const response = await fetch(`${CASTLE_WWW}/api/coreviews`, { signal: AbortSignal.timeout(3000) });
+    if (response.ok) {
+      const text = await response.text();
+      writeCache('coreviews.json', text);
+      if (debug) console.log('[serve] loaded coreviews from castle.xyz');
+      return text;
+    }
+  } catch {
+    // fall through to cache
+  }
+
+  const cached = readCache('coreviews.json');
+  if (cached) {
+    if (debug) console.log('[serve] loaded coreviews from cache');
+    return cached;
+  }
+
+  return '{}';
+}
+
+function verifyLocalPlayerBundle(): void {
+  const missing = REQUIRED_PLAYER_FILES.filter((file) => !fs.existsSync(path.join(LOCAL_PLAYER_DIR, file)));
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing local player bundle files in ${LOCAL_PLAYER_DIR}:\n` +
+        missing.map((file) => `  - ${file}`).join('\n') +
+        '\nCopy the complete castle-www/player output into bundles/player. Serve currently uses main/nothread; node is kept for upcoming WASM workflows.'
+    );
+  }
+}
+
+function contentTypeFor(filePath: string): string {
+  if (filePath.endsWith('.js')) return 'application/javascript; charset=utf-8';
+  if (filePath.endsWith('.wasm')) return 'application/wasm';
+  if (filePath.endsWith('.data')) return 'application/octet-stream';
+  if (filePath.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
+  return 'application/octet-stream';
+}
+
+function sendJson(res: http.ServerResponse, status: number, value: unknown): void {
+  const body = JSON.stringify(value);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+function sendText(res: http.ServerResponse, status: number, body: string, contentType: string): void {
+  res.writeHead(status, {
+    'Content-Type': contentType,
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+function readRequestBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => {
+      data += chunk;
+    });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function appendServeLog(deckDir: string, entry: any): void {
+  const level = entry.level || 'log';
+  const prefix = level.includes('error') ? 'ERROR' : level.includes('warn') ? 'WARN' : 'LOG';
+  const blueprint = entry.blueprintTitle ? ` [${entry.blueprintTitle}]` : '';
+  const ts = new Date().toISOString().substring(11, 23);
+  const line = `[${ts}] [${prefix}]${blueprint} ${entry.log ?? ''}\n`;
+  const logsPath = path.join(deckDir, '.castle', 'logs.txt');
+  fs.mkdirSync(path.dirname(logsPath), { recursive: true });
+  fs.appendFileSync(logsPath, line, 'utf8');
+}
+
+function saveScreenshot(deckDir: string, request: PendingScreenshot, base64Data: string, counter: number): string {
+  const screenshotsDir = path.join(deckDir, '.castle', 'screenshots');
+  const defaultFilename = `${String(counter).padStart(3, '0')}.png`;
+  const outPath = request.filename || path.join(screenshotsDir, defaultFilename);
+  fs.mkdirSync(screenshotsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, Buffer.from(base64Data, 'base64'));
+  const latestPath = path.join(screenshotsDir, 'latest.png');
+  fs.copyFileSync(outPath, latestPath);
+  return outPath;
+}
+
+function readCardJson(cardDir: string): any {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(cardDir, 'card.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function readLocalDeck(dir: string): LocalDeck {
+  const resolvedDir = path.resolve(dir);
+  const cards = new Map<string, CardFile>();
+  let deckId: string | undefined;
+  let title: string | undefined;
+  let initialCardId: string | undefined;
+  let variables: any[] = [];
+
+  const deckJsonPath = path.join(resolvedDir, 'deck.json');
+  if (fs.existsSync(deckJsonPath)) {
+    const deck = JSON.parse(fs.readFileSync(deckJsonPath, 'utf8')) as any;
+    deckId = deck.deckId;
+    title = deck.title;
+    initialCardId = deck.initialCard?.cardId;
+    variables = Array.isArray(deck.variables) ? deck.variables : [];
+
+    for (const card of deck.cards || []) {
+      if (!card?.cardId) continue;
+      const cardDir = path.join(resolvedDir, 'cards', card.cardId);
+      const sceneDataPath = path.join(resolvedDir, 'cards', card.cardId, 'scene-data.json');
+      if (isProjectCardDir(cardDir)) {
+        cards.set(card.cardId, {
+          cardId: card.cardId,
+          title: card.title,
+          projectCardDir: cardDir,
+          sceneDataPath: fs.existsSync(sceneDataPath) ? sceneDataPath : undefined,
+        });
+      } else if (fs.existsSync(sceneDataPath)) {
+        cards.set(card.cardId, {
+          cardId: card.cardId,
+          title: card.title,
+          sceneDataPath,
+        });
+      }
+    }
+  }
+
+  const cardsDir = path.join(resolvedDir, 'cards');
+  if (fs.existsSync(cardsDir)) {
+    for (const entry of fs.readdirSync(cardsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const cardDir = path.join(cardsDir, entry.name);
+      const sceneDataPath = path.join(cardDir, 'scene-data.json');
+      const cardJson = readCardJson(cardDir);
+      if (isProjectCardDir(cardDir) && !cards.has(entry.name)) {
+        cards.set(entry.name, {
+          cardId: entry.name,
+          title: cardJson.title,
+          projectCardDir: cardDir,
+          sceneDataPath: fs.existsSync(sceneDataPath) ? sceneDataPath : undefined,
+        });
+      } else if (fs.existsSync(sceneDataPath) && !cards.has(entry.name)) {
+        cards.set(entry.name, {
+          cardId: entry.name,
+          title: cardJson.title,
+          sceneDataPath,
+        });
+      }
+    }
+  }
+
+  const directSceneDataPath = path.join(resolvedDir, 'scene-data.json');
+  if (fs.existsSync(directSceneDataPath)) {
+    const cardId = path.basename(resolvedDir);
+    cards.set(cardId, {
+      cardId,
+      sceneDataPath: directSceneDataPath,
+    });
+    initialCardId ??= cardId;
+  }
+
+  initialCardId ??= cards.keys().next().value;
+
+  return { dir: resolvedDir, deckId, title, initialCardId, variables, cards };
+}
+
+function selectInitialCard(deck: LocalDeck, requestedCardId?: string): CardFile | undefined {
+  const cardId = requestedCardId || deck.initialCardId || deck.cards.keys().next().value;
+  return cardId ? deck.cards.get(cardId) : undefined;
+}
+
+async function getCardSceneDataText(card: CardFile): Promise<string> {
+  if (card.projectCardDir) {
+    return JSON.stringify(await materializeProjectCard(card.projectCardDir));
+  }
+  if (!card.sceneDataPath) {
+    throw new Error(`Card ${card.cardId} has no scene-data.json or project files.`);
+  }
+  return fs.readFileSync(card.sceneDataPath, 'utf8');
+}
+
+async function getCardVariables(card: CardFile): Promise<any[]> {
+  if (card.projectCardDir) {
+    const sceneData = await materializeProjectCard(card.projectCardDir);
+    return Array.isArray(sceneData?.snapshot?.variables) ? sceneData.snapshot.variables : [];
+  }
+  if (card.sceneDataPath) {
+    const sceneData = JSON.parse(fs.readFileSync(card.sceneDataPath, 'utf8'));
+    return Array.isArray(sceneData?.snapshot?.variables) ? sceneData.snapshot.variables : [];
+  }
+  return [];
+}
+
+function mergeVariables(...groups: any[][]): any[] {
+  const result = new Map<string, any>();
+  for (const group of groups) {
+    for (const variable of group) {
+      const key = variable?.variableId || variable?.name;
+      if (!key) continue;
+      result.set(key, variable);
+    }
+  }
+  return Array.from(result.values());
+}
+
+function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, servedVersion: number, debug: boolean): string {
+  const deckId = JSON.stringify(deck.deckId || '');
+  const cardId = JSON.stringify(initialCard?.cardId || '');
+  const cardTitle = JSON.stringify(initialCard?.title || '');
+  const creatorUsername = JSON.stringify(meInfo?.username || '');
+  const featureFlags = JSON.stringify(JSON.stringify({ scriptDraw: true }));
+  const previewRunIdJson = JSON.stringify(previewRunId);
+  const servedVersionJson = JSON.stringify(servedVersion);
+  const debugLogsJson = JSON.stringify(debug);
+  const showUserInfo = meInfo?.username && !meInfo?.isAnonymous;
+  const avatarUrl = meInfo?.photo?.url || meInfo?.photo?.avatarUrl || '';
+  const frameUrl = meInfo?.photoFrame?.frameUrl || '';
+
+  return `<!doctype html>
 <html>
   <head>
-    <link rel="icon" href="/favicon.ico">
-    <style>html, body { margin: 0; padding: 0; }</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Castle CLI Serve</title>
+    <style>
+      html, body { margin: 0; padding: 0; min-height: 100%; background: #000; }
+      body { display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+      #player-container { display: flex; flex-direction: column; visibility: hidden; }
+      #player-frame { position: relative; border-radius: 4% / calc(4% * (5 / 7)); overflow: hidden; background: #000; }
+      #canvas { width: 100%; height: 100%; display: block; border-radius: inherit; outline: none; }
+      #message { position: absolute; color: white; bottom: 20px; left: 20px; }
+      #user-info { height: 44px; display: flex; flex-direction: row; align-items: center; color: #fff; padding: 8px; font-size: 13px; font-family: sans-serif; }
+      #avatar-wrap { position: relative; width: 26px; height: 26px; flex: 0 0 auto; }
+      #avatar { width: 26px; height: 26px; border-radius: 100%; display: block; }
+      #avatar-frame { position: absolute; top: -6.5px; left: -6.5px; width: 39px; height: 39px; }
+      #user-info a { color: #fff; font-weight: bold; text-decoration: none; }
+    </style>
   </head>
-
-  <body style="background-color: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
-
-    <div id="player-container" style="display: flex; flex-direction: column; visibility: hidden;">
-      <div id="player-frame" style="position: relative; border-radius: 4% / calc(4% * (5 / 7)); overflow: hidden;">
-        <canvas id="canvas" tabindex="0" width="450" height="630" style="width: 100%; height: 100%; display: block; border-radius: inherit; overflow: hidden; outline: none;"></canvas>
-        <div id="message" style="position: absolute; color: white; bottom: 20px; left: 20px;"></div>
+  <body>
+    <div id="player-container">
+      <div id="player-frame">
+        <canvas id="canvas" tabindex="0" width="450" height="630"></canvas>
+        <div id="message"></div>
       </div>
-      ${meInfo && !meInfo.isAnonymous ? `
-      <div id="user-info" style="height: 44px; display: flex; flex-direction: row; align-items: center; color: #fff; padding: 8px; font-size: 13px; font-family: sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
-        <div style="position: relative;">
-          <img src="${meInfo.photo?.url ?? ''}" style="width: 26px; height: 26px; border-radius: 100%;" />
-          ${meInfo.photoFrame ? `<img src="${meInfo.photoFrame.frameUrl}" style="position: absolute; top: -6.5px; left: -6.5px; width: 39px; height: 39px;" />` : ''}
-        </div>
-        <div style="flex-grow: 1; margin-left: 8px;">
-          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: -0.2px;">You are previewing</div>
-          <div><a href="https://castle.xyz/${meInfo.username}" style="font-weight: bold; color: #fff; text-decoration: none;">@${meInfo.username}</a>'s deck on Castle</div>
-        </div>
-      </div>
-      ` : ''}
+      ${
+        showUserInfo
+          ? `<div id="user-info">
+              <div id="avatar-wrap">
+                ${avatarUrl ? `<img id="avatar" src="${avatarUrl}" />` : ''}
+                ${frameUrl ? `<img id="avatar-frame" src="${frameUrl}" />` : ''}
+              </div>
+              <div style="margin-left: 8px;">
+                <div style="font-size: 10px; text-transform: uppercase;">Local preview</div>
+                <div><a href="https://castle.xyz/${meInfo.username}">@${meInfo.username}</a></div>
+              </div>
+            </div>`
+          : ''
+      }
     </div>
+    <script>
+      function postLocalLog(level, args) {
+        try {
+          fetch('/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              level: level,
+              log: Array.prototype.slice.call(args).map(function(arg) {
+                if (arg instanceof Error) return arg.stack || arg.message;
+                if (typeof arg === 'string') return arg;
+                try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+              }).join(' ')
+            }),
+          }).catch(function() {});
+        } catch (e) {}
+      }
+      ['log', 'warn', 'error'].forEach(function(level) {
+        var original = console[level].bind(console);
+        console[level] = function() {
+          original.apply(console, arguments);
+          postLocalLog('browser-' + level, arguments);
+        };
+      });
+      window.addEventListener('error', function(event) {
+        postLocalLog('browser-error', [event.error || event.message]);
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        postLocalLog('browser-error', [event.reason]);
+      });
 
-    <script charset="utf-8">
       var hasSetCurrentVersion = false;
-      var currentVersion = 0;
+      var currentVersion = ${servedVersionJson};
+      var servedVersion = ${servedVersionJson};
+      var previewRunId = ${previewRunIdJson};
+      var debugLogs = ${debugLogsJson};
+      var previewClientId = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
 
       async function getVersion() {
         var response = await fetch('/version?version=' + currentVersion + '&returnImmediate=' + (hasSetCurrentVersion ? 'false' : 'true'));
@@ -64,10 +420,9 @@ function getHTML(meInfo: any) {
           if (hasSetCurrentVersion && version > currentVersion) {
             location.reload();
             return;
-          } else {
-            currentVersion = version;
-            hasSetCurrentVersion = true;
           }
+          currentVersion = version;
+          hasSetCurrentVersion = true;
         } catch (e) {
           setTimeout(checkForUpdate, 2000);
           return;
@@ -75,56 +430,96 @@ function getHTML(meInfo: any) {
         setTimeout(checkForUpdate, 100);
       }
 
+      function postPreviewReady() {
+        try {
+          fetch('/preview-ready', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              previewRunId: previewRunId,
+              previewClientId: previewClientId,
+              version: servedVersion,
+            }),
+          }).catch(function() {});
+        } catch (e) {}
+      }
+
       async function loadDeck() {
-        var [sceneRes, varsRes, coreViewsRes] = await Promise.all([fetch('/scene-data'), fetch('/variables'), fetch('/coreviews')]);
+        var sceneRes = await fetch('/scene-data');
+        var varsRes = await fetch('/variables');
+        var coreViewsRes = await fetch('/coreviews');
 
         if (!sceneRes.ok) {
           var msg = document.getElementById('message');
-          msg.style.cssText = 'position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: sans-serif; text-align: center; padding: 20px;';
-          msg.innerHTML = '<div style="font-size: 20px; margin-bottom: 12px;">Castle Server Running</div><div style="font-size: 14px; color: #aaa;">Open Castle on your phone and select a deck to connect.</div>';
+          msg.style.cssText = 'position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: white; font-family: sans-serif; text-align: center; padding: 20px;';
+          msg.textContent = 'No local scene data found.';
           return;
         }
 
         var sceneText = await sceneRes.text();
         var varsJson = await varsRes.json();
         var coreViewsText = await coreViewsRes.text();
-
         var canvas = document.getElementById('canvas');
 
         window.Castle = {
           hasInitialDeck: true,
           isPlayableMultiplayer: false,
-          creatorUsername: '',
-          deckId: '',
-          cardId: '',
-          cardTitle: '',
+          creatorUsername: ${creatorUsername},
+          deckId: ${deckId},
+          cardId: ${cardId},
+          cardTitle: ${cardTitle},
+          featureFlags: ${featureFlags},
           nextCardSceneData: sceneText,
           variables: JSON.stringify(varsJson),
           cardCache: {},
           isFocused: true,
           coreViews: coreViewsText,
           authToken: '',
+          localScreenshotRequests: {},
           scriptLog: function(log, level, blueprintTitle) {
             fetch('/log', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ log: log, level: level, blueprintTitle: blueprintTitle }),
-            });
+            }).catch(function() {});
           },
-          navigateToCardId: async function(cardId) {
-            var res = await fetch('/scene-data?cardId=' + cardId);
+          navigateToCardId: async function(nextCardId) {
+            var res = await fetch('/scene-data?cardId=' + encodeURIComponent(nextCardId));
             window.Castle.nextCardSceneData = await res.text();
           },
           navigateToDeckId: function() {},
           openDownloadAppLink: function() {},
-          bridgeEvent: function() {},
+          bridgeEvent: function(eventString) {
+            try {
+              var event = JSON.parse(eventString);
+              if (event.name === 'SCREENSHOT_DATA' && event.params && event.params.requestId) {
+                if (debugLogs) console.log('[cli screenshot] received data', event.params.requestId);
+                fetch('/screenshot-data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    previewRunId: previewRunId,
+                    previewClientId: previewClientId,
+                    requestId: event.params.requestId,
+                    data: event.params.data,
+                  }),
+                }).then(function(response) {
+                  if (response.ok || response.status === 404) {
+                    completeLocalScreenshotRequest(event.params.requestId);
+                  }
+                }).catch(function() {});
+              }
+            } catch (e) {
+              console.error('bridgeEvent error', e);
+            }
+          },
           dataRequest: async function(requestId, url) {
             var arrayBuffer = new ArrayBuffer(0);
             var success = 1;
             try {
               var resp = await fetch(url);
               arrayBuffer = await resp.arrayBuffer();
-            } catch(e) {
+            } catch (e) {
               success = 0;
             }
             window.Module.ccall('jsDataRequestCompleted', 'void',
@@ -132,49 +527,104 @@ function getHTML(meInfo: any) {
               [requestId, success, new Uint8Array(arrayBuffer), arrayBuffer.byteLength]);
           },
           graphqlPostRequest: async function(requestId, body) {
-            window.Module.ccall('jsGraphQLPostRequestComplete', 'void',
-              ['number', 'number', 'string'],
-              [requestId, 0, '']);
+            window.Module.ccall('jsGraphQLPostRequestComplete', 'void', ['number', 'number', 'string'], [requestId, 0, '']);
           },
         };
 
-        // Use threaded variant when SharedArrayBuffer is available (requires COOP/COEP headers).
-        // Fall back to nothread variant otherwise.
         var useThread = typeof Atomics !== 'undefined' && typeof SharedArrayBuffer !== 'undefined';
         var variant = useThread ? 'main' : 'nothread';
 
         window.Module = {
           canvas: canvas,
-          locateFile: function(filePath, scriptDirectory) {
-            // Keep all files on same origin so workers can load them.
+          locateFile: function(filePath) {
             return '/player/' + variant + '/' + filePath;
           },
           mainScriptUrlOrBlob: '/player/' + variant + '/castle-core.js',
         };
-
-        // Use WebGL1 instead of WebGL2 to prevent Safari rendering issues.
-        // https://github.com/emscripten-core/emscripten/issues/16104
         window.Module.preinitializedWebGLContext = canvas.getContext('webgl');
 
         var script = document.createElement('script');
         script.src = '/player/' + variant + '/castle-core.js';
+        script.addEventListener('load', function() {
+          setTimeout(postPreviewReady, 500);
+        });
         document.head.appendChild(script);
         canvas.focus();
+        pollScreenshotRequests('');
       }
 
-      var MAX_CARD_WIDTH = 450;
-      var MAX_CARD_HEIGHT = 630;
-      var PADDING = 20;
+      function completeLocalScreenshotRequest(requestId) {
+        if (!window.Castle.localScreenshotRequests[requestId]) return;
+        window.Castle.localScreenshotRequests[requestId].done = true;
+        delete window.Castle.localScreenshotRequests[requestId];
+      }
+
+      function requestCastleScreenshot(requestId) {
+        if (window.Castle.localScreenshotRequests[requestId]) return;
+
+        var state = { done: false, attempts: 0 };
+        window.Castle.localScreenshotRequests[requestId] = state;
+
+        function send() {
+          if (state.done) return;
+          state.attempts++;
+          try {
+            if (window.Module && window.Module.ccall) {
+              if (debugLogs) console.log('[cli screenshot] requesting', requestId, 'attempt', state.attempts);
+              window.Module.ccall('jsNativeEventSend', 'void', ['string'], [
+                JSON.stringify({ name: 'REQUEST_SCREENSHOT', params: { requestId: requestId } })
+              ]);
+            }
+          } catch (e) {
+            console.error('request screenshot failed', e);
+          }
+          if (!state.done && state.attempts < 60) {
+            setTimeout(send, 750);
+          } else if (!state.done) {
+            delete window.Castle.localScreenshotRequests[requestId];
+          }
+        }
+
+        send();
+      }
+
+      async function pollScreenshotRequests(lastRequestId) {
+        try {
+          var response = await fetch(
+            '/screenshot-request?previewRunId=' + encodeURIComponent(previewRunId) +
+              '&previewClientId=' + encodeURIComponent(previewClientId) +
+              '&last=' + encodeURIComponent(lastRequestId || '')
+          );
+          if (response.status === 409) {
+            location.reload();
+            return;
+          }
+          if (!response.ok) {
+            throw new Error('screenshot poll failed: ' + response.status);
+          }
+          var body = await response.json();
+          if (body.requestId) {
+            requestCastleScreenshot(body.requestId);
+            lastRequestId = body.requestId;
+          }
+        } catch (e) {
+          if (debugLogs) console.warn('[cli screenshot] poll failed', e);
+          await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+        }
+        pollScreenshotRequests(lastRequestId);
+      }
 
       function resizeCard() {
         var userInfo = document.getElementById('user-info');
         var userInfoHeight = userInfo ? userInfo.offsetHeight : 0;
-        var availableWidth = window.innerWidth - PADDING * 2;
-        var availableHeight = window.innerHeight - userInfoHeight - PADDING * 2;
-        var cardWidth, cardHeight;
-        if (availableWidth >= MAX_CARD_WIDTH && availableHeight >= MAX_CARD_HEIGHT) {
-          cardWidth = MAX_CARD_WIDTH;
-          cardHeight = MAX_CARD_HEIGHT;
+        var padding = 20;
+        var availableWidth = window.innerWidth - padding * 2;
+        var availableHeight = window.innerHeight - userInfoHeight - padding * 2;
+        var cardWidth;
+        var cardHeight;
+        if (availableWidth >= 450 && availableHeight >= 630) {
+          cardWidth = 450;
+          cardHeight = 630;
         } else if (availableWidth / availableHeight < 5 / 7) {
           cardWidth = availableWidth;
           cardHeight = cardWidth * (7 / 5);
@@ -190,7 +640,6 @@ function getHTML(meInfo: any) {
 
       resizeCard();
       window.addEventListener('resize', resizeCard);
-
       loadDeck();
       setTimeout(checkForUpdate, 100);
     </script>
@@ -198,428 +647,604 @@ function getHTML(meInfo: any) {
 </html>`;
 }
 
-// Fetch coreViews JSON from production castle.xyz.
-// coreViews is required by the C++ engine for UI overlays (feed, passes, inventory, etc.).
-// Caches to ~/.castle/cache/coreviews.json for offline use.
-async function fetchCoreViews(debug: boolean): Promise<string> {
-  try {
-    const res = await fetch(`${CASTLE_WWW}/api/coreviews`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      const text = await res.text();
-      writeCache('coreviews.json', text);
-      if (debug) console.log('[serve] Loaded coreViews from castle.xyz');
-      return text;
-    }
-  } catch {
-    // fall through to cache
+function sendLocalPlayerFile(reqPath: string, res: http.ServerResponse): void {
+  const match = reqPath.match(/^\/player\/(main|nothread|node)\/([A-Za-z0-9._-]+)$/);
+  if (!match) {
+    sendText(res, 404, 'Not found', 'text/plain; charset=utf-8');
+    return;
   }
-  const cached = readCache('coreviews.json');
-  if (cached) {
-    if (debug) console.log('[serve] Loaded coreViews from cache');
-    return cached;
+
+  const [, variant, file] = match;
+  const filePath = path.join(LOCAL_PLAYER_DIR, variant, file);
+  if (!fs.existsSync(filePath)) {
+    sendText(res, 404, `Local player file not found: ${variant}/${file}`, 'text/plain; charset=utf-8');
+    return;
   }
-  if (debug) console.log('[serve] coreViews unavailable — UI overlays (passes, inventory, feed) will not render');
-  return '{}';
+
+  const buffer = fs.readFileSync(filePath);
+  res.writeHead(200, {
+    'Content-Type': contentTypeFor(file),
+    'Content-Length': buffer.length,
+    'X-Castle-Player-Source': 'local',
+  });
+  res.end(buffer);
 }
 
-export async function serve(
-  directory: string = '.',
-  options: { port?: string; card?: string; open?: boolean; debug?: boolean; drawPreviews?: boolean; cliPrimary?: boolean; mobilePrimary?: boolean; syncMode?: string } = {}
-) {
-  const debug = !!options.debug;
+async function listen(server: http.Server): Promise<number> {
+  const start = 4321;
+  const maxAttempts = 100;
 
-  await initMetadata();
-
-  // Fetch player ID, coreViews, and me info at startup in parallel (graceful offline fallback).
-  const [playerId, coreViewsJson, meInfo] = await Promise.all([fetchPlayerId(debug), fetchCoreViews(debug), api.me(), api.fetchAndCacheAdminStatus()]);
-
-  // Try to read deck.yaml — but it might not exist yet (mobile-first mode)
-  let initialCardId: string | null = null;
-  let activeCardId: string | null = null;
-  let cardDirectories: any = {};
-  let deckDirForRoutes = directory;
-
-  // Read deckId from deck.yaml if present (deck-locked mode)
-  let deckId: string | undefined;
-  const deckYamlPath = path.join(directory, 'deck.yaml');
-  if (fs.existsSync(deckYamlPath)) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const port = start + attempt;
     try {
-      const deckConfig = yaml.parse(fs.readFileSync(deckYamlPath, 'utf8'));
-      deckId = deckConfig.deckId || undefined;
-      if (options.drawPreviews === true) {
-        if (deckConfig.drawPreviews !== true) {
-          deckConfig.drawPreviews = true;
-          fs.writeFileSync(deckYamlPath, yaml.stringify(deckConfig));
-        }
-      }
-    } catch (e) {}
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: NodeJS.ErrnoException) => {
+          server.off('listening', onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          server.off('error', onError);
+          resolve();
+        };
+        server.once('error', onError);
+        server.once('listening', onListening);
+        server.listen(port);
+      });
+      const address = server.address();
+      return typeof address === 'object' && address ? address.port : port;
+    } catch (error: any) {
+      if (error?.code === 'EADDRINUSE') continue;
+      throw error;
+    }
   }
 
+  throw new Error(`No available port found starting at ${start}.`);
+}
+
+function readJsonIfExists(filePath: string): any | null {
   try {
-    let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: debug ? console.log : () => {} });
-
-    if (deck) {
-      initialCardId = deck.initialCard.cardId;
-
-      if (options.card) {
-        initialCardId = options.card;
-        if (!deck.cards.find((card: any) => card.cardId == initialCardId)) {
-          console.error(`Card with ID ${initialCardId} not found in deck.`);
-          process.exit(1);
-        }
-      }
-
-      Object.assign(cardDirectories, await Decks.buildCardIdToDirectoryMap(directory));
-    }
-  } catch (e) {
-    if (debug) console.log('[serve] No deck.yaml found — running in mobile-first mode');
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
   }
+}
 
-  // Check for a running serve instance for this deck directory.
-  const castleDir = path.join(directory, '.castle');
-  const pidFile = path.join(castleDir, 'serve.pid');
-  const portFile = path.join(castleDir, 'serve.port');
+function serveChildArgs(deckDir: string, options: ServeOptions): string[] {
+  const entry = process.argv[1];
+  if (!entry) throw new Error('cannot find CLI entrypoint for detached serve');
 
+  const args = [...process.execArgv, entry, 'serve', deckDir];
+  if (options.card) args.push('--card', options.card);
+  if (options.open) args.push('--open');
+  if (options.debug) args.push('--debug');
+  return args;
+}
+
+async function serveDetached(directory: string, options: ServeOptions): Promise<void> {
+  const deck = readLocalDeck(directory);
+  const castleDir = path.join(deck.dir, '.castle');
+  const logPath = path.join(castleDir, 'serve.log');
+  const serveInfoPath = getDeckServeInfoPath(deck.dir);
   fs.mkdirSync(castleDir, { recursive: true });
+  try { fs.unlinkSync(serveInfoPath); } catch {}
 
-  if (fs.existsSync(pidFile)) {
-    try {
-      const existingPid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
-      if (!isNaN(existingPid)) {
-        try {
-          process.kill(existingPid, 0); // throws if process doesn't exist
-          const mtime = fs.statSync(pidFile).mtime;
-          const ageSeconds = Math.round((Date.now() - mtime.getTime()) / 1000);
-          const ageStr = ageSeconds < 60 ? `${ageSeconds}s ago` : `${Math.round(ageSeconds / 60)}m ago`;
-          console.warn(`\nWarning: castle serve (PID ${existingPid}) is already running for this deck directory (started ${ageStr}).`);
-          console.warn(`  Run "kill ${existingPid}" to stop it, or proceed with two concurrent servers.\n`);
-        } catch {
-          // Process no longer alive — stale PID file, ignore it.
-        }
-      }
-    } catch {
-      // Unreadable PID file — ignore.
-    }
-  }
+  const logFd = fs.openSync(logPath, 'a');
+  const child = spawn(process.execPath, serveChildArgs(deck.dir, options), {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  child.unref();
+  fs.closeSync(logFd);
 
-  fs.writeFileSync(pidFile, String(process.pid));
-
-  const cleanupPidFile = () => {
-    try {
-      if (fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() === String(process.pid)) {
-        fs.unlinkSync(pidFile);
-      }
-    } catch {}
-    try { if (fs.existsSync(portFile)) fs.unlinkSync(portFile); } catch {}
-  };
-  process.on('exit', cleanupPidFile);
-  process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
-  process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
-
-  // Ensure serve.pid and serve.port are gitignored in existing decks (new decks get this via workspace.ts).
-  const gitignorePath = path.join(directory, '.gitignore');
-  if (fs.existsSync(gitignorePath)) {
-    const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
-    if (!gitignoreContent.includes('.castle/serve.pid')) {
-      fs.appendFileSync(gitignorePath, '\n.castle/serve.pid\n');
-    }
-    if (!gitignoreContent.includes('.castle/serve.port')) {
-      fs.appendFileSync(gitignorePath, '\n.castle/serve.port\n');
-    }
-  }
-
-  let port: number | null = null;
-
-  if (options.port) {
-    port = parseInt(options.port, 10);
-    if (isNaN(port) || port < 0 || port > 65535) {
-      console.error(`Invalid port: ${options.port}`);
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const serveInfo = readJsonIfExists(serveInfoPath);
+    if (serveInfo?.url) {
+      console.log(`Started serve in background: ${serveInfo.url}`);
+      console.log(`PID: ${serveInfo.pid || child.pid}`);
+      console.log(`Logs: ${logPath}`);
+      console.log(`Command socket: ${serveInfo.sockPath}`);
       return;
     }
+    await sleep(250);
   }
 
-  if (!port) {
-    portfinder.basePort = 4321;
-    port = await portfinder.getPortPromise();
-  }
-
-  let version = 0;
-
-  // Watch game files for web player version increment.
-  // Exclude .castle/ (internal CLI files like logs.txt) to avoid spurious reloads.
-  // node-watch exports differently in ESM vs CJS contexts
-  const watchFn: any = typeof watch === 'function' ? watch : (watch as any).default;
-  watchFn(directory, { recursive: true, filter: (name: string) => !name.includes(`${path.sep}.castle${path.sep}`) && !name.endsWith(`${path.sep}.castle`) }, (_evt: any, name: any) => {
-    if (name && debug) {
-      console.log(`[serve] File changed: ${path.relative(directory, name)}`);
+  console.log(`Started serve in background: PID ${child.pid}`);
+  console.log(`Logs: ${logPath}`);
+  const logTail = (() => {
+    try {
+      return fs.readFileSync(logPath, 'utf8').trim().split('\n').slice(-20).join('\n');
+    } catch {
+      return '';
     }
-    version++;
+  })();
+  if (logTail) console.error(logTail);
+  throw new Error(`Detached serve did not write ${serveInfoPath} within 15s; check logs for startup errors.`);
+}
+
+export async function serve(directory = '.', options: ServeOptions = {}): Promise<void> {
+  if (options.detach) {
+    await serveDetached(directory, options);
+    return;
+  }
+
+  const debug = !!options.debug;
+  verifyLocalPlayerBundle();
+  if (debug) console.log(`[serve] player bundle: ${LOCAL_PLAYER_DIR}`);
+  let deck = readLocalDeck(directory);
+
+  if (deck.cards.size === 0) {
+    console.error(`No local card data found in ${deck.dir}.`);
+    console.error(
+      'Expected either project files shaped like:\n' +
+        '  <dir>/deck.json\n' +
+        '  <dir>/cards/<cardId>/scene/blueprints/<slug>.yaml\n' +
+        '  <dir>/cards/<cardId>/scene/blueprints/<slug>.json\n' +
+        'or a saved scene-data directory shaped like:\n' +
+        '  <dir>/deck.json\n' +
+        '  <dir>/cards/<cardId>/scene-data.json\n' +
+        'or a direct <dir>/scene-data.json file.'
+    );
+    return;
+  }
+
+  const selectedInitialCard = selectInitialCard(deck, options.card);
+  if (!selectedInitialCard) {
+    console.error(`Card ${options.card || deck.initialCardId || '(first card)'} not found in ${deck.dir}.`);
+    return;
+  }
+  let initialCard: CardFile = selectedInitialCard;
+
+  const [coreViewsJson, meInfo] = await Promise.all([
+    fetchCoreViews(debug),
+    API.me(),
+  ]);
+
+  const previewRunId = crypto.randomUUID();
+  const previewClients = new Map<string, PreviewClientState>();
+  let version = 0;
+  let dirty = false;
+  const changedFiles = new Set<string>();
+  let screenshotCounter = 0;
+  const pendingScreenshots = new Map<string, PendingScreenshot>();
+  const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
+  const socket = projectSocketEndpoint('serve', deck.dir);
+  const sockPath = socket.displayPath;
+  let actualPort: number | null = null;
+  let url = '';
+
+  const prunePreviewClients = () => {
+    const cutoff = Date.now() - 60_000;
+    for (const [clientId, state] of previewClients) {
+      if (state.seenAt < cutoff) previewClients.delete(clientId);
+    }
+  };
+
+  const registerPreviewClient = (clientId: string) => {
+    if (!clientId) return;
+    const state = previewClients.get(clientId) || { seenAt: 0 };
+    state.seenAt = Date.now();
+    previewClients.set(clientId, state);
+    prunePreviewClients();
+  };
+
+  const markPreviewClientReady = (clientId: string, readyVersion: number) => {
+    if (!clientId) return;
+    const now = Date.now();
+    const state = previewClients.get(clientId) || { seenAt: now };
+    state.seenAt = now;
+    state.readyVersion = readyVersion;
+    state.readyAt = now;
+    previewClients.set(clientId, state);
+    prunePreviewClients();
+  };
+
+  const choosePreviewClient = (requireReady = false) => {
+    prunePreviewClients();
+    let bestClientId: string | undefined;
+    let bestSeen = 0;
+    for (const [clientId, state] of previewClients) {
+      if (requireReady && (state.readyVersion ?? -1) < version) continue;
+      const lastSeen = requireReady ? (state.readyAt || state.seenAt) : state.seenAt;
+      if (lastSeen > bestSeen) {
+        bestClientId = clientId;
+        bestSeen = lastSeen;
+      }
+    }
+    return bestClientId;
+  };
+
+  const readyPreviewClientCount = () => {
+    prunePreviewClients();
+    let count = 0;
+    for (const state of previewClients.values()) {
+      if ((state.readyVersion ?? -1) >= version) count++;
+    }
+    return count;
+  };
+
+  const waitForReadyPreviewClient = async (timeoutMs = 10_000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const clientId = choosePreviewClient(true);
+      if (clientId) {
+        const state = previewClients.get(clientId);
+        const settleMs = Math.max(0, 500 - (Date.now() - (state?.readyAt || 0)));
+        if (settleMs > 0) await sleep(settleMs);
+        return clientId;
+      }
+      await sleep(100);
+    }
+    return undefined;
+  };
+
+  const pendingScreenshotForClient = (clientId: string, lastRequestId = ''): [string, PendingScreenshot] | null => {
+    for (const [requestId, pending] of pendingScreenshots) {
+      if (requestId === lastRequestId) continue;
+      if (!pending.targetClientId || pending.targetClientId === clientId) return [requestId, pending];
+    }
+    return null;
+  };
+
+  const flushScreenshotPolls = () => {
+    for (const poll of Array.from(pendingScreenshotPolls)) {
+      const request = pendingScreenshotForClient(poll.clientId);
+      if (!request) continue;
+      const [requestId, pending] = request;
+      pending.targetClientId ??= poll.clientId;
+      pendingScreenshotPolls.delete(poll);
+      clearTimeout(poll.timeout);
+      sendJson(poll.res, 200, { requestId });
+    }
+  };
+
+  const watcher = chokidar.watch(deck.dir, {
+    ignored: (name) => name.split(path.sep).includes('.castle'),
+    ignoreInitial: true,
   });
 
-  // Start mobile WebSocket connection (if logged in).
-  let mobileConnection: CLIMobileConnection | null = null;
-  const token = config.getToken();
-  if (token) {
-    mobileConnection = new CLIMobileConnection({
-      deckDir: directory,
-      token,
-      debug,
-      expectedDeckId: deckId,
-      cliPrimary: options.cliPrimary,
-      mobilePrimary: options.mobilePrimary,
-      syncMode: options.syncMode as SyncMode | undefined,
-      onStateWritten: (cardId, actualDeckDir) => {
-        deckDirForRoutes = actualDeckDir;
-        version++;
+  const pendingVersionResponses = new Set<http.ServerResponse>();
+  const reloadLocalProject = () => {
+    const nextDeck = readLocalDeck(deck.dir);
+    const nextInitialCard = selectInitialCard(nextDeck, options.card);
+    if (!nextInitialCard) {
+      throw new Error(`No local card data found after reload in ${nextDeck.dir}.`);
+    }
+    deck = nextDeck;
+    initialCard = nextInitialCard;
+  };
+  const markDirty = (filePath?: string) => {
+    dirty = true;
+    if (filePath) changedFiles.add(path.relative(deck.dir, filePath));
+    if (debug && filePath) console.log(`[serve] changed, restart required: ${path.relative(deck.dir, filePath)}`);
+  };
+  const restartPreview = (reason = 'restart') => {
+    reloadLocalProject();
+    version++;
+    dirty = false;
+    changedFiles.clear();
+    for (const pending of pendingVersionResponses) {
+      sendJson(pending, 200, { version });
+    }
+    pendingVersionResponses.clear();
+    const ts = new Date().toISOString().substring(11, 23);
+    const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
+    fs.mkdirSync(path.dirname(logsPath), { recursive: true });
+    fs.appendFileSync(logsPath, `\n--- restart ${ts} (${reason}) ---\n`, 'utf8');
+  };
+  watcher.on('all', (_event, filePath) => markDirty(filePath));
 
-        // Update card directories if this is a new card
-        if (!cardDirectories[cardId]) {
-          cardDirectories[cardId] = `card-${cardId}`;
+  try { unlinkSocket(socket); } catch {}
+  const ipcServer = net.createServer((conn) => {
+    let data = '';
+    conn.on('data', (chunk) => {
+      data += chunk.toString();
+      if (!data.includes('\n')) return;
+
+      let request: any;
+      try {
+        request = JSON.parse(data.trim());
+      } catch {
+        conn.write(`${JSON.stringify({ error: 'invalid request' })}\n`);
+        conn.end();
+        return;
+      }
+
+      const respond = (result: any) => {
+        conn.write(`${JSON.stringify(result)}\n`);
+        conn.end();
+      };
+
+      if (request.command === 'restart') {
+        try {
+          restartPreview('local serve');
+          respond({ ok: true, version, dirty: false });
+        } catch (error: any) {
+          respond({ error: error?.message || String(error) });
         }
-
-        // Set initial card ID if not set yet; always track the active card
-        if (!initialCardId) {
-          initialCardId = cardId;
-        }
-        activeCardId = cardId;
-      },
-    });
-    mobileConnection.start();
-  } else if (debug) {
-    console.log('[serve] No token found — mobile disabled. Run `castle login` to enable.');
-  }
-
-  try {
-    const app = express();
-
-    // COOP/COEP headers required for SharedArrayBuffer (threaded WASM variant).
-    app.use((req, res, next) => {
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-      next();
-    });
-
-    // Serve castle-core.js/wasm/worker proxied from CDN (same origin).
-    // Proxy instead of redirect — browsers block cross-origin Worker construction
-    // when following redirects (new Worker(url) fails if url redirects cross-origin).
-    for (const variant of ['main', 'nothread'] as const) {
-      if (playerId) {
-        const cdnBase = `${CASTLE_CDN}/player/${playerId}/${variant}`;
-        app.get(`/player/${variant}/:file`, async (req, res) => {
-          try {
-            const upstream = await fetch(`${cdnBase}/${req.params.file}`);
-            if (!upstream.ok) {
-              res.status(upstream.status).send(await upstream.text());
-              return;
-            }
-            const ct = upstream.headers.get('content-type');
-            if (ct) res.setHeader('Content-Type', ct);
-            const buf = await upstream.arrayBuffer();
-            res.send(Buffer.from(buf));
-          } catch (e: any) {
-            res.status(502).send(`Failed to fetch from CDN: ${e.message}`);
+      } else if (request.command === 'screenshot') {
+        void (async () => {
+          const targetClientId = await waitForReadyPreviewClient();
+          if (!targetClientId) {
+            respond({ error: 'no ready browser preview; open the serve URL and wait for it to load' });
+            return;
           }
+
+          const requestId = `cli4-local-screenshot-${Date.now()}`;
+          const timeout = setTimeout(() => {
+            if (!pendingScreenshots.delete(requestId)) return;
+            respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
+          }, SCREENSHOT_SERVER_TIMEOUT_MS);
+          pendingScreenshots.set(requestId, {
+            targetClientId,
+            filename: request.filename,
+            respond,
+            timeout,
+          });
+          if (debug) console.log(`[screenshot] queued ${requestId} target ${targetClientId}`);
+          flushScreenshotPolls();
+        })().catch((error: any) => {
+          respond({ error: error?.message || String(error) });
+        });
+      } else if (request.command === 'logs') {
+        const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
+        let content = '';
+        try { content = fs.readFileSync(logsPath, 'utf8'); } catch {}
+        respond({ logs: content });
+      } else if (request.command === 'edit') {
+        const cardId = request.card || initialCard.cardId;
+        const card = deck.cards.get(cardId);
+        if (!card?.projectCardDir) {
+          respond({ error: `Card ${cardId} is not a project-format card.` });
+          return;
+        }
+        applyLocalEdit({ cardDir: card.projectCardDir, args: request.args, deckId: deck.deckId, cardId })
+          .then((result) => {
+            markDirty();
+            respond({ success: true, summary: result.summary, restartRequired: true });
+          })
+          .catch((error: any) => {
+            respond({ error: error?.message || String(error) });
+          });
+      } else if (request.command === 'status') {
+        respond({
+          connected: true,
+          mode: 'serve',
+          deckId: deck.deckId,
+          initialCardId: initialCard.cardId,
+          cards: deck.cards.size,
+          directory: deck.dir,
+          port: actualPort,
+          url,
+          version,
+          dirty,
+          changedFiles: Array.from(changedFiles).slice(-20),
+          previewClients: previewClients.size,
+          readyPreviewClients: readyPreviewClientCount(),
         });
       } else {
-        app.get(`/player/${variant}/:file`, (req, res) => {
-          res.status(503).send('Player build unavailable: castle.xyz could not be reached and no cache found.');
+        respond({ error: `serve does not support command: ${request.command}` });
+      }
+    });
+  });
+  withSocketCwd(socket, () => ipcServer.listen(socket.path));
+
+  const server = http.createServer(async (req, res) => {
+    try {
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+
+      const requestUrl = new URL(req.url || '/', 'http://localhost');
+      const reqPath = decodeURIComponent(requestUrl.pathname);
+
+      if (req.method === 'GET' && reqPath === '/') {
+        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, version, debug), 'text/html; charset=utf-8');
+        return;
+      }
+
+      if (req.method === 'GET' && reqPath === '/favicon.ico') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      if (req.method === 'GET' && reqPath === '/scene-data') {
+        const cardId = requestUrl.searchParams.get('cardId') || initialCard.cardId;
+        const card = deck.cards.get(cardId);
+        if (!card) {
+          sendJson(res, 404, { error: `Card ${cardId} not found.` });
+          return;
+        }
+        const body = await getCardSceneDataText(card);
+        sendText(res, 200, body, 'application/json; charset=utf-8');
+        return;
+      }
+
+      if (req.method === 'GET' && reqPath === '/variables') {
+        const cardVariables = await getCardVariables(initialCard);
+        sendJson(res, 200, {
+          variables: mergeVariables(deck.variables, cardVariables),
+          passes: [],
+          cards: Array.from(deck.cards.values()).map((card) => ({ cardId: card.cardId, title: card.title })),
         });
-      }
-    }
-
-    app.get('/', (req, res) => {
-      res.send(getHTML(meInfo));
-    });
-
-    app.get('/favicon.ico', (req, res) => {
-      const faviconPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../assets/favicon.ico');
-      res.sendFile(faviconPath);
-    });
-
-    app.get('/version', (req, res) => {
-      const returnImmediate = req.query.returnImmediate === 'true';
-      const clientVersion = parseInt(req.query.version as string) || 0;
-
-      // If client's version is outdated, respond immediately
-      if (clientVersion < version || returnImmediate) {
-        return res.json({ version });
+        return;
       }
 
-      // Otherwise, wait for a change (long polling)
-      const timeout = setTimeout(() => {
-        res.json({ version }); // Return current version after timeout
-      }, 30000); // 30 second timeout
+      if (req.method === 'GET' && reqPath === '/coreviews') {
+        sendText(res, 200, coreViewsJson, 'application/json; charset=utf-8');
+        return;
+      }
 
-      // Store the request to respond when version changes
-      const checkInterval = setInterval(() => {
-        if (clientVersion < version) {
+      if (req.method === 'GET' && reqPath === '/version') {
+        const returnImmediate = requestUrl.searchParams.get('returnImmediate') === 'true';
+        const clientVersion = Number(requestUrl.searchParams.get('version') || 0);
+        if (returnImmediate || clientVersion < version) {
+          sendJson(res, 200, { version });
+          return;
+        }
+
+        pendingVersionResponses.add(res);
+        const timeout = setTimeout(() => {
+          if (pendingVersionResponses.delete(res)) sendJson(res, 200, { version });
+        }, 30_000);
+        res.on('close', () => {
           clearTimeout(timeout);
-          clearInterval(checkInterval);
-          res.json({ version });
-        }
-      }, 100);
-
-      // Clean up on connection close
-      res.on('close', () => {
-        clearTimeout(timeout);
-        clearInterval(checkInterval);
-      });
-    });
-
-    app.get('/scene-data', async (req, res) => {
-      let queryCardId = req.query.cardId as string | undefined;
-      let cardId = queryCardId ? queryCardId : (activeCardId || initialCardId);
-
-      if (!cardId) {
-        res.status(503).json({ error: 'No card available yet. Connect mobile app or clone a deck.' });
-        return;
-      }
-
-      // Refresh card directories in case new cards arrived via mobile
-      if (!cardDirectories[cardId]) {
-        Object.assign(cardDirectories, await Decks.buildCardIdToDirectoryMap(deckDirForRoutes));
-      }
-
-      if (!cardDirectories[cardId]) {
-        res.status(404).json({ error: `Card with ID ${cardId} not found in directory.` });
-        return;
-      }
-
-      try {
-        let response = await Decks.newSceneDataForCardAsync({
-          cardId,
-          deckDir: deckDirForRoutes,
-          cardDir: path.join(deckDirForRoutes, cardDirectories[cardId]),
+          pendingVersionResponses.delete(res);
         });
-
-        res.json(response.sceneData);
-      } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        return;
       }
-    });
 
-    app.get('/variables', async (req, res) => {
-      const queryCardId = req.query.cardId as string | undefined;
-      const cardId = queryCardId || activeCardId || initialCardId;
-      if (!cardId || !cardDirectories[cardId]) {
-        return res.json({ variables: [], passes: [], cards: [] });
+      if (req.method === 'GET' && reqPath === '/screenshot-request') {
+        const requestPreviewRunId = requestUrl.searchParams.get('previewRunId');
+        if (!requestPreviewRunId) {
+          const timeout = setTimeout(() => sendJson(res, 200, { requestId: null }), 30_000);
+          res.on('close', () => clearTimeout(timeout));
+          return;
+        }
+        if (requestPreviewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+
+        const previewClientId = requestUrl.searchParams.get('previewClientId') || '';
+        if (!previewClientId) {
+          sendJson(res, 400, { error: 'missing preview client id' });
+          return;
+        }
+
+        registerPreviewClient(previewClientId);
+        const lastRequestId = requestUrl.searchParams.get('last') || '';
+        const screenshotRequest = pendingScreenshotForClient(previewClientId, lastRequestId);
+        if (screenshotRequest) {
+          const [requestId, pending] = screenshotRequest;
+          pending.targetClientId ??= previewClientId;
+          if (debug) console.log(`[screenshot] delivering ${requestId} to ${previewClientId}`);
+          sendJson(res, 200, { requestId });
+          return;
+        }
+
+        const poll: PendingScreenshotPoll = {
+          clientId: previewClientId,
+          res,
+          timeout: setTimeout(() => {
+            if (pendingScreenshotPolls.delete(poll)) sendJson(res, 200, { requestId: null });
+          }, 30_000),
+        };
+        pendingScreenshotPolls.add(poll);
+        res.on('close', () => {
+          clearTimeout(poll.timeout);
+          pendingScreenshotPolls.delete(poll);
+        });
+        return;
       }
-      const cardDir = path.join(deckDirForRoutes, cardDirectories[cardId]);
-      const variablesPath = path.join(cardDir, 'variables.yaml');
-      let variables: any[] = [];
-      if (fs.existsSync(variablesPath)) {
+
+      if (req.method === 'POST' && reqPath === '/preview-ready') {
+        const raw = await readRequestBody(req);
+        const body = JSON.parse(raw);
+        if (body.previewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+        if (!body.previewClientId) {
+          sendJson(res, 400, { error: 'missing preview client id' });
+          return;
+        }
+
+        const readyVersion = Number(body.version);
+        markPreviewClientReady(body.previewClientId, Number.isFinite(readyVersion) ? readyVersion : version);
+        if (debug) console.log(`[preview] ready ${body.previewClientId} version ${Number.isFinite(readyVersion) ? readyVersion : version}`);
+        sendJson(res, 200, { ok: true, version });
+        return;
+      }
+
+      if (req.method === 'POST' && reqPath === '/screenshot-data') {
+        const raw = await readRequestBody(req);
+        const body = JSON.parse(raw);
+        if (body.previewRunId !== previewRunId) {
+          sendJson(res, 409, { error: 'stale preview run' });
+          return;
+        }
+
+        const pending = pendingScreenshots.get(body.requestId);
+        if (!pending) {
+          sendJson(res, 404, { error: `Screenshot request not found: ${body.requestId}` });
+          return;
+        }
+        if (pending.targetClientId && pending.targetClientId !== body.previewClientId) {
+          sendJson(res, 409, { error: 'screenshot request targeted another preview client' });
+          return;
+        }
+
+        if (body.previewClientId) registerPreviewClient(body.previewClientId);
+        pending.targetClientId ??= body.previewClientId;
+        pendingScreenshots.delete(body.requestId);
+        clearTimeout(pending.timeout);
+        screenshotCounter++;
+        const outPath = saveScreenshot(deck.dir, pending, body.data, screenshotCounter);
+        pending.respond({ path: outPath });
+        console.log(`[screenshot] saved: ${outPath}`);
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
+      if (req.method === 'GET' && reqPath.startsWith('/player/')) {
+        sendLocalPlayerFile(reqPath, res);
+        return;
+      }
+
+      if (req.method === 'POST' && reqPath === '/log') {
+        const raw = await readRequestBody(req);
         try {
-          const rawVars = yaml.parse(fs.readFileSync(variablesPath, 'utf8'));
-          if (Array.isArray(rawVars)) {
-            variables = rawVars.map((v: any) => ({
-              id: v.variableId ?? v.id,
-              name: v.name,
-              initialValue: v.initialValue ?? 0,
-              lifetime: v.lifetime ?? 'deck',
-            }));
-          }
-        } catch (e) {}
-      }
-      res.json({ variables, passes: [], cards: [] });
-    });
-
-    app.get('/coreviews', (req, res) => {
-      res.setHeader('Content-Type', 'application/json');
-      res.send(coreViewsJson);
-    });
-
-    app.post('/log', express.json(), (req, res) => {
-      try {
-        let log = req.body;
-        console.log(`${log.blueprintTitle}: ${log.log}`);
-      } catch (e) {}
-
-      res.sendStatus(200);
-    });
-
-    app.post('/api/screenshot', async (req, res) => {
-      if (!mobileConnection) {
-        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
+          const log = JSON.parse(raw);
+          const prefix = log.blueprintTitle ? `${log.blueprintTitle}: ` : '';
+          console.log(`${prefix}${log.log}`);
+          appendServeLog(deck.dir, log);
+        } catch {
+          if (raw.trim()) console.log(raw.trim());
+          appendServeLog(deck.dir, { log: raw.trim() });
+        }
+        sendJson(res, 200, { ok: true });
         return;
       }
-      try {
-        const result = await mobileConnection.cmdScreenshot();
-        res.json(result);
-      } catch (e: any) {
-        res.status(500).json({ error: e.message });
-      }
-    });
 
-    app.post('/api/stop-and-play', async (req, res) => {
-      if (!mobileConnection) {
-        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
-        return;
-      }
-      try {
-        const result = await mobileConnection.cmdStopAndPlay();
-        res.json(result);
-      } catch (e: any) {
-        res.status(500).json({ error: e.message });
-      }
-    });
-
-    app.post('/api/set-sync-mode', express.json(), (req, res) => {
-      if (!mobileConnection) {
-        res.status(503).json({ error: 'mobile not connected — run `castle login` first' });
-        return;
-      }
-      const { mode } = req.body ?? {};
-      const validModes = ['both', 'cli-to-mobile', 'mobile-to-cli'];
-      if (!mode || !validModes.includes(mode)) {
-        res.status(400).json({ error: `Invalid mode: "${mode}". Must be one of: both, cli-to-mobile, mobile-to-cli` });
-        return;
-      }
-      mobileConnection.setSyncMode(mode as SyncMode);
-      res.json({ mode, doneAt: new Date().toISOString() });
-    });
-
-    // Listen and resolve with actual bound port (port 0 = OS-assigned)
-    const server = await new Promise<{ app: any; port: number; url: string }>((resolve, reject) => {
-      const httpServer = app.listen(port, () => {
-        const addr = httpServer.address() as any;
-        const actualPort = addr?.port ?? port;
-        const url = `http://localhost:${actualPort}`;
-        console.log(`Serving on ${url}`);
-        fs.writeFileSync(portFile, String(actualPort));
-
-        if (options.open) {
-          setTimeout(async () => { await openBrowser(url); }, 100);
-        }
-
-        resolve({ app, port: actualPort, url });
-      });
-      httpServer.on('error', reject);
-    });
-
-    // Keyboard shortcuts — only in interactive terminals.
-    if (process.stdin.isTTY) {
-      console.log('  o  open in browser  ·  r  reload  ·  q  quit');
-      console.log();
-      readline.emitKeypressEvents(process.stdin);
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.on('keypress', (_str: string, key: any) => {
-        if (!key) return;
-        if ((key.ctrl && key.name === 'c') || key.name === 'q') {
-          process.exit(0);
-        }
-        if (key.name === 'o') {
-          openBrowser(server.url);
-        }
-        if (key.name === 'r') {
-          version++;
-          console.log('Reloading...');
-        }
-      });
+      sendText(res, 404, 'Not found', 'text/plain; charset=utf-8');
+    } catch (error: any) {
+      sendJson(res, 500, { error: error?.message || String(error) });
     }
+  });
 
-    return server;
-  } catch (e) {
-    console.error(`Error starting server: ${e}`);
+  actualPort = await listen(server);
+  url = `http://localhost:${actualPort}`;
+  console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
+  console.log(`Initial card: ${initialCard.cardId}`);
+  console.log(`Command socket: ${sockPath}`);
+  const serveInfo = { sockPath, sockName: socket.path, sockCwd: socket.cwd, deckDir: deck.dir, url, port: actualPort, pid: process.pid };
+  fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
+  fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), { recursive: true });
+  fs.writeFileSync(getServeRegistryPath(), JSON.stringify(serveInfo, null, 2), 'utf8');
+  fs.writeFileSync(getDeckServeInfoPath(deck.dir), JSON.stringify(serveInfo, null, 2), 'utf8');
+
+  if (options.open) {
+    await openBrowser(url);
   }
+
+  const shutdown = async () => {
+    await watcher.close();
+    server.close();
+    ipcServer.close();
+    try { unlinkSocket(socket); } catch {}
+    try { fs.unlinkSync(getDeckServeInfoPath(deck.dir)); } catch {}
+    try {
+      const registry = JSON.parse(fs.readFileSync(getServeRegistryPath(), 'utf8'));
+      if (registry.sockPath === sockPath) fs.unlinkSync(getServeRegistryPath());
+    } catch {}
+  };
+
+  process.on('SIGINT', () => {
+    void shutdown().finally(() => process.exit(0));
+  });
+  process.on('SIGTERM', () => {
+    void shutdown().finally(() => process.exit(0));
+  });
 }

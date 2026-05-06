@@ -1,8 +1,4 @@
-node_modules/
-dist/
-deck-*/
-test/screenshots/
-.castle/
-node-dev/
-
-.castle/serve.pid
+node_modules
+dist
+decks
+eval-runs

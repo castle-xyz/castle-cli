@@ -1,137 +1,208 @@
-import { Command } from 'commander';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import updateNotifier from 'update-notifier';
-
-import { clone } from './commands/clone.js';
+#!/usr/bin/env node
+import * as path from 'path';
+import open from 'open';
+import { CLIServer } from './server.js';
+import { getToken, setToken } from './config.js';
+import * as API from './api.js';
+import { sendCommand } from './command.js';
+import { serve } from './commands/serve.js';
 import { pull } from './commands/pull.js';
 import { push } from './commands/push.js';
-import { serve } from './commands/serve.js';
-import { login } from './commands/login.js';
-import { logout } from './commands/logout.js';
-import { whoami } from './commands/whoami.js';
-import { drawPreview } from './commands/draw-preview.js';
-import { screenshot } from './commands/screenshot.js';
-import { stopAndPlay } from './commands/stop-and-play.js';
-import { syncMode } from './commands/sync-mode.js';
+import { init } from './commands/init.js';
+import { listDecks } from './commands/list.js';
+import { cardAdd, cardRemove } from './commands/card.js';
+import { docs } from './commands/docs.js';
 
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+function parseOptions(args: string[]): { positional: string[]; options: Record<string, any> } {
+  const positional: string[] = [];
+  const options: Record<string, any> = {};
 
-let packageVersion = '1.0.0';
-try {
-  const pkg = require(path.join(__dirname, '../package.json'));
-  packageVersion = pkg.version;
-} catch (e) {}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--open') {
+      options.open = true;
+    } else if (arg === '--detach') {
+      options.detach = true;
+    } else if (arg === '--debug') {
+      options.debug = true;
+    } else if (arg === '--force') {
+      options.force = true;
+    } else if (arg === '--json') {
+      options.json = true;
+    } else if (arg === '--title') {
+      options.title = args[++i];
+    } else if (arg === '--limit') {
+      options.limit = Number(args[++i]);
+    } else if (arg === '-c' || arg === '--card') {
+      options.card = args[++i];
+    } else if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
 
-updateNotifier({ pkg: { name: 'castle-cli', version: packageVersion } }).notify();
+  return { positional, options };
+}
 
-const program = new Command();
+async function login(options: { quiet?: boolean } = {}): Promise<string> {
+  const log = options.quiet ? console.error : console.log;
+  const token = getToken();
+  if (token) {
+    const user = await API.me();
+    if (user) {
+      log(`logged in as ${user.username}`);
+      return token;
+    }
+    log('saved token expired, logging in again...');
+  }
 
-program
-  .name('castle')
-  .description('Castle CLI — combined web + mobile')
-  .version(packageVersion);
+  const { pollToken, url } = await API.startCLILogin();
+  log(`open this URL to log in:\n${url}`);
+  await open(url);
 
-program
-  .command('clone <deckId>')
-  .description('Clone a deck from the server')
-  .option('-d, --directory <directory>', 'Directory to clone into')
-  .option('--replace', 'Replace the directory if it already exists')
-  .option('--draw-previews', 'Enable draw preview PNG generation (stored in deck.yaml)')
-  .action(async (deckId, options) => {
-    await clone(deckId, options);
-  });
+  while (true) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const user = await API.pollForCLILogin(pollToken);
+      setToken(user.token);
+      log(`logged in as ${user.username}`);
+      return user.token;
+    } catch {
+      // keep polling
+    }
+  }
+}
 
-program
-  .command('pull')
-  .description('Pull latest changes from server')
-  .option('-d, --directory <directory>', 'Directory to pull', '.')
-  .action(async (options) => {
-    await pull(options);
-  });
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0] || 'connect';
 
-program
-  .command('push')
-  .description('Push local changes to server')
-  .option('-d, --directory <directory>', 'Directory to push', '.')
-  .action(async (options) => {
-    await push(options);
-  });
+  if (command === '--help' || command === '-h') {
+    console.log(`
+castle-cli - Castle local deck editor
 
-program
-  .command('serve [directory]')
-  .description('Serve deck locally (web + mobile)')
-  .option('-p, --port <port>', 'Web player port')
-  .option('-c, --card <cardId>', 'Initial card to serve')
-  .option('--open', 'Automatically open browser')
-  .option('--debug', 'Show verbose connection and file-change logs')
-  .option('--draw-previews', 'Enable draw preview PNG generation (stored in deck.yaml)')
-  .option('--cli-primary', 'Use local files as source of truth when mobile state conflicts (no prompt)')
-  .option('--mobile-primary', 'Use mobile state as source of truth when local files conflict (no prompt)')
-  .option('--sync-mode <mode>', 'Sync direction: both (default), cli-to-mobile, or mobile-to-cli')
-  .action(async (directory, options) => {
-    await serve(directory || '.', options);
-  });
+Usage:
+  castle [command] [options]
 
-program
-  .command('login')
-  .description('Log in to your Castle account')
-  .action(async () => {
+Commands:
+  init [dir]             Create a new local project deck
+  serve [dir]            Serve local project files with the bundled player
+  pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
+  list                   List your recently edited decks
+  docs                   Install/update bundled local reference docs and print their path
+  push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
+  add-card [dir]         Add a card to a local project deck
+  remove-card <id> [dir] Remove a card from a local project deck
+  connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
+  restart                Stop and restart the scene
+  screenshot [filename]  Take a screenshot
+  save-preview-image     Capture screenshot and set deck preview image
+  edit                   Apply scene edits (reads JSON from stdin)
+  logs                   Show script logs since last restart
+  status                 Show connection and scene info
+
+Serve options:
+  --open                 Open browser for serve
+  --card, -c             Card ID for serve
+  --debug                Verbose serve logging
+
+Init options:
+  --title                Deck title
+  --force                Replace target directory if it already contains files
+
+Card options:
+  --title                Card title for add-card
+  --force                Required for remove-card
+
+List options:
+  --limit                Number of decks to show (default: 20)
+  --json                 Print machine-readable JSON
+
+Global options:
+  --help, -h             Show this help
+`);
+    process.exit(0);
+  }
+
+  if (command === 'restart' || command === 'screenshot' || command === 'save-preview-image' || command === 'edit' || command === 'logs' || command === 'status') {
+    if (command === 'save-preview-image') await login();
+    const arg = command === 'screenshot' || command === 'save-preview-image' ? args[1] : undefined;
+    await sendCommand(command, arg);
+    return;
+  }
+
+  if (command === 'serve') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await serve(positional[0] || '.', options);
+    return;
+  }
+
+  if (command === 'init') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await init({ directory: positional[0], title: options.title, force: options.force });
+    return;
+  }
+
+  if (command === 'pull') {
+    const { positional } = parseOptions(args.slice(1));
     await login();
+    await pull(positional[0], { output: positional[1] });
+    return;
+  }
+
+  if (command === 'list') {
+    const { options } = parseOptions(args.slice(1));
+    await login({ quiet: options.json === true });
+    const user = await API.me();
+    if (!user?.userId) throw new Error('Unable to load current user.');
+    await listDecks(user.userId, { limit: options.limit, json: options.json === true });
+    return;
+  }
+
+  if (command === 'docs') {
+    await docs();
+    return;
+  }
+
+  if (command === 'push') {
+    const { positional } = parseOptions(args.slice(1));
+    await login();
+    await push({ directory: positional[0] || '.' });
+    return;
+  }
+
+  if (command === 'add-card') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await cardAdd({ directory: positional[0] || '.', title: options.title });
+    return;
+  }
+
+  if (command === 'remove-card') {
+    const { positional, options } = parseOptions(args.slice(1));
+    await cardRemove({ cardId: positional[0], directory: positional[1] || '.', force: options.force === true });
+    return;
+  }
+
+  if (command !== 'connect') {
+    throw new Error(`Unknown command: ${command}`);
+  }
+
+  const dir = args[1] || 'decks';
+  const token = await login();
+  const resolvedDir = path.resolve(dir);
+  const server = new CLIServer(resolvedDir, token);
+
+  process.on('SIGINT', () => {
+    console.log('\nshutting down...');
+    server.stop();
+    process.exit(0);
   });
 
-program
-  .command('logout')
-  .description('Log out from your Castle account')
-  .action(async () => {
-    await logout();
-  });
+  server.start();
+}
 
-program
-  .command('whoami')
-  .description('Display the current logged in user')
-  .action(async () => {
-    await whoami();
-  });
-
-program
-  .command('version')
-  .description('Show the current CLI version')
-  .action(() => {
-    console.log(packageVersion);
-  });
-
-program
-  .command('screenshot [directory]')
-  .description('Take a screenshot of the running mobile session')
-  .action(async (directory) => {
-    await screenshot(directory || '.');
-  });
-
-program
-  .command('stop-and-play [directory]')
-  .description('Stop and restart the deck on the connected mobile device')
-  .action(async (directory) => {
-    await stopAndPlay(directory || '.');
-  });
-
-program
-  .command('sync-mode <mode> [directory]')
-  .description('Change the sync direction of a running castle serve (both, cli-to-mobile, mobile-to-cli)')
-  .action(async (mode, directory) => {
-    await syncMode(mode, directory || '.');
-  });
-
-program
-  .command('draw-preview <draw-json>')
-  .description('Render a blueprint drawing to a PNG preview')
-  .option('-o, --output <path>', 'Output PNG path (default: replaces .draw.json with .preview.png)')
-  .option('-f, --frame <n>', 'Zero-based frame index (default: 0)')
-  .option('-s, --size <n>', 'Output image size in pixels (default: 256)')
-  .action(async (drawJson, options) => {
-    await drawPreview(drawJson, options);
-  });
-
-program.parse();
+main().catch((err) => {
+  console.error('fatal:', err instanceof Error ? err.message : err);
+  process.exit(1);
+});

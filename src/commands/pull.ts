@@ -1,59 +1,52 @@
+import * as fs from 'fs';
 import * as path from 'path';
+import * as API from '../api.js';
+import { writeProjectCardFromSceneData } from '../utils/project.js';
 
-import * as API from '../utils/api.js';
-import * as Decks from '../utils/decks.js';
-import { initMetadata } from '../utils/init.js';
-import { initializeCardDir } from '../utils/workspace.js';
-
-export async function pull(options: { directory?: string } = {}) {
-  await initMetadata();
-  await API.fetchAndCacheAdminStatus();
-
-  const directory = options.directory || '.';
-
-  let deck = await Decks.readDeckFromDirectoryAsync({ dir: directory, log: console.log });
-  if (!deck) {
-    return;
-  }
-
-  const cardIdToDirectory = await Decks.buildCardIdToDirectoryMap(directory, 'pull');
-
-  for (let card of deck.cards) {
-    let cardId = card.cardId;
-
-    if (cardIdToDirectory[cardId]) {
-      console.log(`Pulling updates for card ${card.cardId}...`);
-
-      try {
-        await Decks.pullCardAsync({
-          cardId: card.cardId,
-          sceneDataUrl: card.sceneDataUrl,
-          cardDir: path.join(directory, cardIdToDirectory[cardId]),
-          deckDir: directory,
-        });
-      } catch (e: any) {
-        console.error(`Failed to pull card ${card.cardId}: ${e?.message ?? e}`);
-        process.exit(1);
-      }
-    } else {
-      console.log(`No directory found for card ${card.cardId}. Cloning...`);
-
-      let cardDirectory = path.join(directory, `card-${card.cardId}`);
-      initializeCardDir(cardDirectory, card.cardId);
-
-      try {
-        await Decks.cloneCardAsync({
-          cardId: card.cardId,
-          sceneDataUrl: card.sceneDataUrl,
-          cardDir: cardDirectory,
-          deckDir: directory,
-        });
-      } catch (e: any) {
-        console.error(`Failed to clone card ${card.cardId}: ${e?.message ?? e}`);
-        process.exit(1);
-      }
-    }
-  }
-
-  console.log('Pull complete');
+interface PullOptions {
+  output?: string;
 }
+
+function writeJson(filePath: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+export async function pull(deckId: string, options: PullOptions = {}): Promise<void> {
+  if (!deckId) {
+    throw new Error('Usage: castle pull <deck-id> [dir]');
+  }
+
+  const deck = await API.deck(deckId);
+  if (!deck) {
+    throw new Error(`Deck not found: ${deckId}`);
+  }
+
+  const deckDir = path.resolve(options.output || path.join('decks', deck.deckId));
+  fs.mkdirSync(deckDir, { recursive: true });
+
+  const cards = deck.cards?.length ? deck.cards : deck.initialCard ? [deck.initialCard] : [];
+  writeJson(path.join(deckDir, 'deck.json'), {
+    deckId: deck.deckId,
+    title: deck.title ?? '',
+    visibility: deck.visibility,
+    variables: deck.variables ?? [],
+    initialCard: deck.initialCard,
+    cards,
+  });
+
+  for (const card of cards) {
+    if (!card.cardId || !card.sceneDataUrl) continue;
+    console.log(`pulling ${card.cardId}...`);
+    const sceneData = await API.downloadSceneData(card.sceneDataUrl);
+    await writeProjectCardFromSceneData({
+      deckId: deck.deckId,
+      card,
+      cardDir: path.join(deckDir, 'cards', card.cardId),
+      sceneData,
+    });
+  }
+
+  console.log(`Pulled ${deck.deckId} to ${path.relative(process.cwd(), deckDir) || deckDir}`);
+}
+
