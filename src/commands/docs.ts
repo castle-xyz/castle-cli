@@ -37,21 +37,21 @@ export function syncAgentDocs(): string {
 
 function deckInstructions(docsDir: string): string {
   const agentsPath = path.join(docsDir, 'AGENTS.md');
-  return `# Castle CLI 4 Deck
+  return `# Castle CLI Deck
 
-This is a Castle CLI 4 deck project.
+This is a Castle CLI deck project.
 
 Read the shared Castle agent instructions first:
 
 ${agentsPath}
 
-If that file is missing, run \`castle-4 docs\`, then read it.
+If that file is missing, run \`castle docs\`, then read it.
 
 Then work in this deck. Start by reading \`deck.json\` and the current Lua script under \`cards/<card-id>/scripts/\`.
 
-Use \`castle-4 serve .\` for local preview, \`castle-4 restart\` after a batch of edits, \`castle-4 logs\` for script errors, and \`castle-4 screenshot <path>\` when visual output matters.
+Use \`castle serve .\` for local preview, \`castle restart\` after a batch of edits, \`castle logs\` for script errors, and \`castle screenshot <path>\` when visual output matters.
 
-Edit Lua scripts directly. Use \`castle-4 edit\` for structural changes such as blueprints, actors, variables, layout, drawing assets, text settings, and rules. Generated scene YAML and blueprint JSON sidecars are for inspection.
+Edit Lua scripts directly. Use \`castle edit\` for structural changes such as blueprints, actors, variables, layout, drawing assets, text settings, and rules. Generated scene YAML and blueprint JSON sidecars are for inspection.
 `;
 }
 

@@ -156,7 +156,7 @@ export async function sendCommand(command: string, arg?: string) {
     if (result.error) {
       console.error('edit failed:', result.error);
     } else {
-      const suffix = result.restartRequired ? ' (run `castle-4 restart` to reload preview)' : '';
+      const suffix = result.restartRequired ? ' (run `castle restart` to reload preview)' : '';
       const msg = result.summary ? `edit applied: ${result.summary}${suffix}` : `edit applied successfully${suffix}`;
       console.log(msg);
       if (result.blueprintIdMapping && Object.keys(result.blueprintIdMapping).length > 0) {

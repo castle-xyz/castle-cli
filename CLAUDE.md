@@ -1,8 +1,8 @@
-# Castle CLI 4 Repo
+# Castle CLI Repo
 
 @docs/agent/AGENTS.md
 
-This file is only the source-checkout wrapper. The canonical Castle agent guide is `docs/agent/AGENTS.md`, and `castle-4 docs` copies that guide to `~/.castle/docs/AGENTS.md` and `~/.castle/docs/CLAUDE.md`.
+This file is only the source-checkout wrapper. The canonical Castle agent guide is `docs/agent/AGENTS.md`, and `castle docs` copies that guide to `~/.castle/docs/AGENTS.md` and `~/.castle/docs/CLAUDE.md`.
 
 When reading the included guide from this repo checkout, resolve shared-doc paths like this:
 

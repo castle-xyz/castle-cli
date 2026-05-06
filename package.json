@@ -1,11 +1,16 @@
 {
-  "name": "@castle/cli-4",
-  "version": "0.1.0",
-  "description": "Castle CLI 4 for AI-assisted deck creation and editing",
+  "name": "castle-cli",
+  "version": "2.0.0",
+  "description": "Castle CLI for local deck creation, preview, editing, and publishing",
+  "license": "ISC",
   "type": "module",
   "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/castle-xyz/castle-cli.git"
+  },
   "bin": {
-    "castle-4": "./dist/index.js"
+    "castle": "dist/index.js"
   },
   "files": [
     "dist/",
@@ -20,7 +25,8 @@
   ],
   "scripts": {
     "prepack": "npm run build",
-    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },

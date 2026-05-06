@@ -33,7 +33,7 @@ The `deck.variables` helper is equivalent:
 deck.variables.score = deck.variables.score + 1
 ```
 
-Define variables structurally with `castle-4 edit` when they need initial values or lifetimes.
+Define variables structurally with `castle edit` when they need initial values or lifetimes.
 
 ## Local Variables
 

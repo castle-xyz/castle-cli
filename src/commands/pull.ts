@@ -14,7 +14,7 @@ function writeJson(filePath: string, value: unknown): void {
 
 export async function pull(deckId: string, options: PullOptions = {}): Promise<void> {
   if (!deckId) {
-    throw new Error('Usage: castle-4 pull <deck-id> [dir]');
+    throw new Error('Usage: castle pull <deck-id> [dir]');
   }
 
   const deck = await API.deck(deckId);

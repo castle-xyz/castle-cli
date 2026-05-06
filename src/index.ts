@@ -80,17 +80,17 @@ async function main() {
 
   if (command === '--help' || command === '-h') {
     console.log(`
-castle-cli — Castle script editing bridge
+castle-cli - Castle local deck editor
 
 Usage:
-  castle-4 [command] [options]
+  castle [command] [options]
 
 Commands:
   init [dir]             Create a new local project deck
   serve [dir]            Serve local project files with the bundled player
   pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
   list                   List your recently edited decks
-  docs                   Install/update shared agent docs and print their path
+  docs                   Install/update bundled local reference docs and print their path
   push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
   add-card [dir]         Add a card to a local project deck
   remove-card <id> [dir] Remove a card from a local project deck

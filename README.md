@@ -1,58 +1,71 @@
-# Castle CLI 4
+# Castle CLI
 
-Castle CLI 4 lets agents create, preview, edit, and push Castle deck projects from local files.
+Castle CLI creates, previews, edits, and publishes Castle deck projects from local files.
 
-Install with `npm install -g @castle/cli-4`, or paste [INSTALL.md](./INSTALL.md) to an agent.
-
-## Setup
-
-### 1. Install
+## Install
 
 ```bash
-npm install -g @castle/cli-4
+npm install -g castle-cli
+castle --help
 ```
 
-### 2. Run an agent
+## Start A Deck
 
-Install the shared Castle agent docs:
+Create a new local deck and serve it in a browser:
 
 ```bash
-castle-4 docs
+castle init my-deck --title "My Deck"
+castle serve my-deck --open
 ```
 
-This writes Castle instructions and API docs to `~/.castle/docs` by default.
+`serve` runs in the foreground and prints the local preview URL. After editing project files, reload the active preview:
 
 ```bash
-claude
+castle restart
+castle logs
+castle screenshot screenshot.png
 ```
 
-For a new deck, ask the agent to create a deck, serve it locally, and push it:
+## Pull And Push
+
+Pull an existing deck by ID:
+
+```bash
+castle pull <deck-id> my-deck
+castle serve my-deck --open
+```
+
+Push a local deck as an unlisted Castle deck:
+
+```bash
+castle push my-deck
+```
+
+## Cards
+
+```bash
+castle add-card my-deck --title "Card 2"
+castle remove-card <card-id> my-deck --force
+```
+
+## Project Files
+
+Local projects use this shape:
 
 ```text
-Read ~/.castle/docs/AGENTS.md. Start a new Castle deck, serve it locally, and push it.
+my-deck/
+  deck.json
+  cards/
+    <card-id>/
+      card.json
+      scripts/
+        main.lua
+      scene/
+        actors.yaml
+        variables.yaml
+        blueprints/
+          main.yaml
+          main.json
 ```
 
-The agent should create a local project, run `castle-4 serve`, give you the local preview URL, and push an unlisted Castle deck when it is ready. Each deck also gets a short `AGENTS.md` and `CLAUDE.md` that point back to the shared docs.
-
-### 3. Connect the Castle editor when needed
-
-After the deck has been pushed, you can open it in the Castle editor. If you want the agent to work with that editor instance too, tell it to connect to the app:
-
-```text
-Connect to the app/editor for this deck.
-```
-
-The agent should start `castle-4 connect`. Use either the main branch Castle app build or a TestFlight beta build. When the CLI connects, a terminal icon will appear in the editor header.
-
-## What can the AI do?
-
-- **Edit scripts** — write Lua game logic in local project files
-- **Create blueprints** — fork existing templates, set behaviors and properties
-- **Place actors** — add/move/remove actors in the scene
-- **Manage variables** — create score counters, game state, etc.
-- **Manage cards** — add/remove cards in local deck projects
-- **Restart & screenshot** — test changes and see results
-- **Find and pull decks** — list your recent decks and pull existing decks into local project files
-- **Push & cover** — publish an unlisted deck and capture a new-deck cover from local serve
-- **Connect to editor** — attach to an open Castle editor for the pushed deck when app-backed work is needed
-- **Read scene state** — understand what's in the deck to make informed edits
+Edit Lua scripts directly. Generated scene YAML and blueprint JSON files are mainly for inspection; use `castle edit` for structural changes such as blueprints, actors, variables, layout, drawing assets, text settings, and rules.

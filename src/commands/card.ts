@@ -50,7 +50,7 @@ export async function cardAdd(options: CardAddOptions = {}): Promise<void> {
 }
 
 export async function cardRemove(options: CardRemoveOptions): Promise<void> {
-  if (!options.cardId) throw new Error('Usage: castle-4 remove-card <card-id> [deck-dir] --force');
+  if (!options.cardId) throw new Error('Usage: castle remove-card <card-id> [deck-dir] --force');
   if (!options.force) {
     throw new Error(`Refusing to remove card ${options.cardId} without --force.`);
   }

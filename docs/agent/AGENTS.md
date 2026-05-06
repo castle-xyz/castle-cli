@@ -1,20 +1,20 @@
-# Castle CLI 4
+# Castle CLI
 
-Castle CLI 4 edits local Castle deck projects for AI-assisted game work. Treat deck/game tasks as focused actor-script work, not repo exploration.
+Castle CLI edits local Castle deck projects for AI-assisted game work. Treat deck/game tasks as focused actor-script work, not repo exploration.
 
 ## Start Here
 
 For a new local game, create and serve the project first:
 
 ```bash
-castle-4 init <deck-dir> --title "Game"
-castle-4 serve <deck-dir> --open
+castle init <deck-dir> --title "Game"
+castle serve <deck-dir> --open
 ```
 
 For app-connected editing, start a long-running bridge session:
 
 ```bash
-castle-4 connect
+castle connect
 ```
 
 Wait for `[project] active deck ...` and `[state]`, then work in the synced project under `decks/<deck>/cards/<card-id>/`.
@@ -56,25 +56,25 @@ Split into separate paddle/ball/enemy/HUD blueprints only when the task asks for
 ## Commands
 
 ```bash
-castle-4 init [dir] --title "Game"           # create local deck project
-castle-4 serve [dir]                         # serve local project in foreground
-castle-4 serve [dir] --open                  # serve in foreground and open browser
-castle-4 docs                                # install/update shared agent docs
-castle-4 edit                                # apply scene edits from JSON on stdin
-castle-4 restart                             # reload active local serve or app scene
-castle-4 logs                                # show recent script logs
-castle-4 status                              # show connection/preview status
-castle-4 screenshot [filename]               # capture screenshot
-castle-4 add-card [dir] --title "Card 2"     # add a card
-castle-4 remove-card <card-id> [dir] --force # remove a card
-castle-4 push [dir]                          # push as unlisted deck
-castle-4 pull <deck-id> [dir]                # pull existing deck
-castle-4 list                                # recent decks
+castle init [dir] --title "Game"           # create local deck project
+castle serve [dir]                         # serve local project in foreground
+castle serve [dir] --open                  # serve in foreground and open browser
+castle docs                                # install/update shared agent docs
+castle edit                                # apply scene edits from JSON on stdin
+castle restart                             # reload active local serve or app scene
+castle logs                                # show recent script logs
+castle status                              # show connection/preview status
+castle screenshot [filename]               # capture screenshot
+castle add-card [dir] --title "Card 2"     # add a card
+castle remove-card <card-id> [dir] --force # remove a card
+castle push [dir]                          # push as unlisted deck
+castle pull <deck-id> [dir]                # pull existing deck
+castle list                                # recent decks
 ```
 
 `serve` chooses an available port. Use `status` or `<deck-dir>/.castle/serve.json`; do not guess ports.
 
-`edit`, `restart`, `logs`, `status`, and `screenshot` target the active serve/app socket. Pass no deck path or `--deck` to those commands. Local `serve` marks file changes dirty; run `castle-4 restart` when a batch of edits is complete.
+`edit`, `restart`, `logs`, `status`, and `screenshot` target the active serve/app socket. Pass no deck path or `--deck` to those commands. Local `serve` marks file changes dirty; run `castle restart` when a batch of edits is complete.
 
 ## Project Files
 
@@ -101,10 +101,10 @@ Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/ac
 
 After each significant script or scene change:
 
-1. Run `castle-4 restart` after the whole change is written.
-2. Read logs with `castle-4 logs` or `<deck-dir>/.castle/logs.txt`.
+1. Run `castle restart` after the whole change is written.
+2. Read logs with `castle logs` or `<deck-dir>/.castle/logs.txt`.
 3. Fix script errors immediately.
-4. Run `castle-4 screenshot <path>` when visual output matters.
+4. Run `castle screenshot <path>` when visual output matters.
 
 ## Mobile First
 
@@ -185,7 +185,7 @@ my:getCollidingActors("tag")
 otherActor:sendMessage("message", data)
 ```
 
-`castle.createActor({ body = ... })`, `castle.image.load`, and `castle.draw.image` are not available in normal CLI 4 actor scripts. Use blueprint actors, Text actors, default drawings, and `castle.draw.*` shapes.
+`castle.createActor({ body = ... })`, `castle.image.load`, and `castle.draw.image` are not available in normal Castle actor scripts. Use blueprint actors, Text actors, default drawings, and `castle.draw.*` shapes.
 
 `my:isColliding` and `my:getCollidingActors` only work with physics-based movement. If actors move by directly setting `layout.x/y`, use manual distance or AABB checks.
 
@@ -225,7 +225,7 @@ Known fonts: `DMSans`, `Glacier`, `HelicoCentrica`, `Piazzolla`, `YatraOne`, `Bo
 Pipe one-off JSON to `edit`. Do not create persistent edit JSON files.
 
 ```bash
-castle-4 edit <<'EDIT'
+castle edit <<'EDIT'
 {
   "description": "add brick blueprint and actor",
   "blueprints": {

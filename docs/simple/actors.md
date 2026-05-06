@@ -78,7 +78,7 @@ end
 
 ## Creating And Destroying Actors
 
-In CLI 4 actor scripts, create actors from existing blueprints:
+In Castle actor scripts, create actors from existing blueprints:
 
 ```lua
 local bullet = castle.createActor("Bullet", my.layout.x, my.layout.y)
@@ -94,7 +94,7 @@ Before calling `castle.createActor("Bullet", x, y)`, the project needs a bluepri
 Do not use table-style actor creation:
 
 ```lua
--- Do not use this in CLI 4 actor scripts.
+-- Do not use this in Castle actor scripts.
 castle.createActor({ body = { x = 0, y = 0 } })
 ```
 

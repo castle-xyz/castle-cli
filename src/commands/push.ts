@@ -102,11 +102,11 @@ export async function push(options: PushOptions = {}): Promise<void> {
         console.log(`Prepared preview image for card ${cards[0].cardId}: ${preview.fileId}`);
       } else {
         console.warn('Initial preview image not set automatically: no matching ready local serve browser preview.');
-        console.warn('Run `castle-4 save-preview-image` after opening this deck in local serve to set a cover.');
+        console.warn('Run `castle save-preview-image` after opening this deck in local serve to set a cover.');
       }
     } catch (error) {
       console.warn(`Initial preview image not set automatically: ${errorMessage(error)}.`);
-      console.warn('Run `castle-4 save-preview-image` after opening this deck in local serve to set a cover.');
+      console.warn('Run `castle save-preview-image` after opening this deck in local serve to set a cover.');
     }
   }
 
