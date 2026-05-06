@@ -9,22 +9,6 @@ npm install -g castle-cli
 castle --help
 ```
 
-## Updating From The Old CLI
-
-If you already have `castle-cli` installed, run the install command again to update it:
-
-```bash
-npm install -g castle-cli
-```
-
-Old CLI project directories should be recreated with the new CLI. Move or remove the old local directory, then pull the deck again:
-
-```bash
-mv my-deck my-deck-old
-castle pull <deck-id> my-deck
-castle serve my-deck --open
-```
-
 ## Start A Deck
 
 Create a new local deck and serve it in a browser:
@@ -85,3 +69,19 @@ my-deck/
 ```
 
 Edit Lua scripts directly. Generated scene YAML and blueprint JSON files are mainly for inspection; use `castle edit` for structural changes such as blueprints, actors, variables, layout, drawing assets, text settings, and rules.
+
+## Updating From castle-cli Before 2.0.0
+
+If you already have `castle-cli` installed from before version `2.0.0`, run the install command again to update it:
+
+```bash
+npm install -g castle-cli
+```
+
+Project directories created by `castle-cli` versions before `2.0.0` should be recreated with the new CLI. Move or remove the old local directory, then pull the deck again:
+
+```bash
+mv my-deck my-deck-old
+castle pull <deck-id> my-deck
+castle serve my-deck --open
+```
