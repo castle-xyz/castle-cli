@@ -80,10 +80,29 @@ async function main() {
 
   if (command === '--help' || command === '-h') {
     console.log(`
-castle-cli - Castle local deck editor
+castle-cli - create, preview, edit, and publish Castle deck projects
 
 Usage:
   castle [command] [options]
+
+Install:
+  npm install -g castle-cli
+
+Quick start:
+  castle init breakout --title "Breakout"
+  castle serve breakout --open
+  # edit cards/<card-id>/scripts/main.lua
+  castle restart
+  castle logs
+  castle screenshot screenshot.png
+
+Local projects:
+  A deck is a directory with deck.json and cards/<card-id>/ files.
+  Lua game scripts live under cards/<card-id>/scripts/.
+  Generated scene YAML/JSON is mostly for inspection; use "castle edit"
+  for structural scene changes such as actors, blueprints, and variables.
+  New decks include project instruction files. Run "castle docs" to refresh
+  the bundled reference docs under ~/.castle/docs.
 
 Commands:
   init [dir]             Create a new local project deck

@@ -63,6 +63,7 @@ export function writeDeckInstructionFiles(deckDir: string, docsDir: string): voi
 
 export async function docs(): Promise<void> {
   const docsDir = syncAgentDocs();
-  console.log(`Castle agent docs: ${docsDir}`);
-  console.log(`Ask your agent to read: ${path.join(docsDir, 'AGENTS.md')}`);
+  console.log(`Castle reference docs: ${docsDir}`);
+  console.log(`Project instructions: ${path.join(docsDir, 'AGENTS.md')}`);
+  console.log(`Simple API docs: ${path.join(docsDir, 'simple', 'README.md')}`);
 }
