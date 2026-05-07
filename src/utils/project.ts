@@ -118,6 +118,15 @@ function componentsForYaml(components: Record<string, any>): Record<string, any>
   return result;
 }
 
+function scenePropertiesForProject(sceneProperties: any): any {
+  if (!isPlainObject(sceneProperties)) return sceneProperties;
+  const result = clone(sceneProperties);
+  if (isPlainObject(result.backgroundColor)) {
+    result.backgroundColor.a = 1;
+  }
+  return result;
+}
+
 function readJsonIfExists(filePath: string): any | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -325,7 +334,7 @@ export async function writeProjectCardFromSceneData({
 
   writeJson(path.join(cardDir, 'card.json'), {
     ...card,
-    sceneProperties: snapshot.sceneProperties,
+    sceneProperties: scenePropertiesForProject(snapshot.sceneProperties),
     actorBlueprintInherit: snapshot.actorBlueprintInherit,
     linkTargetDeckIds: snapshot.linkTargetDeckIds ?? [],
   });
@@ -446,7 +455,7 @@ export async function materializeProjectCard(cardDir: string): Promise<any> {
       library: processedLibrary,
       actors: (processed.actors ?? []).map(stripActorComponents),
       variables: variablesYaml,
-      sceneProperties: cardJson.sceneProperties,
+      sceneProperties: scenePropertiesForProject(cardJson.sceneProperties),
       actorBlueprintInherit: cardJson.actorBlueprintInherit,
       linkTargetDeckIds: cardJson.linkTargetDeckIds ?? [],
     },
