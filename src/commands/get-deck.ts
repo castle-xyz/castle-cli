@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as API from '../api.js';
 import { writeProjectCardFromSceneData } from '../utils/project.js';
 
-interface PullOptions {
+interface GetDeckOptions {
   output?: string;
 }
 
@@ -12,9 +12,9 @@ function writeJson(filePath: string, value: unknown): void {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-export async function pull(deckId: string, options: PullOptions = {}): Promise<void> {
+export async function getDeck(deckId: string, options: GetDeckOptions = {}): Promise<void> {
   if (!deckId) {
-    throw new Error('Usage: castle pull <deck-id> [dir]');
+    throw new Error('Usage: castle get-deck <deck-id> [dir]');
   }
 
   const deck = await API.deck(deckId);
@@ -37,7 +37,7 @@ export async function pull(deckId: string, options: PullOptions = {}): Promise<v
 
   for (const card of cards) {
     if (!card.cardId || !card.sceneDataUrl) continue;
-    console.log(`pulling ${card.cardId}...`);
+    console.log(`getting ${card.cardId}...`);
     const sceneData = await API.downloadSceneData(card.sceneDataUrl);
     await writeProjectCardFromSceneData({
       deckId: deck.deckId,
@@ -47,6 +47,5 @@ export async function pull(deckId: string, options: PullOptions = {}): Promise<v
     });
   }
 
-  console.log(`Pulled ${deck.deckId} to ${path.relative(process.cwd(), deckDir) || deckDir}`);
+  console.log(`Got ${deck.deckId} into ${path.relative(process.cwd(), deckDir) || deckDir}`);
 }
-

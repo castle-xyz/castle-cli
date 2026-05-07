@@ -253,7 +253,7 @@ export class CLIServer {
 
     const deckDir = this._findProjectDeckDir(deckId);
     if (!deckDir) {
-      log('project', `no local project found for deck ${deckId}; run "castle pull ${deckId}" first`);
+      log('project', `no local project found for deck ${deckId}; run "castle get-deck ${deckId}" first`);
       return false;
     }
 

@@ -67,8 +67,8 @@ castle status                              # show connection/preview status
 castle screenshot [filename]               # capture screenshot
 castle add-card [dir] --title "Card 2"     # add a card
 castle remove-card <card-id> [dir] --force # remove a card
-castle push [dir]                          # push as unlisted deck
-castle pull <deck-id> [dir]                # pull existing deck
+castle save-deck [dir]                     # save local deck to Castle
+castle get-deck <deck-id> [dir]            # get existing deck
 castle list                                # recent decks
 ```
 
@@ -97,7 +97,7 @@ Edit Lua files directly for script changes. Use `edit` for structural changes: b
 
 Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/actors.yaml`, `scene/variables.yaml`, or blueprint `.json` sidecars. Treat them as read-only inspection output.
 
-`push` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. New decks default to unlisted and try to capture a cover from local serve when a ready browser preview is open.
+`save-deck` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. New decks default to unlisted and try to capture a cover from local serve when a ready browser preview is open.
 
 After each significant script or scene change:
 

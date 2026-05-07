@@ -1,7 +1,7 @@
 {
   "name": "castle-cli",
-  "version": "2.0.1",
-  "description": "Castle CLI for local deck creation, preview, editing, and publishing",
+  "version": "2.0.2",
+  "description": "Castle CLI for local deck creation, preview, editing, and saving",
   "license": "ISC",
   "type": "module",
   "main": "dist/index.js",

@@ -7,7 +7,7 @@ import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 import { setCardPreviewImageFromPng } from '../utils/preview.js';
 import { sendToServe } from '../utils/serveClient.js';
 
-interface PushOptions {
+interface SaveDeckOptions {
   directory?: string;
 }
 
@@ -78,7 +78,7 @@ async function uploadSceneData(cardId: string, sceneData: any): Promise<string> 
   return uploadConfig.uploadId;
 }
 
-export async function push(options: PushOptions = {}): Promise<void> {
+export async function saveDeck(options: SaveDeckOptions = {}): Promise<void> {
   const directory = path.resolve(options.directory || '.');
   const deckJsonPath = path.join(directory, 'deck.json');
   if (!fs.existsSync(deckJsonPath)) throw new Error(`No deck.json found in ${directory}.`);
@@ -158,7 +158,7 @@ export async function push(options: PushOptions = {}): Promise<void> {
 
     card.sceneDataUrl = undefined;
     if (isInitialCard) deck.initialCard = card;
-    console.log(`Pushed card ${card.cardId}.`);
+    console.log(`Saved card ${card.cardId}.`);
   }
 
   deck.cards = cards;

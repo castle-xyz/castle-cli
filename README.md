@@ -1,6 +1,6 @@
 # Castle CLI
 
-Castle CLI creates, previews, edits, and publishes Castle deck projects from local files.
+Castle CLI creates, previews, edits, and saves Castle deck projects from local files.
 
 ## Install
 
@@ -26,19 +26,19 @@ castle logs
 castle screenshot screenshot.png
 ```
 
-## Pull And Push
+## Get And Save
 
-Pull an existing deck by ID:
+Get an existing deck by ID:
 
 ```bash
-castle pull <deck-id> my-deck
+castle get-deck <deck-id> my-deck
 castle serve my-deck --open
 ```
 
-Push a local deck as an unlisted Castle deck:
+Save a local deck as an unlisted Castle deck:
 
 ```bash
-castle push my-deck
+castle save-deck my-deck
 ```
 
 ## Cards
@@ -78,10 +78,10 @@ If you already have `castle-cli` installed from before version `2.0.0`, run the 
 npm install -g castle-cli
 ```
 
-Project directories created by `castle-cli` versions before `2.0.0` should be recreated with the new CLI. Move or remove the old local directory, then pull the deck again:
+Project directories created by `castle-cli` versions before `2.0.0` should be recreated with the new CLI. Move or remove the old local directory, then get the deck again:
 
 ```bash
 mv my-deck my-deck-old
-castle pull <deck-id> my-deck
+castle get-deck <deck-id> my-deck
 castle serve my-deck --open
 ```

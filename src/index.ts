@@ -6,8 +6,8 @@ import { getToken, setToken } from './config.js';
 import * as API from './api.js';
 import { sendCommand } from './command.js';
 import { serve } from './commands/serve.js';
-import { pull } from './commands/pull.js';
-import { push } from './commands/push.js';
+import { getDeck } from './commands/get-deck.js';
+import { saveDeck } from './commands/save-deck.js';
 import { init } from './commands/init.js';
 import { listDecks } from './commands/list.js';
 import { cardAdd, cardRemove } from './commands/card.js';
@@ -80,7 +80,7 @@ async function main() {
 
   if (command === '--help' || command === '-h') {
     console.log(`
-castle-cli - create, preview, edit, and publish Castle deck projects
+castle-cli - create, preview, edit, and save Castle deck projects
 
 Usage:
   castle [command] [options]
@@ -107,10 +107,11 @@ Local projects:
 Commands:
   init [dir]             Create a new local project deck
   serve [dir]            Serve local project files with the bundled player
-  pull <deck-id> [dir]   Pull a deck into local YAML/Lua plus slug.json project files
+  get-deck <deck-id> [dir]
+                         Get a Castle deck into a local project directory
   list                   List your recently edited decks
   docs                   Install/update bundled local reference docs and print their path
-  push [dir]             Push local project as unlisted deck; new decks capture a cover from serve
+  save-deck [dir]        Save local project to Castle; new decks capture a cover from serve
   add-card [dir]         Add a card to a local project deck
   remove-card <id> [dir] Remove a card from a local project deck
   connect [dir]          Connect to Castle app and sync an existing local project (default dir: decks)
@@ -163,10 +164,10 @@ Global options:
     return;
   }
 
-  if (command === 'pull') {
+  if (command === 'get-deck') {
     const { positional } = parseOptions(args.slice(1));
     await login();
-    await pull(positional[0], { output: positional[1] });
+    await getDeck(positional[0], { output: positional[1] });
     return;
   }
 
@@ -184,10 +185,10 @@ Global options:
     return;
   }
 
-  if (command === 'push') {
+  if (command === 'save-deck') {
     const { positional } = parseOptions(args.slice(1));
     await login();
-    await push({ directory: positional[0] || '.' });
+    await saveDeck({ directory: positional[0] || '.' });
     return;
   }
 
