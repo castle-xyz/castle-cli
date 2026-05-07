@@ -1,0 +1,197 @@
+:root {
+  color-scheme: dark;
+  --bg: #1a1b26;
+  --bg-soft: #16171f;
+  --bg-pane: #1a1b26;
+  --border: #2a2b36;
+  --border-strong: #3b3d4e;
+  --fg: #c0caf5;
+  --fg-soft: #8b93b8;
+  --fg-faint: #5f6479;
+  --accent: #7aa2f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.workspace {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.workspace.has-preview {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.preview-pane,
+.terminal-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-pane);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-pane {
+  border-right: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.preview-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg-soft);
+}
+
+.terminal-pane {
+  background: var(--bg);
+}
+
+.terminal-host {
+  position: absolute;
+  inset: 0;
+  padding: 4px;
+}
+
+/* Let the xterm theme's background show through the host. */
+.terminal-host .xterm,
+.terminal-host .xterm-viewport,
+.terminal-host .xterm-screen {
+  background-color: transparent !important;
+}
+
+/* Hide all the scrollbars xterm renders (native viewport + webgl/canvas overlays).
+   Same defensive set lemo's xterm-entry-terminal uses. */
+.terminal-host .xterm-viewport {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.terminal-host .xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar,
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar.visible,
+.terminal-host .xterm .xterm-scrollable-element > .visible.scrollbar,
+.terminal-host .xterm .xterm-scrollable-element > .invisible.scrollbar,
+.terminal-host .xterm .xterm-scrollable-element > .xterm-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar > .slider,
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar > .scra,
+.terminal-host
+  .xterm
+  .xterm-scrollable-element
+  > .xterm-scrollbar
+  > .xterm-slider {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.terminal-host .xterm .xterm-scrollable-element > .shadow {
+  display: none !important;
+}
+
+.statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  height: 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--fg-soft);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+.statusbar-meta {
+  margin-left: auto;
+  color: var(--fg-faint);
+}
+
+.statusbar-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 1px 6px;
+  cursor: pointer;
+  color: var(--fg-soft);
+}
+
+.statusbar-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+.statusbar-toggle.is-active {
+  color: var(--fg);
+}
+
+.error-banner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #2d1d22;
+  border: 1px solid #6b3340;
+  color: #f7768e;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  z-index: 10;
+}
+
+@media (max-width: 760px) {
+  .workspace.has-preview {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .preview-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

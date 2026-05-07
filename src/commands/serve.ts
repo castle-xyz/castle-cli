@@ -12,6 +12,7 @@ import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 import { projectSocketEndpoint, unlinkSocket, withSocketCwd } from '../utils/socket.js';
+import { createIde, Ide } from '../ide.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -32,6 +33,7 @@ interface ServeOptions {
   open?: boolean;
   debug?: boolean;
   detach?: boolean;
+  ide?: boolean;
 }
 
 interface CardFile {
@@ -1030,6 +1032,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   });
   withSocketCwd(socket, () => ipcServer.listen(socket.path));
 
+  let ide: Ide | null = null;
+
   const server = http.createServer(async (req, res) => {
     try {
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -1037,6 +1041,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
       const requestUrl = new URL(req.url || '/', 'http://localhost');
       const reqPath = decodeURIComponent(requestUrl.pathname);
+
+      if (ide && ide.handleHttpRequest(req, res, reqPath)) return;
 
       if (req.method === 'GET' && reqPath === '/') {
         sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, version, debug), 'text/html; charset=utf-8');
@@ -1219,6 +1225,25 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
   console.log(`Initial card: ${initialCard.cardId}`);
   console.log(`Command socket: ${sockPath}`);
+
+  if (options.ide) {
+    ide = createIde({
+      deckDir: deck.dir,
+      port: actualPort,
+      serveUrl: () => url,
+      debug: options.debug,
+    });
+    server.on('upgrade', (upgradeReq, upgradeSocket, upgradeHead) => {
+      const upgradeUrl = new URL(upgradeReq.url ?? '/', 'http://localhost');
+      if (ide && ide.isIdeUpgrade(upgradeUrl.pathname)) {
+        ide.handleUpgrade(upgradeReq, upgradeSocket, upgradeHead);
+        return;
+      }
+      upgradeSocket.destroy();
+    });
+    console.log(`IDE: ${url}/ide/`);
+  }
+
   const serveInfo = { sockPath, sockName: socket.path, sockCwd: socket.cwd, deckDir: deck.dir, url, port: actualPort, pid: process.pid };
   fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
   fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), { recursive: true });
@@ -1226,13 +1251,14 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   fs.writeFileSync(getDeckServeInfoPath(deck.dir), JSON.stringify(serveInfo, null, 2), 'utf8');
 
   if (options.open) {
-    await openBrowser(url);
+    await openBrowser(options.ide ? `${url}/ide/` : url);
   }
 
   const shutdown = async () => {
     await watcher.close();
     server.close();
     ipcServer.close();
+    if (ide) ide.shutdown();
     try { unlinkSocket(socket); } catch {}
     try { fs.unlinkSync(getDeckServeInfoPath(deck.dir)); } catch {}
     try {

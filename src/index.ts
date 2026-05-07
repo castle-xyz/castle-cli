@@ -25,6 +25,8 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
       options.detach = true;
     } else if (arg === '--debug') {
       options.debug = true;
+    } else if (arg === '--ide') {
+      options.ide = true;
     } else if (arg === '--force') {
       options.force = true;
     } else if (arg === '--json') {
@@ -126,6 +128,7 @@ Serve options:
   --open                 Open browser for serve
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
+  --ide                  Also host /ide/ (terminal + deck preview)
 
 Init options:
   --title                Deck title
