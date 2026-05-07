@@ -19,12 +19,36 @@ function readJson(filePath: string): any | null {
 
 type CommandTarget = 'auto' | 'serve' | 'connect';
 
+// Walk up from `from` looking for the first ancestor that has `.castle/serve.json`.
+// This lets `castle restart` (and friends) target the serve owning the current
+// deck dir, instead of falling through to the global `cli4-serve.json` (which is
+// last-writer-wins across parallel serves).
+function findLocalServeRegistry(from: string): string | null {
+  let dir = path.resolve(from);
+  const root = path.parse(dir).root;
+  while (true) {
+    const candidate = path.join(dir, '.castle', 'serve.json');
+    if (fs.existsSync(candidate)) return candidate;
+    if (dir === root) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
 function getSocketEndpoints(target: CommandTarget = 'auto'): SocketEndpoint[] {
-  const registryPaths = target === 'serve'
-    ? [SERVE_REGISTRY_PATH]
-    : target === 'connect'
-      ? [CONNECT_REGISTRY_PATH]
-      : [CONNECT_REGISTRY_PATH, SERVE_REGISTRY_PATH];
+  const localServeRegistry =
+    target === 'connect' ? null : findLocalServeRegistry(process.cwd());
+
+  const registryPaths: string[] = [];
+  if (localServeRegistry) registryPaths.push(localServeRegistry);
+  if (target === 'serve') {
+    registryPaths.push(SERVE_REGISTRY_PATH);
+  } else if (target === 'connect') {
+    registryPaths.push(CONNECT_REGISTRY_PATH);
+  } else {
+    registryPaths.push(CONNECT_REGISTRY_PATH, SERVE_REGISTRY_PATH);
+  }
 
   const sockets: SocketEndpoint[] = [];
   for (const registryPath of registryPaths) {
@@ -169,9 +193,15 @@ export async function sendCommand(command: string, arg?: string) {
       const result = await sendToServer({ command: 'logs' }, 5000);
       content = result.logs || '';
     } catch {
+      const localServeRegistry = findLocalServeRegistry(process.cwd());
+      const localServe = localServeRegistry ? readJson(localServeRegistry) : null;
       const serveRegistry = readJson(SERVE_REGISTRY_PATH);
       const connectRegistry = readJson(CONNECT_REGISTRY_PATH);
-      const logsRoot = serveRegistry?.deckDir || connectRegistry?.deckDir || connectRegistry?.connectRoot;
+      const logsRoot =
+        localServe?.deckDir ||
+        serveRegistry?.deckDir ||
+        connectRegistry?.deckDir ||
+        connectRegistry?.connectRoot;
       if (logsRoot) {
         try { content = fs.readFileSync(path.join(logsRoot, '.castle', 'logs.txt'), 'utf-8'); } catch {}
       }
