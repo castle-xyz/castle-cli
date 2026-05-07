@@ -134,43 +134,6 @@ button {
   display: none !important;
 }
 
-.statusbar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 10px;
-  height: 24px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-soft);
-  color: var(--fg-soft);
-  font-size: 11px;
-  letter-spacing: 0.01em;
-}
-
-.statusbar-meta {
-  margin-left: auto;
-  color: var(--fg-faint);
-}
-
-.statusbar-toggle {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 1px 6px;
-  cursor: pointer;
-  color: var(--fg-soft);
-}
-
-.statusbar-toggle:hover {
-  border-color: var(--border-strong);
-  background: var(--bg);
-}
-
-.statusbar-toggle.is-active {
-  color: var(--fg);
-}
-
 .error-banner {
   position: absolute;
   top: 8px;

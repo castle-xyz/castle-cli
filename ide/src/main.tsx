@@ -439,9 +439,6 @@ function App() {
           <div ref={hostRef} className="terminal-host" data-testid="terminal-host" />
         </section>
       </div>
-      <footer className="statusbar" aria-live="polite">
-        <span data-testid="status">{status}</span>
-      </footer>
     </div>
   );
 }
