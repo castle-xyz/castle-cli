@@ -222,6 +222,13 @@ Known fonts: `DMSans`, `Glacier`, `HelicoCentrica`, `Piazzolla`, `YatraOne`, `Bo
 
 ## Scene Edits
 
+Before running `castle edit` to add or modify a behavior, trigger, response, condition, or expression, read the relevant spec file once - only at the moment you are about to write the edit JSON, never earlier:
+
+- `~/.castle/docs/specs/behaviors.yaml` - canonical behavior names and editable properties
+- `~/.castle/docs/specs/rules.yaml` - triggers, responses, conditions, expressions and their parameters
+
+Do not read these for ordinary script, drawing, or input work. Do not read them at the start of a task "just in case". Read them only when the next thing you are doing is constructing an `edit` payload that touches behaviors or rules. If the files are missing, run `castle docs` to generate them.
+
 Pipe one-off JSON to `edit`. Do not create persistent edit JSON files.
 
 ```bash

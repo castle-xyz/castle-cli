@@ -4,6 +4,7 @@ import * as net from 'net';
 import WebSocket from 'ws';
 import chokidar from 'chokidar';
 import { getConfigDir } from './config.js';
+import { writeSharedAgentSpecs } from './commands/docs.js';
 import { projectSocketEndpoint, type SocketEndpoint, unlinkSocket, withSocketCwd } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
@@ -299,7 +300,7 @@ export class CLIServer {
 
     const sceneDir = path.join(this.dir, 'scene');
     fs.mkdirSync(path.join(sceneDir, 'blueprints'), { recursive: true });
-    for (const f of ['actors.yaml', 'variables.yaml', 'behaviors.yaml', 'rules.yaml', 'scripting-reference.md', 'script-property-names.md']) {
+    for (const f of ['actors.yaml', 'variables.yaml', 'scripting-reference.md', 'script-property-names.md']) {
       try { fs.unlinkSync(path.join(sceneDir, f)); } catch {}
     }
     const blueprintsDir = path.join(sceneDir, 'blueprints');
@@ -360,8 +361,7 @@ export class CLIServer {
 
     this._writeFile('scene/actors.yaml', state.actors);
     this._writeFile('scene/variables.yaml', state.variables);
-    this._writeFile('scene/behaviors.yaml', state.behaviors);
-    this._writeFile('scene/rules.yaml', state.rules);
+    writeSharedAgentSpecs(state.behaviors, state.rules);
     this._writeFile('scene/scripting-reference.md', state.scriptingReference);
     this._writeFile('scene/script-property-names.md', state.scriptPropertyNamePrompt);
 
