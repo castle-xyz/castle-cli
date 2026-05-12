@@ -99,6 +99,8 @@ Do not edit generated scene files directly: `scene/blueprints/*.yaml`, `scene/ac
 
 `save-deck` uploads the materialized local project and applies the required content moderation flag payload. It preserves the `visibility` and `initialCard` from `deck.json`. New decks default to unlisted and try to capture a cover from local serve when a ready browser preview is open.
 
+Card ids are global in Castle, not scoped to a deck. Do not copy a deck directory to make a new deck by only changing `deckId`. If a directory is copied to make a new deck, regenerate all ids, including every `cardId`; rename `cards/<card-id>` directories and update `deck.json` plus each `card.json` so every card id matches.
+
 After each significant script or scene change:
 
 1. Run `castle restart` after the whole change is written.

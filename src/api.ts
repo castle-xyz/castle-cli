@@ -111,6 +111,22 @@ export async function deck(deckId: string) {
   return response.data.deck;
 }
 
+export async function card(cardId: string) {
+  const response = await API(
+    `query($cardId: ID!) {
+      card(cardId: $cardId) {
+        cardId
+        deckId
+      }
+    }`,
+    { cardId }
+  );
+  handleAPIError(response);
+
+  const result = response.data.card;
+  return result?.cardId === cardId ? result : null;
+}
+
 export async function decksForUser(userId: string, options: { limit?: number } = {}) {
   const response = await API(
     `query($userId: ID!, $limit: Int) {

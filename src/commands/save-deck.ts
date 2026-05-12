@@ -78,6 +78,18 @@ async function uploadSceneData(cardId: string, sceneData: any): Promise<string> 
   return uploadConfig.uploadId;
 }
 
+async function assertCardCanBeSavedToDeck(cardId: string, expectedDeckId: string): Promise<void> {
+  const existingCard = await API.card(cardId);
+  if (!existingCard) return;
+  if (existingCard.deckId === expectedDeckId) return;
+
+  throw new Error(
+    `Refusing to save card ${cardId} into deck ${expectedDeckId}: ` +
+    `that card already belongs to deck ${existingCard.deckId}. ` +
+    'This usually means a deck directory was copied to make a new deck without regenerating card ids.'
+  );
+}
+
 export async function saveDeck(options: SaveDeckOptions = {}): Promise<void> {
   const directory = path.resolve(options.directory || '.');
   const deckJsonPath = path.join(directory, 'deck.json');
@@ -93,6 +105,7 @@ export async function saveDeck(options: SaveDeckOptions = {}): Promise<void> {
   const cards = deck.cards?.length ? deck.cards : deck.initialCard ? [deck.initialCard] : [];
   if (cards.length === 0) throw new Error(`No cards found in ${directory}.`);
   for (const card of cards) card.cardId ||= makeId();
+  await Promise.all(cards.map((card: any) => assertCardCanBeSavedToDeck(card.cardId, deck.deckId)));
 
   if (wasNewDeck) {
     try {
