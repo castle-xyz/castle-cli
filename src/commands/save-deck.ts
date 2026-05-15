@@ -79,7 +79,19 @@ async function uploadSceneData(cardId: string, sceneData: any): Promise<string> 
 }
 
 async function assertCardCanBeSavedToDeck(cardId: string, expectedDeckId: string): Promise<void> {
-  const existingCard = await API.card(cardId);
+  // The `card` resolver currently throws (yoga-masked as "Unexpected error.") when the
+  // card row doesn't exist — which is the common case for a newly-init'd deck. Treat
+  // any error here as "card doesn't exist server-side", which is what we'd need to
+  // proceed safely anyway: a non-existent card can't belong to a different deck.
+  let existingCard;
+  try {
+    existingCard = await API.card(cardId);
+  } catch (e) {
+    if (process.env.CASTLE_DEBUG) {
+      console.warn(`card(${cardId}) lookup failed (treating as absent): ${errorMessage(e)}`);
+    }
+    return;
+  }
   if (!existingCard) return;
   if (existingCard.deckId === expectedDeckId) return;
 

@@ -224,5 +224,8 @@ Global options:
 
 main().catch((err) => {
   console.error('fatal:', err instanceof Error ? err.message : err);
+  if (process.env.CASTLE_DEBUG && err instanceof Error && err.stack) {
+    console.error(err.stack);
+  }
   process.exit(1);
 });
