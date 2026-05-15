@@ -162,7 +162,7 @@ export async function saveDeck(options: SaveDeckOptions = {}): Promise<void> {
         title: deck.title,
         visibility: deck.visibility,
         contentFlags: UNLISTED_TEST_CONTENT_FLAGS,
-        ...(isInitialCard ? { initialCardId: card.cardId } : {}),
+        ...(isInitialCard ? { initialCardId: card.cardId, variables: deck.variables ?? [] } : {}),
         ...(deck.multiplayerEnabledByCreator ? { multiplayerEnabledByCreator: true } : {}),
       },
       {
