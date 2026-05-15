@@ -689,6 +689,41 @@ function applyEditPayload(sceneData: any, payload: AgentEditPayload): any {
   return { snapshot };
 }
 
+function deckJsonVariablesForScene(cardDir: string): any[] {
+  const deckDir = path.dirname(path.dirname(cardDir));
+  const deck = readJsonIfExists(path.join(deckDir, 'deck.json'));
+  if (!Array.isArray(deck?.variables)) return [];
+
+  return deck.variables
+    .filter((variable: any) => typeof variable?.id === 'string')
+    .map((variable: any) => ({
+      variableId: variable.id,
+      name: variable.name,
+      initialValue: variable.initialValue ?? variable.value ?? 0,
+      lifetime: variable.lifetime ?? 'deck',
+    }));
+}
+
+function mergeSceneVariablesWithDeckJson(cardDir: string, sceneVariables: any[]): any[] {
+  const merged = new Map<string, any>();
+  for (const variable of sceneVariables ?? []) {
+    if (typeof variable?.variableId === 'string') merged.set(variable.variableId, variable);
+  }
+  for (const variable of deckJsonVariablesForScene(cardDir)) {
+    merged.set(variable.variableId, variable);
+  }
+  return Array.from(merged.values());
+}
+
+function removedVariableIdsFromArgs(args: any): Set<string> {
+  const variablesData = parseMap(args.variables, 'variables');
+  const removedIds = new Set<string>();
+  for (const [variableId, variableData] of Object.entries(variablesData) as [string, any][]) {
+    if (variableData?.removeVariable === true) removedIds.add(variableId);
+  }
+  return removedIds;
+}
+
 export async function applyLocalEdit({
   cardDir,
   args,
@@ -697,7 +732,14 @@ export async function applyLocalEdit({
 }: LocalEditOptions): Promise<{ summary: string; blueprintIdMapping: Record<string, string> }> {
   if (!args || typeof args !== 'object') throw new Error('edit payload must be a JSON object');
 
-  const sceneData = await materializeProjectCard(cardDir);
+  const materializedSceneData = await materializeProjectCard(cardDir);
+  const sceneData = {
+    ...materializedSceneData,
+    snapshot: {
+      ...(materializedSceneData.snapshot ?? {}),
+      variables: mergeSceneVariablesWithDeckJson(cardDir, materializedSceneData.snapshot?.variables ?? []),
+    },
+  };
   const metadata = await getCastleMetadata();
   const cardJson = readJsonIfExists(path.join(cardDir, 'card.json')) ?? {};
   const actualCardId = cardId || cardJson.cardId || path.basename(cardDir);
@@ -729,8 +771,82 @@ export async function applyLocalEdit({
 
   await materializeProjectCard(cardDir);
 
+  syncSceneVariablesToDeckJson(
+    cardDir,
+    editedSceneData.snapshot?.variables ?? [],
+    removedVariableIdsFromArgs(args)
+  );
+
   return {
     summary: summarizeArgs(args),
     blueprintIdMapping: payload.blueprintIdMapping,
   };
+}
+
+// Global variables live in two places: scene/variables.yaml (keyed as
+// `variableId`, mirrored for rule-editor resolution) and deck.json's top-level
+// `variables[]` (keyed as `id`, where the runtime actually registers them).
+// `castle edit` writes the scene-level copy first; without this sync the
+// runtime never sees new or edited variables. We only remove entries from
+// deck.json when the edit request explicitly removed them; absence from one
+// card's scene file is not enough to prune a deck-level variable.
+function syncSceneVariablesToDeckJson(
+  cardDir: string,
+  sceneVariables: any[],
+  removedVariableIds: Set<string>
+): void {
+  const deckDir = path.dirname(path.dirname(cardDir));
+  const deckJsonPath = path.join(deckDir, 'deck.json');
+  const deck = readJsonIfExists(deckJsonPath);
+  if (!deck) return;
+
+  const deckVariables: any[] = Array.isArray(deck.variables) ? [...deck.variables] : [];
+  let changed = false;
+
+  if (removedVariableIds.size > 0) {
+    for (let i = deckVariables.length - 1; i >= 0; i--) {
+      const id = deckVariables[i]?.id;
+      if (typeof id === 'string' && removedVariableIds.has(id)) {
+        deckVariables.splice(i, 1);
+        changed = true;
+      }
+    }
+  }
+
+  const syncableSceneVars = (sceneVariables ?? []).filter(
+    (v) => typeof v?.variableId === 'string' && !removedVariableIds.has(v.variableId)
+  );
+  if (syncableSceneVars.length === 0 && !changed) return;
+
+  const idToIndex = new Map<string, number>();
+  for (let i = 0; i < deckVariables.length; i++) {
+    const id = deckVariables[i]?.id;
+    if (typeof id === 'string') idToIndex.set(id, i);
+  }
+
+  for (const sceneVar of syncableSceneVars) {
+    const id: string = sceneVar.variableId;
+    const initialValue = sceneVar.initialValue ?? 0;
+    const next = { id, name: sceneVar.name, lifetime: sceneVar.lifetime ?? 'deck', initialValue, value: initialValue };
+    const existingIdx = idToIndex.get(id);
+    if (existingIdx === undefined) {
+      deckVariables.push(next);
+      changed = true;
+    } else {
+      const existing = deckVariables[existingIdx];
+      if (
+        existing.name !== next.name ||
+        existing.initialValue !== next.initialValue ||
+        existing.lifetime !== next.lifetime
+      ) {
+        deckVariables[existingIdx] = { ...existing, ...next };
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    deck.variables = deckVariables;
+    fs.writeFileSync(deckJsonPath, `${JSON.stringify(deck, null, 2)}\n`, 'utf8');
+  }
 }
