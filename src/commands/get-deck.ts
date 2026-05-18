@@ -44,6 +44,7 @@ export async function getDeck(deckId: string, options: GetDeckOptions = {}): Pro
       card,
       cardDir: path.join(deckDir, 'cards', card.cardId),
       sceneData,
+      replace: true,
     });
   }
 
