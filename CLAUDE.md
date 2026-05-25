@@ -16,23 +16,32 @@ For CLI source changes, do not edit generated `dist/` files directly. Run `npm r
 ## Engine bundle refresh
 
 Castle CLI loads the Node engine bundle from `bundles/player/node/`.
-The source build target is in `~/Development/castle-xyz/castle-client/core`:
+Run this from a `castle-cli` checkout:
 
 ```sh
-cd ~/Development/castle-xyz/castle-client/core
+CLI_REPO="$(pwd -P)"
+CASTLE_CLIENT_CORE="${CASTLE_CLIENT_CORE:-../castle-client/core}"
+
+cd "$CASTLE_CLIENT_CORE"
 source vendor/emsdk/emsdk_env.sh
 bash run.sh node-release
-cp ../../castle-www/player/node/castle-core-node.* ../../castle-cli/bundles/player/node/
+
+mkdir -p "$CLI_REPO/bundles/player/node"
+cp build/node-release/castle-core-node.* "$CLI_REPO/bundles/player/node/"
+
+cd "$CLI_REPO"
+npm run build
 ```
 
-`node-release` builds `build/node-release/` and copies `castle-core-node.js` and `castle-core-node.wasm` to `~/Development/castle-xyz/castle-www/player/node/`.
-The final `cp` is the step that refreshes the packaged CLI copy.
+Set `CASTLE_CLIENT_CORE` to the actual `castle-client/core` path if the repos are not sibling checkouts.
+If `vendor/emsdk/emsdk_env.sh` is missing, run `bash run.sh web-init` in `castle-client/core` once first.
+`node-release` builds `build/node-release/` and also tries to copy `castle-core-node.js` and `castle-core-node.wasm` to `../../castle-www/player/node/` relative to `castle-client/core`.
+The `cp build/node-release/...` step is what refreshes the packaged CLI copy.
 Keep `bundles/player/node/package.json` in place; it marks the generated bundle as CommonJS for the ESM CLI.
 
-`bash run.sh node-dev` is faster, but it writes to `~/Development/castle-xyz/castle-cli/node-dev/`.
+`bash run.sh node-dev` is faster, but it writes to `../../castle-cli/node-dev/` relative to `castle-client/core`.
 That directory is useful for temporary local experiments only and is not the package bundle.
 
-After copying, run `npm run build` in `castle-cli`.
 For local testing, run `node dist/index.js ...` from the repo or `npm link` and test the `castle` bin.
 Use `npm pack --dry-run --json` when checking packaged contents.
 Do not run `npm publish`; the user handles publishing separately.
