@@ -1,6 +1,6 @@
 {
   "name": "castle-cli",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Castle CLI for local deck creation, preview, editing, and saving",
   "license": "ISC",
   "type": "module",
