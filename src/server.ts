@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import chokidar from 'chokidar';
 import { getConfigDir } from './config.js';
 import { writeSharedAgentSpecs } from './commands/docs.js';
-import { projectSocketEndpoint, type SocketEndpoint, unlinkSocket, withSocketCwd } from './utils/socket.js';
+import { endpointLabel, LOOPBACK_HOST, REGISTRY_SCHEMA_VERSION, type Endpoint } from './utils/socket.js';
 
 const WS_URL = 'wss://ws.castlexyz.com/ws';
 const RECONNECT_MS = 3000;
@@ -55,9 +55,11 @@ export class CLIServer {
   private screenshotsDir: string;
   private screenshotCounter = 0;
   private ipcServer: net.Server | null = null;
-  private sockPath: string;
-  private socket: SocketEndpoint;
-  private pendingScreenshot: { respond: (result: any) => void; filename?: string } | null = null;
+  private ipcEndpoint: Endpoint | null = null;
+  private pendingScreenshot: {
+    respond: (result: any) => void;
+    filename?: string;
+  } | null = null;
   private pendingEdit: { respond: (result: any) => void } | null = null;
   private activeDeckDir: string | null = null;
   private activeDeckId: string | null = null;
@@ -68,8 +70,6 @@ export class CLIServer {
     this.dir = dir;
     this.token = token;
     this.screenshotsDir = path.join(dir, '.castle', 'screenshots');
-    this.socket = projectSocketEndpoint('connect', dir);
-    this.sockPath = this.socket.displayPath;
 
     for (const d of [dir, path.join(dir, '.castle'), this.screenshotsDir]) {
       if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -89,10 +89,17 @@ export class CLIServer {
     this._stopPing();
     this.watcher?.close();
     this.ipcServer?.close();
-    try { unlinkSocket(this.socket); } catch {}
     try {
       const registry = JSON.parse(fs.readFileSync(CONNECT_REGISTRY_PATH, 'utf8'));
-      if (registry.sockPath === this.sockPath) fs.unlinkSync(CONNECT_REGISTRY_PATH);
+      if (
+        registry.schemaVersion === REGISTRY_SCHEMA_VERSION &&
+        registry.pid === process.pid &&
+        this.ipcEndpoint &&
+        registry.host === this.ipcEndpoint.host &&
+        registry.port === this.ipcEndpoint.port
+      ) {
+        fs.unlinkSync(CONNECT_REGISTRY_PATH);
+      }
     } catch {}
     if (this.ws) {
       this._sendToApp({ innerType: 'cli4_disconnect' });
@@ -117,9 +124,11 @@ export class CLIServer {
       this.needsFullSync = true;
       log('tunnel', 'connected');
 
-      this.ws!.send(JSON.stringify({
-        type: 'cli_tunnel_start_listening',
-      }));
+      this.ws!.send(
+        JSON.stringify({
+          type: 'cli_tunnel_start_listening',
+        }),
+      );
 
       this._sendToApp({ innerType: 'cli4_hello' });
       log('tunnel', 'sent hello');
@@ -183,10 +192,12 @@ export class CLIServer {
 
   private _sendToApp(data: any) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(JSON.stringify({
-      type: 'cli_tunnel_send_message',
-      ...data,
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: 'cli_tunnel_send_message',
+        ...data,
+      }),
+    );
   }
 
   private _handleMessage(msg: any) {
@@ -235,7 +246,9 @@ export class CLIServer {
     if (directDeckJson?.deckId === deckId) return direct;
 
     if (!fs.existsSync(this.connectRoot)) return null;
-    for (const entry of fs.readdirSync(this.connectRoot, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(this.connectRoot, {
+      withFileTypes: true,
+    })) {
       if (!entry.isDirectory()) continue;
       const candidate = path.join(this.connectRoot, entry.name);
       const deckJson = this._readJson(path.join(candidate, 'deck.json'));
@@ -301,7 +314,9 @@ export class CLIServer {
     const sceneDir = path.join(this.dir, 'scene');
     fs.mkdirSync(path.join(sceneDir, 'blueprints'), { recursive: true });
     for (const f of ['actors.yaml', 'variables.yaml', 'scripting-reference.md', 'script-property-names.md']) {
-      try { fs.unlinkSync(path.join(sceneDir, f)); } catch {}
+      try {
+        fs.unlinkSync(path.join(sceneDir, f));
+      } catch {}
     }
     const blueprintsDir = path.join(sceneDir, 'blueprints');
     for (const f of fs.readdirSync(blueprintsDir)) {
@@ -415,10 +430,12 @@ export class CLIServer {
   }
 
   private _writeConnectRegistry() {
+    if (!this.ipcEndpoint) return;
     const registry = {
-      sockPath: this.sockPath,
-      sockName: this.socket.path,
-      sockCwd: this.socket.cwd,
+      schemaVersion: REGISTRY_SCHEMA_VERSION,
+      host: this.ipcEndpoint.host,
+      port: this.ipcEndpoint.port,
+      pid: process.pid,
       connectRoot: this.connectRoot,
       deckDir: this.activeDeckDir,
       cardDir: this.dir,
@@ -551,8 +568,6 @@ export class CLIServer {
   }
 
   private _startIPC() {
-    try { unlinkSocket(this.socket); } catch {}
-
     this.ipcServer = net.createServer((conn) => {
       let data = '';
       conn.on('data', (chunk) => {
@@ -572,10 +587,16 @@ export class CLIServer {
       });
     });
 
-    withSocketCwd(this.socket, () => this.ipcServer!.listen(this.socket.path, () => {
+    this.ipcServer.listen(0, LOOPBACK_HOST, () => {
+      const address = this.ipcServer!.address();
+      if (!address || typeof address === 'string') {
+        log('ipc', 'error: failed to bind tcp endpoint');
+        return;
+      }
+      this.ipcEndpoint = { host: LOOPBACK_HOST, port: address.port };
       this._writeConnectRegistry();
-      log('ipc', `listening on ${this.sockPath}`);
-    }));
+      log('ipc', `listening on ${endpointLabel(this.ipcEndpoint)}`);
+    });
 
     this.ipcServer.on('error', (err) => {
       log('ipc', 'error:', err.message);
@@ -589,7 +610,9 @@ export class CLIServer {
     if (command === 'restart') {
       const logsPath = path.join(this.activeDeckDir || this.connectRoot, '.castle', 'logs.txt');
       const ts = new Date().toISOString().substring(11, 23);
-      try { fs.appendFileSync(logsPath, `\n--- restart ${ts} ---\n`); } catch {}
+      try {
+        fs.appendFileSync(logsPath, `\n--- restart ${ts} ---\n`);
+      } catch {}
       this._sendToApp({ innerType: 'cli4_restart' });
       respond({ ok: true });
     } else if (command === 'screenshot') {
@@ -598,13 +621,17 @@ export class CLIServer {
     } else if (command === 'edit') {
       const requestId = `edit-${Date.now()}`;
       this.pendingEdit = { respond };
-      this._sendToApp({ innerType: 'cli4_edit', args: request.args, requestId });
+      this._sendToApp({
+        innerType: 'cli4_edit',
+        args: request.args,
+        requestId,
+      });
     } else if (command === 'status') {
       respond({
         connected: this.connected,
         blueprints: Object.keys(this.slugToEntryId).length,
-        scripts: Object.keys(this.slugToEntryId).filter(slug =>
-          fs.existsSync(path.join(this.dir, 'scripts', `${slug}.lua`))
+        scripts: Object.keys(this.slugToEntryId).filter((slug) =>
+          fs.existsSync(path.join(this.dir, 'scripts', `${slug}.lua`)),
         ).length,
         slugMap: this.slugToEntryId,
         cardDir: this.dir,

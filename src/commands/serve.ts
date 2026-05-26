@@ -11,7 +11,7 @@ import * as API from '../api.js';
 import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
-import { projectSocketEndpoint, unlinkSocket, withSocketCwd } from '../utils/socket.js';
+import { endpointLabel, LOOPBACK_HOST, REGISTRY_SCHEMA_VERSION, type Endpoint } from '../utils/socket.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -101,7 +101,9 @@ function writeCache(relativePath: string, data: string): void {
 
 async function fetchCoreViews(debug: boolean): Promise<string> {
   try {
-    const response = await fetch(`${CASTLE_WWW}/api/coreviews`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${CASTLE_WWW}/api/coreviews`, {
+      signal: AbortSignal.timeout(3000),
+    });
     if (response.ok) {
       const text = await response.text();
       writeCache('coreviews.json', text);
@@ -127,7 +129,7 @@ function verifyLocalPlayerBundle(): void {
     throw new Error(
       `Missing local player bundle files in ${LOCAL_PLAYER_DIR}:\n` +
         missing.map((file) => `  - ${file}`).join('\n') +
-        '\nCopy the complete castle-www/player output into bundles/player. Serve currently uses main/nothread; node is kept for upcoming WASM workflows.'
+        '\nCopy the complete castle-www/player output into bundles/player. Serve currently uses main/nothread; node is kept for upcoming WASM workflows.',
     );
   }
 }
@@ -316,7 +318,14 @@ function mergeVariables(...groups: any[][]): any[] {
   return Array.from(result.values());
 }
 
-function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any, previewRunId: string, servedVersion: number, debug: boolean): string {
+function getHTML(
+  deck: LocalDeck,
+  initialCard: CardFile | undefined,
+  meInfo: any,
+  previewRunId: string,
+  servedVersion: number,
+  debug: boolean,
+): string {
   const deckId = JSON.stringify(deck.deckId || '');
   const cardId = JSON.stringify(initialCard?.cardId || '');
   const cardTitle = JSON.stringify(initialCard?.title || '');
@@ -494,20 +503,7 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
               var event = JSON.parse(eventString);
               if (event.name === 'SCREENSHOT_DATA' && event.params && event.params.requestId) {
                 if (debugLogs) console.log('[cli screenshot] received data', event.params.requestId);
-                fetch('/screenshot-data', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    previewRunId: previewRunId,
-                    previewClientId: previewClientId,
-                    requestId: event.params.requestId,
-                    data: event.params.data,
-                  }),
-                }).then(function(response) {
-                  if (response.ok || response.status === 404) {
-                    completeLocalScreenshotRequest(event.params.requestId);
-                  }
-                }).catch(function() {});
+                postScreenshotData(event.params.requestId, event.params.data);
               }
             } catch (e) {
               console.error('bridgeEvent error', e);
@@ -553,6 +549,23 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
         pollScreenshotRequests('');
       }
 
+      function postScreenshotData(requestId, data) {
+        fetch('/screenshot-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            previewRunId: previewRunId,
+            previewClientId: previewClientId,
+            requestId: requestId,
+            data: data,
+          }),
+        }).then(function(response) {
+          if (response.ok || response.status === 404) {
+            completeLocalScreenshotRequest(requestId);
+          }
+        }).catch(function() {});
+      }
+
       function completeLocalScreenshotRequest(requestId) {
         if (!window.Castle.localScreenshotRequests[requestId]) return;
         window.Castle.localScreenshotRequests[requestId].done = true;
@@ -564,6 +577,21 @@ function getHTML(deck: LocalDeck, initialCard: CardFile | undefined, meInfo: any
 
         var state = { done: false, attempts: 0 };
         window.Castle.localScreenshotRequests[requestId] = state;
+
+        setTimeout(function() {
+          if (state.done) return;
+          try {
+            var canvas = document.getElementById('canvas');
+            var dataUrl = canvas.toDataURL('image/png');
+            var prefix = 'data:image/png;base64,';
+            if (dataUrl.indexOf(prefix) === 0) {
+              if (debugLogs) console.log('[cli screenshot] using canvas fallback', requestId);
+              postScreenshotData(requestId, dataUrl.slice(prefix.length));
+            }
+          } catch (e) {
+            if (debugLogs) console.warn('[cli screenshot] canvas fallback failed', e);
+          }
+        }, 2000);
 
         function send() {
           if (state.done) return;
@@ -701,6 +729,27 @@ async function listen(server: http.Server): Promise<number> {
   throw new Error(`No available port found starting at ${start}.`);
 }
 
+async function listenIpc(server: net.Server): Promise<Endpoint> {
+  return new Promise((resolve, reject) => {
+    const onError = (error: NodeJS.ErrnoException) => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        reject(new Error('failed to bind TCP command endpoint'));
+        return;
+      }
+      resolve({ host: LOOPBACK_HOST, port: address.port });
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(0, LOOPBACK_HOST);
+  });
+}
+
 function readJsonIfExists(filePath: string): any | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -726,7 +775,9 @@ async function serveDetached(directory: string, options: ServeOptions): Promise<
   const logPath = path.join(castleDir, 'serve.log');
   const serveInfoPath = getDeckServeInfoPath(deck.dir);
   fs.mkdirSync(castleDir, { recursive: true });
-  try { fs.unlinkSync(serveInfoPath); } catch {}
+  try {
+    fs.unlinkSync(serveInfoPath);
+  } catch {}
 
   const logFd = fs.openSync(logPath, 'a');
   const child = spawn(process.execPath, serveChildArgs(deck.dir, options), {
@@ -744,7 +795,9 @@ async function serveDetached(directory: string, options: ServeOptions): Promise<
       console.log(`Started serve in background: ${serveInfo.url}`);
       console.log(`PID: ${serveInfo.pid || child.pid}`);
       console.log(`Logs: ${logPath}`);
-      console.log(`Command socket: ${serveInfo.sockPath}`);
+      if (serveInfo.host && serveInfo.port) {
+        console.log(`Command endpoint: ${serveInfo.host}:${serveInfo.port}`);
+      }
       return;
     }
     await sleep(250);
@@ -784,7 +837,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         'or a saved scene-data directory shaped like:\n' +
         '  <dir>/deck.json\n' +
         '  <dir>/cards/<cardId>/scene-data.json\n' +
-        'or a direct <dir>/scene-data.json file.'
+        'or a direct <dir>/scene-data.json file.',
     );
     return;
   }
@@ -796,10 +849,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   }
   let initialCard: CardFile = selectedInitialCard;
 
-  const [coreViewsJson, meInfo] = await Promise.all([
-    fetchCoreViews(debug),
-    API.me(),
-  ]);
+  const [coreViewsJson, meInfo] = await Promise.all([fetchCoreViews(debug), API.me()]);
 
   const previewRunId = crypto.randomUUID();
   const previewClients = new Map<string, PreviewClientState>();
@@ -809,8 +859,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   let screenshotCounter = 0;
   const pendingScreenshots = new Map<string, PendingScreenshot>();
   const pendingScreenshotPolls = new Set<PendingScreenshotPoll>();
-  const socket = projectSocketEndpoint('serve', deck.dir);
-  const sockPath = socket.displayPath;
+  let ipcEndpoint: Endpoint | null = null;
   let actualPort: number | null = null;
   let url = '';
 
@@ -846,7 +895,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     let bestSeen = 0;
     for (const [clientId, state] of previewClients) {
       if (requireReady && (state.readyVersion ?? -1) < version) continue;
-      const lastSeen = requireReady ? (state.readyAt || state.seenAt) : state.seenAt;
+      const lastSeen = requireReady ? state.readyAt || state.seenAt : state.seenAt;
       if (lastSeen > bestSeen) {
         bestClientId = clientId;
         bestSeen = lastSeen;
@@ -935,7 +984,6 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   };
   watcher.on('all', (_event, filePath) => markDirty(filePath));
 
-  try { unlinkSocket(socket); } catch {}
   const ipcServer = net.createServer((conn) => {
     let data = '';
     conn.on('data', (chunk) => {
@@ -967,14 +1015,18 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         void (async () => {
           const targetClientId = await waitForReadyPreviewClient();
           if (!targetClientId) {
-            respond({ error: 'no ready browser preview; open the serve URL and wait for it to load' });
+            respond({
+              error: 'no ready browser preview; open the serve URL and wait for it to load',
+            });
             return;
           }
 
           const requestId = `cli4-local-screenshot-${Date.now()}`;
           const timeout = setTimeout(() => {
             if (!pendingScreenshots.delete(requestId)) return;
-            respond({ error: 'screenshot timed out; is the served deck open in a browser?' });
+            respond({
+              error: 'screenshot timed out; is the served deck open in a browser?',
+            });
           }, SCREENSHOT_SERVER_TIMEOUT_MS);
           pendingScreenshots.set(requestId, {
             targetClientId,
@@ -990,7 +1042,9 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       } else if (request.command === 'logs') {
         const logsPath = path.join(deck.dir, '.castle', 'logs.txt');
         let content = '';
-        try { content = fs.readFileSync(logsPath, 'utf8'); } catch {}
+        try {
+          content = fs.readFileSync(logsPath, 'utf8');
+        } catch {}
         respond({ logs: content });
       } else if (request.command === 'edit') {
         const cardId = request.card || initialCard.cardId;
@@ -999,10 +1053,19 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           respond({ error: `Card ${cardId} is not a project-format card.` });
           return;
         }
-        applyLocalEdit({ cardDir: card.projectCardDir, args: request.args, deckId: deck.deckId, cardId })
+        applyLocalEdit({
+          cardDir: card.projectCardDir,
+          args: request.args,
+          deckId: deck.deckId,
+          cardId,
+        })
           .then((result) => {
             markDirty();
-            respond({ success: true, summary: result.summary, restartRequired: true });
+            respond({
+              success: true,
+              summary: result.summary,
+              restartRequired: true,
+            });
           })
           .catch((error: any) => {
             respond({ error: error?.message || String(error) });
@@ -1024,11 +1087,13 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
           readyPreviewClients: readyPreviewClientCount(),
         });
       } else {
-        respond({ error: `serve does not support command: ${request.command}` });
+        respond({
+          error: `serve does not support command: ${request.command}`,
+        });
       }
     });
   });
-  withSocketCwd(socket, () => ipcServer.listen(socket.path));
+  ipcEndpoint = await listenIpc(ipcServer);
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1039,7 +1104,12 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
       const reqPath = decodeURIComponent(requestUrl.pathname);
 
       if (req.method === 'GET' && reqPath === '/') {
-        sendText(res, 200, getHTML(deck, initialCard, meInfo, previewRunId, version, debug), 'text/html; charset=utf-8');
+        sendText(
+          res,
+          200,
+          getHTML(deck, initialCard, meInfo, previewRunId, version, debug),
+          'text/html; charset=utf-8',
+        );
         return;
       }
 
@@ -1066,7 +1136,10 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
         sendJson(res, 200, {
           variables: mergeVariables(deck.variables, cardVariables),
           passes: [],
-          cards: Array.from(deck.cards.values()).map((card) => ({ cardId: card.cardId, title: card.title })),
+          cards: Array.from(deck.cards.values()).map((card) => ({
+            cardId: card.cardId,
+            title: card.title,
+          })),
         });
         return;
       }
@@ -1153,7 +1226,10 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
         const readyVersion = Number(body.version);
         markPreviewClientReady(body.previewClientId, Number.isFinite(readyVersion) ? readyVersion : version);
-        if (debug) console.log(`[preview] ready ${body.previewClientId} version ${Number.isFinite(readyVersion) ? readyVersion : version}`);
+        if (debug)
+          console.log(
+            `[preview] ready ${body.previewClientId} version ${Number.isFinite(readyVersion) ? readyVersion : version}`,
+          );
         sendJson(res, 200, { ok: true, version });
         return;
       }
@@ -1168,11 +1244,15 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
         const pending = pendingScreenshots.get(body.requestId);
         if (!pending) {
-          sendJson(res, 404, { error: `Screenshot request not found: ${body.requestId}` });
+          sendJson(res, 404, {
+            error: `Screenshot request not found: ${body.requestId}`,
+          });
           return;
         }
         if (pending.targetClientId && pending.targetClientId !== body.previewClientId) {
-          sendJson(res, 409, { error: 'screenshot request targeted another preview client' });
+          sendJson(res, 409, {
+            error: 'screenshot request targeted another preview client',
+          });
           return;
         }
 
@@ -1218,10 +1298,21 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   url = `http://localhost:${actualPort}`;
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
   console.log(`Initial card: ${initialCard.cardId}`);
-  console.log(`Command socket: ${sockPath}`);
-  const serveInfo = { sockPath, sockName: socket.path, sockCwd: socket.cwd, deckDir: deck.dir, url, port: actualPort, pid: process.pid };
+  console.log(`Command endpoint: ${endpointLabel(ipcEndpoint)}`);
+  const serveInfo = {
+    schemaVersion: REGISTRY_SCHEMA_VERSION,
+    host: ipcEndpoint.host,
+    port: ipcEndpoint.port,
+    deckDir: deck.dir,
+    url,
+    httpPort: actualPort,
+    pid: process.pid,
+    mode: 'serve',
+  };
   fs.mkdirSync(path.dirname(getServeRegistryPath()), { recursive: true });
-  fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), { recursive: true });
+  fs.mkdirSync(path.dirname(getDeckServeInfoPath(deck.dir)), {
+    recursive: true,
+  });
   fs.writeFileSync(getServeRegistryPath(), JSON.stringify(serveInfo, null, 2), 'utf8');
   fs.writeFileSync(getDeckServeInfoPath(deck.dir), JSON.stringify(serveInfo, null, 2), 'utf8');
 
@@ -1233,11 +1324,19 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     await watcher.close();
     server.close();
     ipcServer.close();
-    try { unlinkSocket(socket); } catch {}
-    try { fs.unlinkSync(getDeckServeInfoPath(deck.dir)); } catch {}
+    try {
+      fs.unlinkSync(getDeckServeInfoPath(deck.dir));
+    } catch {}
     try {
       const registry = JSON.parse(fs.readFileSync(getServeRegistryPath(), 'utf8'));
-      if (registry.sockPath === sockPath) fs.unlinkSync(getServeRegistryPath());
+      if (
+        registry.schemaVersion === REGISTRY_SCHEMA_VERSION &&
+        registry.pid === process.pid &&
+        registry.host === ipcEndpoint.host &&
+        registry.port === ipcEndpoint.port
+      ) {
+        fs.unlinkSync(getServeRegistryPath());
+      }
     } catch {}
   };
 

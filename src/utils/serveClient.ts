@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { getConfigDir } from '../config.js';
-import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './socket.js';
+import { endpointFromRegistry, type Endpoint } from './socket.js';
 
 export const SERVE_REGISTRY_PATH = path.join(getConfigDir(), 'cli4-serve.json');
 
@@ -18,17 +18,15 @@ export function readServeRegistry(): any | null {
   return readJson(SERVE_REGISTRY_PATH);
 }
 
-export function getServeSocketEndpoint(): SocketEndpoint | null {
+export function getServeEndpoint(): Endpoint | null {
   const registry = readServeRegistry();
-  const endpoint = socketEndpointFromRegistry(registry);
-  if (endpoint && socketExists(endpoint)) return endpoint;
-  return null;
+  return endpointFromRegistry(registry, SERVE_REGISTRY_PATH);
 }
 
 export function sendToServe(request: any, timeoutMs = 30000): Promise<any> {
   return new Promise((resolve, reject) => {
-    const socket = getServeSocketEndpoint();
-    if (!socket) {
+    const endpoint = getServeEndpoint();
+    if (!endpoint) {
       reject(new Error('local serve is not running'));
       return;
     }
@@ -39,9 +37,9 @@ export function sendToServe(request: any, timeoutMs = 30000): Promise<any> {
       reject(new Error('timed out'));
     }, timeoutMs);
 
-    client = withSocketCwd(socket, () => net.createConnection(socket.path, () => {
+    client = net.createConnection({ host: endpoint.host, port: endpoint.port }, () => {
       client.write(JSON.stringify(request) + '\n');
-    }));
+    });
 
     let data = '';
     client.on('data', (chunk) => {
@@ -59,7 +57,7 @@ export function sendToServe(request: any, timeoutMs = 30000): Promise<any> {
 
     client.on('error', (err: any) => {
       clearTimeout(timeout);
-      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
+      if (err.code === 'ECONNREFUSED') {
         reject(new Error('local serve is not running'));
       } else {
         reject(err);

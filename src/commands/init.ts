@@ -5,6 +5,7 @@ import YAML from 'yaml';
 import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { syncAgentDocs, writeDeckInstructionFiles } from './docs.js';
+import { REGISTRY_SCHEMA_VERSION } from '../utils/socket.js';
 
 interface InitOptions {
   directory?: string;
@@ -32,10 +33,12 @@ export function makeId(): string {
 }
 
 function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'untitled-deck';
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'untitled-deck'
+  );
 }
 
 function uniqueDirectory(baseDir: string): string {
@@ -136,15 +139,17 @@ function sameDirectory(a: string | undefined, b: string): boolean {
 }
 
 function activeServeInfoForDirectory(directory: string): any | null {
-  const serveInfoPaths = [
-    path.join(directory, '.castle', 'serve.json'),
-    path.join(getConfigDir(), 'cli4-serve.json'),
-  ];
+  const serveInfoPaths = [path.join(directory, '.castle', 'serve.json'), path.join(getConfigDir(), 'cli4-serve.json')];
 
   for (const serveInfoPath of serveInfoPaths) {
     const serveInfo = readJsonIfExists(serveInfoPath);
     if (!serveInfo || !sameDirectory(serveInfo.deckDir, directory)) continue;
-    if (isProcessAlive(serveInfo.pid) || (serveInfo.sockPath && fs.existsSync(serveInfo.sockPath))) {
+    if (serveInfo.schemaVersion !== REGISTRY_SCHEMA_VERSION) {
+      throw new Error(
+        `Found an incompatible serve registry at ${serveInfoPath}. Restart castle serve before using --force.`,
+      );
+    }
+    if (isProcessAlive(serveInfo.pid)) {
       return serveInfo;
     }
   }
@@ -162,7 +167,9 @@ function assertDirectoryCanBeCreated(directory: string, force: boolean): void {
   const activeServeInfo = activeServeInfoForDirectory(directory);
   if (activeServeInfo) {
     const pid = activeServeInfo.pid ? ` PID ${activeServeInfo.pid}` : '';
-    throw new Error(`Refusing to replace actively served deck directory${pid}: ${directory}. Stop serve before using --force.`);
+    throw new Error(
+      `Refusing to replace actively served deck directory${pid}: ${directory}. Stop serve before using --force.`,
+    );
   }
   fs.rmSync(directory, { recursive: true, force: true });
 }

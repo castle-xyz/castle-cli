@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { getConfigDir } from './config.js';
 import { setCardPreviewImageFromPng } from './utils/preview.js';
 import { sendToServe, SERVE_REGISTRY_PATH } from './utils/serveClient.js';
-import { socketEndpointFromRegistry, socketExists, type SocketEndpoint, withSocketCwd } from './utils/socket.js';
+import { endpointFromRegistry, endpointLabel, type Endpoint } from './utils/socket.js';
 
 const CONNECT_REGISTRY_PATH = path.join(getConfigDir(), 'cli4-connect.json');
 const SCREENSHOT_COMMAND_TIMEOUT_MS = 75_000;
@@ -36,9 +36,18 @@ function findLocalServeRegistry(from: string): string | null {
   }
 }
 
-function getSocketEndpoints(target: CommandTarget = 'auto'): SocketEndpoint[] {
-  const localServeRegistry =
-    target === 'connect' ? null : findLocalServeRegistry(process.cwd());
+function isProcessAlive(pid: unknown): boolean {
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getCommandEndpoints(target: CommandTarget = 'auto'): Endpoint[] {
+  const localServeRegistry = target === 'connect' ? null : findLocalServeRegistry(process.cwd());
 
   const registryPaths: string[] = [];
   if (localServeRegistry) registryPaths.push(localServeRegistry);
@@ -50,31 +59,28 @@ function getSocketEndpoints(target: CommandTarget = 'auto'): SocketEndpoint[] {
     registryPaths.push(CONNECT_REGISTRY_PATH, SERVE_REGISTRY_PATH);
   }
 
-  const sockets: SocketEndpoint[] = [];
+  const endpoints: Endpoint[] = [];
   for (const registryPath of registryPaths) {
     const registry = readJson(registryPath);
-    const socket = socketEndpointFromRegistry(registry);
-    if (
-      socket &&
-      socketExists(socket) &&
-      !sockets.some((item) => item.displayPath === socket.displayPath)
-    ) {
-      sockets.push(socket);
+    const endpoint = endpointFromRegistry(registry, registryPath);
+    if (endpoint && registry?.pid && !isProcessAlive(registry.pid)) continue;
+    if (endpoint && !endpoints.some((item) => item.host === endpoint.host && item.port === endpoint.port)) {
+      endpoints.push(endpoint);
     }
   }
-  return sockets;
+  return endpoints;
 }
 
 function isStaleSocketError(error: any): boolean {
-  return error?.code === 'ENOENT' || error?.code === 'ECONNREFUSED';
+  return error?.code === 'ECONNREFUSED';
 }
 
-function sendToSocket(socket: SocketEndpoint, request: any, timeoutMs: number): Promise<any> {
+function sendToSocket(endpoint: Endpoint, request: any, timeoutMs: number): Promise<any> {
   return new Promise((resolve, reject) => {
     let client: net.Socket;
-    client = withSocketCwd(socket, () => net.createConnection(socket.path, () => {
+    client = net.createConnection({ host: endpoint.host, port: endpoint.port }, () => {
       client.write(JSON.stringify(request) + '\n');
-    }));
+    });
     const timeout = setTimeout(() => {
       client.destroy();
       reject(new Error('timed out'));
@@ -102,24 +108,24 @@ function sendToSocket(socket: SocketEndpoint, request: any, timeoutMs: number): 
 }
 
 async function sendToServer(request: any, timeoutMs = 30000, target: CommandTarget = 'auto'): Promise<any> {
-  const sockets = getSocketEndpoints(target);
-  if (sockets.length === 0) {
+  const endpoints = getCommandEndpoints(target);
+  if (endpoints.length === 0) {
     throw new Error('CLI server not running. Start serve or connect first.');
   }
 
-  const staleSockets: string[] = [];
-  for (const socket of sockets) {
+  const staleEndpoints: string[] = [];
+  for (const endpoint of endpoints) {
     try {
-      return await sendToSocket(socket, request, timeoutMs);
+      return await sendToSocket(endpoint, request, timeoutMs);
     } catch (error: any) {
       if (!isStaleSocketError(error)) throw error;
-      staleSockets.push(socket.displayPath);
+      staleEndpoints.push(endpointLabel(endpoint));
     }
   }
 
   throw new Error(
     'CLI server not running. Start serve or connect first.' +
-      (staleSockets.length ? ` Stale socket(s): ${staleSockets.join(', ')}` : '')
+      (staleEndpoints.length ? ` Stale endpoint(s): ${staleEndpoints.join(', ')}` : ''),
   );
 }
 
@@ -141,7 +147,8 @@ export async function sendCommand(command: string, arg?: string) {
       console.log('restart sent');
     }
   } else if (command === 'screenshot') {
-    const result = await sendToServer({ command: 'screenshot', filename: arg }, SCREENSHOT_COMMAND_TIMEOUT_MS);
+    const filename = arg ? path.resolve(arg) : undefined;
+    const result = await sendToServer({ command: 'screenshot', filename }, SCREENSHOT_COMMAND_TIMEOUT_MS);
     if (result.error) {
       console.error('screenshot failed:', result.error);
     } else {
@@ -198,17 +205,18 @@ export async function sendCommand(command: string, arg?: string) {
       const serveRegistry = readJson(SERVE_REGISTRY_PATH);
       const connectRegistry = readJson(CONNECT_REGISTRY_PATH);
       const logsRoot =
-        localServe?.deckDir ||
-        serveRegistry?.deckDir ||
-        connectRegistry?.deckDir ||
-        connectRegistry?.connectRoot;
+        localServe?.deckDir || serveRegistry?.deckDir || connectRegistry?.deckDir || connectRegistry?.connectRoot;
       if (logsRoot) {
-        try { content = fs.readFileSync(path.join(logsRoot, '.castle', 'logs.txt'), 'utf-8'); } catch {}
+        try {
+          content = fs.readFileSync(path.join(logsRoot, '.castle', 'logs.txt'), 'utf-8');
+        } catch {}
       }
     }
     const lines = content.split('\n');
-    const lastRestart = lines.reduce((idx: number, line: string, i: number) =>
-      line.includes('--- restart') || line.includes('--- play') ? i : idx, -1);
+    const lastRestart = lines.reduce(
+      (idx: number, line: string, i: number) => (line.includes('--- restart') || line.includes('--- play') ? i : idx),
+      -1,
+    );
     const recent = lastRestart >= 0 ? lines.slice(lastRestart).join('\n').trim() : content.trim();
     if (recent) {
       console.log(recent);
@@ -229,7 +237,8 @@ export async function sendCommand(command: string, arg?: string) {
       if (result.url) console.log(`url: ${result.url}`);
       if (result.port) console.log(`port: ${result.port}`);
       if (typeof result.dirty === 'boolean') console.log(`dirty: ${result.dirty}`);
-      if (typeof result.readyPreviewClients === 'number') console.log(`ready previews: ${result.readyPreviewClients}/${result.previewClients || 0}`);
+      if (typeof result.readyPreviewClients === 'number')
+        console.log(`ready previews: ${result.readyPreviewClients}/${result.previewClients || 0}`);
     } else {
       console.log(`connected: ${result.connected}`);
       if (result.deckId) console.log(`deck: ${result.deckId}`);
@@ -241,9 +250,7 @@ export async function sendCommand(command: string, arg?: string) {
       if (result.slugMap && Object.keys(result.slugMap).length > 0) {
         console.log('blueprint mapping:');
         for (const [slug, id] of Object.entries(result.slugMap)) {
-          const hasScript = result.cardDir
-            ? fs.existsSync(path.join(result.cardDir, 'scripts', `${slug}.lua`))
-            : false;
+          const hasScript = result.cardDir ? fs.existsSync(path.join(result.cardDir, 'scripts', `${slug}.lua`)) : false;
           console.log(`  ${slug}${hasScript ? ' (script)' : ''} → ${id}`);
         }
       }
