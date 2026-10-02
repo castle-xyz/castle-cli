@@ -57,14 +57,14 @@ async function login(options: { quiet?: boolean } = {}): Promise<string> {
     log('saved token expired, logging in again...');
   }
 
-  const { pollToken, url } = await API.startCLILogin();
+  const { pollToken, url, verifier } = await API.startCLILogin();
   log(`open this URL to log in:\n${url}`);
   await open(url);
 
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
-      const user = await API.pollForCLILogin(pollToken);
+      const user = await API.pollForCLILogin(pollToken, verifier);
       setToken(user.token);
       log(`logged in as ${user.username}`);
       return user.token;

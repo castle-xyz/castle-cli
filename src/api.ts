@@ -1,4 +1,5 @@
 import Axios from 'axios';
+import { createHash, randomBytes } from 'node:crypto';
 import { getToken } from './config.js';
 
 const API_HOST = 'https://api.castle.xyz/graphql';
@@ -59,15 +60,20 @@ export async function me() {
 }
 
 export async function startCLILogin() {
-  const response = await API(`mutation { startCLILogin { pollToken url } }`);
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier, 'ascii').digest('base64url');
+  const response = await API(
+    `mutation($challenge: String!) { startCLILogin(challenge: $challenge) { pollToken url } }`,
+    { challenge }
+  );
   handleAPIError(response);
-  return response.data.startCLILogin;
+  return { ...response.data.startCLILogin, verifier };
 }
 
-export async function pollForCLILogin(pollToken: string) {
+export async function pollForCLILogin(pollToken: string, verifier: string) {
   const response = await API(
-    `query($pollToken: String!) { pollForCLILogin(pollToken: $pollToken) { ${USER_FIELDS} } }`,
-    { pollToken }
+    `query($pollToken: String!, $verifier: String!) { pollForCLILogin(pollToken: $pollToken, verifier: $verifier) { ${USER_FIELDS} } }`,
+    { pollToken, verifier }
   );
   handleAPIError(response);
   return response.data.pollForCLILogin;
