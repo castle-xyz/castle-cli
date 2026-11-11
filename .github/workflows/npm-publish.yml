@@ -1,0 +1,84 @@
+name: Publish npm package
+
+run-name: Publish castle-cli from ${{ github.ref_name }}${{ inputs['dry-run'] && ' (dry run)' || '' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build and validate package contents without publishing
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Require main
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "npm releases must be dispatched from main; got $DISPATCH_REF" >&2
+            exit 1
+          fi
+
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Report source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          if [[ "$source_commit" != "$GITHUB_SHA" ]]; then
+            echo "Checked out $source_commit, expected $GITHUB_SHA" >&2
+            exit 1
+          fi
+          version="$(node -p "require('./package.json').version")"
+          echo "Publishing castle-cli \`$version\` from source commit \`$source_commit\`." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.2
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.19.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test
+        run: node dist/index.js --help
+
+      # prepack rebuilds dist/ before the tarball is made.
+      - name: Publish or validate package release
+        env:
+          DRY_RUN: ${{ inputs['dry-run'] }}
+        run: |
+          publish_args=()
+          case "$DRY_RUN" in
+            true) publish_args+=(--dry-run) ;;
+            false) ;;
+            *)
+              echo "Invalid dry-run selection: $DRY_RUN" >&2
+              exit 1
+              ;;
+          esac
+          npm publish "${publish_args[@]}"

@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/castle-xyz/castle-cli.git"
+    "url": "git+https://github.com/castle-xyz/castle-cli.git"
   },
   "bin": {
     "castle": "dist/index.js"
