@@ -33,6 +33,12 @@ function parseOptions(args: string[]): { positional: string[]; options: Record<s
       options.title = args[++i];
     } else if (arg === '--limit') {
       options.limit = Number(args[++i]);
+    } else if (arg === '--host') {
+      const value = args[++i];
+      if (value === undefined || value.startsWith('-')) throw new Error('--host requires an address, e.g. --host 0.0.0.0');
+      options.host = value;
+    } else if (arg === '--lan') {
+      options.lan = true;
     } else if (arg === '-c' || arg === '--card') {
       options.card = args[++i];
     } else if (arg.startsWith('-')) {
@@ -126,6 +132,9 @@ Serve options:
   --open                 Open browser for serve
   --card, -c             Card ID for serve
   --debug                Verbose serve logging
+  --host <addr>          Address to listen on (default: 127.0.0.1, this machine only)
+  --lan                  Listen on all interfaces (0.0.0.0); prints a warning, since
+                         anyone on the network can then load the deck without signing in
 
 Init options:
   --title                Deck title

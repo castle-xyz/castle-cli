@@ -18,7 +18,9 @@ castle init my-deck --title "My Deck"
 castle serve my-deck --open
 ```
 
-`serve` runs in the foreground and prints the local preview URL. After editing project files, reload the active preview:
+`serve` runs in the foreground and prints the local preview URL. It listens on `127.0.0.1` only. To open the preview from another device, such as a phone on the same Wi-Fi, pass `--lan` (or `--host <addr>`); anyone who can reach your machine can then load the deck without signing in, so use it only on a network you trust.
+
+After editing project files, reload the active preview:
 
 ```bash
 castle restart

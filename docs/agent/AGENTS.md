@@ -59,6 +59,7 @@ Split into separate paddle/ball/enemy/HUD blueprints only when the task asks for
 castle init [dir] --title "Game"           # create local deck project
 castle serve [dir]                         # serve local project in foreground
 castle serve [dir] --open                  # serve in foreground and open browser
+castle serve [dir] --lan                   # also listen on the network (0.0.0.0); unauthenticated
 castle docs                                # install/update shared agent docs
 castle edit                                # apply scene edits from JSON on stdin
 castle restart                             # reload active local serve or app scene
@@ -72,7 +73,7 @@ castle get-deck <deck-id> [dir]            # get existing deck
 castle list                                # recent decks
 ```
 
-`serve` chooses an available port. Use `status` or `<deck-dir>/.castle/serve.json`; do not guess ports.
+`serve` listens on `127.0.0.1` by default. Use `--lan` or `--host <addr>` only when the user asks to open the preview from another device. `serve` chooses an available port. Use `status` or `<deck-dir>/.castle/serve.json`; do not guess ports.
 
 `edit`, `restart`, `logs`, `status`, and `screenshot` target the active serve/app socket. Pass no deck path or `--deck` to those commands. Local `serve` marks file changes dirty; run `castle restart` when a batch of edits is complete.
 

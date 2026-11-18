@@ -12,6 +12,13 @@ import { getConfigDir } from '../config.js';
 import { applyLocalEdit } from '../utils/edit.js';
 import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 import { endpointLabel, LOOPBACK_HOST, REGISTRY_SCHEMA_VERSION, type Endpoint } from '../utils/socket.js';
+import {
+  exposedServeWarning,
+  isAllowedHostHeader,
+  localServeUrl,
+  resolveServeBind,
+  type ServeBind,
+} from '../utils/serve-host.js';
 
 const CASTLE_WWW = 'https://castle.xyz';
 const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -32,6 +39,8 @@ interface ServeOptions {
   open?: boolean;
   debug?: boolean;
   detach?: boolean;
+  host?: string;
+  lan?: boolean;
 }
 
 interface CardFile {
@@ -698,7 +707,7 @@ function sendLocalPlayerFile(reqPath: string, res: http.ServerResponse): void {
   res.end(buffer);
 }
 
-async function listen(server: http.Server): Promise<number> {
+async function listen(server: http.Server, host: string): Promise<number> {
   const start = 4321;
   const maxAttempts = 100;
 
@@ -716,7 +725,7 @@ async function listen(server: http.Server): Promise<number> {
         };
         server.once('error', onError);
         server.once('listening', onListening);
-        server.listen(port);
+        server.listen(port, host);
       });
       const address = server.address();
       return typeof address === 'object' && address ? address.port : port;
@@ -766,6 +775,8 @@ function serveChildArgs(deckDir: string, options: ServeOptions): string[] {
   if (options.card) args.push('--card', options.card);
   if (options.open) args.push('--open');
   if (options.debug) args.push('--debug');
+  if (options.host !== undefined) args.push('--host', options.host);
+  if (options.lan) args.push('--lan');
   return args;
 }
 
@@ -823,6 +834,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   }
 
   const debug = !!options.debug;
+  const bind: ServeBind = resolveServeBind(options);
   verifyLocalPlayerBundle();
   if (debug) console.log(`[serve] player bundle: ${LOCAL_PLAYER_DIR}`);
   let deck = readLocalDeck(directory);
@@ -1097,6 +1109,10 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
 
   const server = http.createServer(async (req, res) => {
     try {
+      if (!isAllowedHostHeader(bind, req.headers.host)) {
+        sendText(res, 403, 'Forbidden: serve only answers requests for localhost', 'text/plain; charset=utf-8');
+        return;
+      }
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
       res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
 
@@ -1294,9 +1310,10 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     }
   });
 
-  actualPort = await listen(server);
-  url = `http://localhost:${actualPort}`;
+  actualPort = await listen(server, bind.host);
+  url = localServeUrl(bind, actualPort);
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
+  if (bind.exposed) console.error(exposedServeWarning(bind, actualPort));
   console.log(`Initial card: ${initialCard.cardId}`);
   console.log(`Command endpoint: ${endpointLabel(ipcEndpoint)}`);
   const serveInfo = {
