@@ -69,14 +69,17 @@ async function login(options: { quiet?: boolean } = {}): Promise<string> {
 
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    let user;
     try {
-      const user = await API.pollForCLILogin(pollToken, verifier);
-      setToken(user.token);
-      log(`logged in as ${user.username}`);
-      return user.token;
+      user = await API.pollForCLILogin(pollToken, verifier);
     } catch {
-      // keep polling
+      continue; // keep polling
     }
+    // Outside the poll's catch: a refusal to save the token (unsafe config dir)
+    // must surface instead of polling forever.
+    setToken(user.token);
+    log(`logged in as ${user.username}`);
+    return user.token;
   }
 }
 

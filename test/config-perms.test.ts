@@ -90,3 +90,13 @@ test('reading the token tightens a legacy world-readable file', { skip: !posix }
   assert.equal(mode(file), 0o600);
   assert.equal(mode(home), 0o700);
 });
+
+test('reading through a symlinked config.json tightens the real file', { skip: !posix }, () => {
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const real = path.join(path.dirname(home), 'real-config.json');
+  fs.writeFileSync(real, JSON.stringify({ token: 'linked' }), { mode: 0o644 });
+  fs.chmodSync(real, 0o644);
+  fs.symlinkSync(real, path.join(home, 'config.json'));
+  assert.equal(getToken(), 'linked');
+  assert.equal(mode(real), 0o600);
+});

@@ -48,15 +48,31 @@ function ensurePrivateDir(dir: string): string {
   return realDir;
 }
 
-// Tighten a token file left world-readable by an older CLI, without rewriting it.
-function tightenExistingFile(filePath: string) {
+// Tighten a token file and directory left open by an older CLI, without rewriting
+// the file. Works on what is actually opened: the real directory behind any symlink,
+// and the file through its descriptor, so a symlinked config.json is tightened too.
+function tightenExisting(dir: string, filename: string) {
   if (process.platform === 'win32') return;
+  const uid = process.getuid?.();
+  if (uid === undefined) return;
   try {
-    const stat = fs.lstatSync(filePath);
-    if (stat.isFile() && stat.uid === process.getuid?.() && (stat.mode & 0o077) !== 0) {
-      fs.chmodSync(filePath, CONFIG_FILE_MODE);
+    const realDir = fs.realpathSync(dir);
+    const stat = fs.statSync(realDir);
+    if (stat.isDirectory() && stat.uid === uid && (stat.mode & 0o077) !== 0) {
+      fs.chmodSync(realDir, CONFIG_DIR_MODE);
     }
   } catch {}
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(path.join(dir, filename), fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
+    const stat = fs.fstatSync(fd);
+    if (stat.isFile() && stat.uid === uid && (stat.mode & 0o077) !== 0) {
+      fs.fchmodSync(fd, CONFIG_FILE_MODE);
+    }
+  } catch {
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
 }
 
 // Write via a 0600 temp file and rename, so the token is never readable by other
@@ -91,16 +107,7 @@ function writeConfigFile(filename: string, data: any) {
 }
 
 export function getToken(): string | null {
-  const dir = getConfigDir();
-  tightenExistingFile(path.join(dir, 'config.json'));
-  if (process.platform !== 'win32') {
-    try {
-      const stat = fs.lstatSync(dir);
-      if (stat.isDirectory() && stat.uid === process.getuid?.() && (stat.mode & 0o077) !== 0) {
-        fs.chmodSync(dir, CONFIG_DIR_MODE);
-      }
-    } catch {}
-  }
+  tightenExisting(getConfigDir(), 'config.json');
   const config = readConfigFile('config.json');
   return config?.token ?? null;
 }

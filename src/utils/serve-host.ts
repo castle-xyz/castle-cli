@@ -54,7 +54,10 @@ export function isLoopbackAddress(host: string): boolean {
 export function bindFromAddress(requested: ServeBind, boundAddress: string): ServeBind {
   const ip = canonicalIp(boundAddress);
   const exposed = !(ip && isLoopbackIp(ip));
-  return { host: requested.host, exposed };
+  // A hostname (other than localhost) is replaced by the address it bound, so the
+  // printed URL passes the Host check and names exactly what is listening.
+  const named = !canonicalIp(requested.host) && requested.host.toLowerCase() !== 'localhost';
+  return { host: named && ip ? ip : requested.host, exposed };
 }
 
 // serve binds loopback unless the caller explicitly opts in with --host or --lan.

@@ -72,3 +72,12 @@ test('explicit loopback binds advertise their own address', () => {
   assert.equal(localServeUrl(resolveServeBind({ host: '::1' }), 4321), 'http://[::1]:4321');
   assert.match(exposedServeWarning(resolveServeBind({ lan: true }), 1), /cover save-deck uploads/);
 });
+
+test('a hostname bind advertises the address it bound, which passes the Host check', () => {
+  const bound = bindFromAddress(resolveServeBind({ host: 'workstation' }), '127.0.0.1');
+  const url = localServeUrl(bound, 4321);
+  assert.equal(url, 'http://localhost:4321');
+  assert.equal(isAllowedHostHeader(bound, new URL(url).host), true);
+  const lan = bindFromAddress(resolveServeBind({ host: 'workstation' }), '192.168.1.5');
+  assert.equal(localServeUrl(lan, 4321), 'http://192.168.1.5:4321');
+});
