@@ -14,6 +14,7 @@ import { isProjectCardDir, materializeProjectCard } from '../utils/project.js';
 import { endpointLabel, LOOPBACK_HOST, REGISTRY_SCHEMA_VERSION, type Endpoint } from '../utils/socket.js';
 import {
   exposedServeWarning,
+  bindFromAddress,
   isAllowedHostHeader,
   localServeUrl,
   resolveServeBind,
@@ -804,6 +805,7 @@ async function serveDetached(directory: string, options: ServeOptions): Promise<
     const serveInfo = readJsonIfExists(serveInfoPath);
     if (serveInfo?.url) {
       console.log(`Started serve in background: ${serveInfo.url}`);
+      if (serveInfo.exposed) console.error(exposedServeWarning(resolveServeBind(options), serveInfo.httpPort));
       console.log(`PID: ${serveInfo.pid || child.pid}`);
       console.log(`Logs: ${logPath}`);
       if (serveInfo.host && serveInfo.port) {
@@ -834,7 +836,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   }
 
   const debug = !!options.debug;
-  const bind: ServeBind = resolveServeBind(options);
+  let bind: ServeBind = resolveServeBind(options);
   verifyLocalPlayerBundle();
   if (debug) console.log(`[serve] player bundle: ${LOCAL_PLAYER_DIR}`);
   let deck = readLocalDeck(directory);
@@ -1311,6 +1313,8 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
   });
 
   actualPort = await listen(server, bind.host);
+  const bound = server.address();
+  if (bound && typeof bound === 'object') bind = bindFromAddress(bind, bound.address);
   url = localServeUrl(bind, actualPort);
   console.log(`Serving ${deck.deckId || path.basename(deck.dir)} on ${url}`);
   if (bind.exposed) console.error(exposedServeWarning(bind, actualPort));
@@ -1323,6 +1327,7 @@ export async function serve(directory = '.', options: ServeOptions = {}): Promis
     deckDir: deck.dir,
     url,
     httpPort: actualPort,
+    exposed: bind.exposed,
     pid: process.pid,
     mode: 'serve',
   };

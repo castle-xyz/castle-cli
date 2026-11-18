@@ -49,3 +49,44 @@ test('existing permissive file and directory are tightened on the next write', {
   assert.equal(mode(file), 0o600);
   assert.deepEqual(fs.readdirSync(home), ['config.json'], 'no temp files left behind');
 });
+
+test('the file is replaced, not rewritten in place', { skip: !posix }, () => {
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const file = path.join(home, 'config.json');
+  fs.writeFileSync(file, '{}', { mode: 0o644 });
+  const before = fs.statSync(file).ino;
+  setToken('test-token-c');
+  assert.notEqual(fs.statSync(file).ino, before);
+  assert.equal(mode(file), 0o600);
+});
+
+test('a symlinked config dir resolves to its private target', { skip: !posix }, () => {
+  const target = path.join(path.dirname(home), 'dotfiles-castle');
+  fs.mkdirSync(target, { recursive: true, mode: 0o755 });
+  fs.chmodSync(target, 0o755);
+  fs.symlinkSync(target, home);
+  setToken('test-token-d');
+  assert.equal(mode(target), 0o700, 'owned target is tightened');
+  assert.equal(mode(path.join(target, 'config.json')), 0o600);
+  assert.equal(fs.lstatSync(home).isSymbolicLink(), true, 'symlink kept');
+});
+
+test('refuses to write into a directory others can modify', { skip: !posix || process.getuid?.() === 0 }, () => {
+  // /tmp is root-owned and world-writable (1777): we cannot tighten it, so the
+  // token must not be written there.
+  const shared = fs.realpathSync('/tmp');
+  assert.notEqual(fs.statSync(shared).mode & 0o022, 0);
+  process.env.CASTLE_CLI_HOME = shared;
+  assert.throws(() => setToken('test-token-e'), /Refusing to write credentials/);
+});
+
+test('reading the token tightens a legacy world-readable file', { skip: !posix }, () => {
+  fs.mkdirSync(home, { recursive: true, mode: 0o755 });
+  fs.chmodSync(home, 0o755);
+  const file = path.join(home, 'config.json');
+  fs.writeFileSync(file, JSON.stringify({ token: 'legacy' }), { mode: 0o644 });
+  fs.chmodSync(file, 0o644);
+  assert.equal(getToken(), 'legacy');
+  assert.equal(mode(file), 0o600);
+  assert.equal(mode(home), 0o700);
+});

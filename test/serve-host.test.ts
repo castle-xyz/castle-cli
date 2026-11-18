@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bindFromAddress,
   exposedServeWarning,
   isAllowedHostHeader,
   isLoopbackAddress,
@@ -19,6 +20,8 @@ test('--lan and non-loopback --host are exposed; loopback --host is not', () => 
   assert.deepEqual(resolveServeBind({ host: '[::]' }), { host: '::', exposed: true });
   assert.deepEqual(resolveServeBind({ host: '::1' }), { host: '::1', exposed: false });
   assert.deepEqual(resolveServeBind({ host: 'localhost' }), { host: 'localhost', exposed: false });
+  assert.deepEqual(resolveServeBind({ host: '0:0:0:0:0:0:0:1' }), { host: '::1', exposed: false });
+  assert.deepEqual(resolveServeBind({ host: '::ffff:127.0.0.1' }).exposed, false);
   assert.throws(() => resolveServeBind({ host: '0.0.0.0', lan: true }));
   assert.throws(() => resolveServeBind({ host: ' ' }));
 });
@@ -53,4 +56,19 @@ test('printed URLs and warning', () => {
   assert.match(warning, /WARNING/);
   assert.match(warning, /without signing in/);
   assert.match(warning, /http:\/\/192\.168\.1\.5:4321/);
+});
+
+test('the bound address decides exposure, not the requested spelling', () => {
+  const requested = resolveServeBind({ host: 'preview.localhost' });
+  assert.equal(bindFromAddress(requested, '127.0.0.1').exposed, false);
+  assert.equal(bindFromAddress(requested, '192.168.1.5').exposed, true);
+  assert.equal(bindFromAddress(resolveServeBind({}), '::1').exposed, false);
+  assert.equal(bindFromAddress(resolveServeBind({ lan: true }), '0.0.0.0').exposed, true);
+  assert.equal(bindFromAddress(resolveServeBind({ host: '::' }), '::').exposed, true);
+});
+
+test('explicit loopback binds advertise their own address', () => {
+  assert.equal(localServeUrl(resolveServeBind({ host: '127.0.0.2' }), 4321), 'http://127.0.0.2:4321');
+  assert.equal(localServeUrl(resolveServeBind({ host: '::1' }), 4321), 'http://[::1]:4321');
+  assert.match(exposedServeWarning(resolveServeBind({ lan: true }), 1), /cover save-deck uploads/);
 });
