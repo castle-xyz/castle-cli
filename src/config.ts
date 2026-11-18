@@ -48,9 +48,15 @@ function ensurePrivateDir(dir: string): string {
   return realDir;
 }
 
+const EXPOSED_TOKEN_ADVICE =
+  'Run `chmod 600` on it. That cannot recall a copy someone already made: if other users ' +
+  'may have read it, delete the file and run a castle command to log in for a new token.';
+
 // Tighten a token file and directory left open by an older CLI, without rewriting
-// the file. Works on what is actually opened: the real directory behind any symlink,
-// and the file through its descriptor, so a symlinked config.json is tightened too.
+// the file. Modes only ever change on the real config directory (when it is ours)
+// and on a regular config.json opened without following a symlink, through its
+// descriptor. A symlinked config.json is never chmodded (its target could be any
+// file); if it is readable by others, the user is warned instead.
 function tightenExisting(dir: string, filename: string) {
   if (process.platform === 'win32') return;
   const uid = process.getuid?.();
@@ -62,9 +68,11 @@ function tightenExisting(dir: string, filename: string) {
       fs.chmodSync(realDir, CONFIG_DIR_MODE);
     }
   } catch {}
+  const filePath = path.join(dir, filename);
+  const warn = () => console.error(`Warning: ${filePath} holds your Castle token and other users can read it. ${EXPOSED_TOKEN_ADVICE}`);
   let fd: number | undefined;
   try {
-    fd = fs.openSync(path.join(dir, filename), fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
+    fd = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | (fs.constants.O_NONBLOCK ?? 0));
     const stat = fs.fstatSync(fd);
     if (stat.isFile() && (stat.mode & 0o077) !== 0) {
       if (stat.uid === uid) {
@@ -72,14 +80,15 @@ function tightenExisting(dir: string, filename: string) {
           fs.fchmodSync(fd, CONFIG_FILE_MODE);
         } catch {}
       }
-      if ((fs.fstatSync(fd).mode & 0o077) !== 0) {
-        console.error(
-          `Warning: ${path.join(dir, filename)} holds your Castle token and other users can read it. ` +
-            'Run `chmod 600` on it; on a shared machine, treat the token as exposed and log in again.',
-        );
-      }
+      if ((fs.fstatSync(fd).mode & 0o077) !== 0) warn();
     }
-  } catch {
+  } catch (error: any) {
+    if (error?.code === 'ELOOP' || error?.code === 'EMLINK') {
+      try {
+        const target = fs.statSync(filePath);
+        if (target.isFile() && (target.mode & 0o077) !== 0) warn();
+      } catch {}
+    }
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
