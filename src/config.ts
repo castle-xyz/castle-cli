@@ -66,8 +66,18 @@ function tightenExisting(dir: string, filename: string) {
   try {
     fd = fs.openSync(path.join(dir, filename), fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0));
     const stat = fs.fstatSync(fd);
-    if (stat.isFile() && stat.uid === uid && (stat.mode & 0o077) !== 0) {
-      fs.fchmodSync(fd, CONFIG_FILE_MODE);
+    if (stat.isFile() && (stat.mode & 0o077) !== 0) {
+      if (stat.uid === uid) {
+        try {
+          fs.fchmodSync(fd, CONFIG_FILE_MODE);
+        } catch {}
+      }
+      if ((fs.fstatSync(fd).mode & 0o077) !== 0) {
+        console.error(
+          `Warning: ${path.join(dir, filename)} holds your Castle token and other users can read it. ` +
+            'Run `chmod 600` on it; on a shared machine, treat the token as exposed and log in again.',
+        );
+      }
     }
   } catch {
   } finally {
